@@ -494,7 +494,7 @@ function mProject(it,track){let f=it.fields||{},u=it.createdBy?.user||{},email=(
  if(stage==="pending"&&ap==="approved")stage="approved";if(ap==="rejected"&&!["closed","rejected"].includes(stage))stage="rejected";
  let ws=mF(f,"winLoss"),out=t.outcome||(ws==="WIN"?"won":ws==="LOSS"?"lost":"open"),u2=sr.urgency||"";
  let p={id:"sp-"+id,listItemId:String(id),listItemUrl:it.webUrl,code:mF(f,"code")||"#"+id,name:mF(f,"name")||mF(f,"code")||"#"+id,client:mF(f,"client")||"—",accountId:"acc-"+(email||"unknown"),engineer:t.engineer||"",stage,priority:t.priority||(u2.includes("มาก")?"urgent":u2.includes("ด่วน")?"high":"normal"),due:t.due||"",followup:t.followup||(it.createdDateTime||"").slice(0,10),
-  waitingOn:t.waitingOn||(stage==="pending"?"ผู้อนุมัติ":stage==="approved"?"Engineer":"—"),nextAction:t.nextAction||(stage==="pending"?"รออนุมัติใน Microsoft Lists":stage==="approved"?"มอบหมาย Engineer และสร้าง Private Channel":""),
+  waitingOn:t.waitingOn||(stage==="pending"?"ผู้อนุมัติ":stage==="approved"?"Engineer":"—"),nextAction:t.nextAction||(stage==="pending"?(ap==="draft"?"ยังไม่ส่งขออนุมัติ — ผู้อนุมัติกดพิจารณาจากเว็บได้เลย":"รอผู้อนุมัติตอบใน Microsoft Lists / เว็บ"):stage==="approved"?"มอบหมาย Engineer และสร้าง Private Channel":""),
   description:sr.notes,serviceRequest:sr,outcome:out,channelUrl:t.channelUrl||"",channelId:t.channelId||"",teamId:t.teamId||"",syncStatus:t.sync?.lists==="success"?"synced":"local",summary:t.summary||"",salesSummary:t.salesSummary,salesUpdatedAt:t.salesUpdatedAt,closeRequestedAt:t.closeRequestedAt,closeRequestedBy:t.closeRequestedBy,deliveredAt:t.deliveredAt,closedAt:t.closedAt,
   approvalStatus:ap==="draft"?"pending":ap,approvalVerifiedAt:ap==="approved"||ap==="rejected"?it.lastModifiedDateTime:void 0,permissionsVerifiedAt:t.permissionsVerifiedAt,listApproval:ap,
   createdAt:it.createdDateTime,updatedAt:t.updatedAt||it.lastModifiedDateTime,createdBy:(u.displayName||"")+(email?" · "+email:""),version:t.version||1,demo:!1,hasAttachments:!!(it.fields||{}).Attachments};
@@ -554,22 +554,42 @@ async function mSubmit(b){let d=PV.projects.find(x=>x.id===b.projectId&&!x.demo)
  put("code",d.code);put("name",d.name===d.code?"":d.name);put("client",d.client==="—"?"":d.client);put("source",sr.source);put("brands",sr.brands);put("workTypes",sr.workTypes);put("notes",sr.notes);put("urgency",sr.urgency);put("closingChance",sr.closingChance);put("assignedAt",sr.assignedAt);put("estimatedValue",sr.estimatedValue);put("latest","In Progress");put("winLoss","Process");if(c.updatedAt)f[c.updatedAt.name]=new Date().toISOString();
  let it=await G(`/sites/${M.sid}/lists/${M.lid}/items`,{method:"POST",json:{fields:f}}),id=it.id,fails=[];
  for(let a of sr.attachments||[]){let file=PV_FILES.get(a.id);if(!file){fails.push(a.name);continue}try{await SP(`/web/lists(guid'${M.lid}')/items(${id})/AttachmentFiles/add(FileName='${encodeURIComponent(a.name.replace(/'/g,"''"))}')`,{method:"POST",body:await file.arrayBuffer()})}catch(e){fails.push(a.name+" ("+e.message+")")}}
- let p={...d,id:"sp-"+id,listItemId:String(id),version:1,updatedAt:pvNow()},acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่ง Service Request เข้า All Projects List",note:"รายการ #"+id+" · รออนุมัติใน Microsoft Lists"+(fails.length?" · ไฟล์แนบไม่สำเร็จ: "+fails.join(", "):""),createdAt:pvNow()}];
+ let apr=mApprovers(),reqNote="";if(apr.length){try{await spApprovalRequest({listItemId:String(id),name:d.name,code:d.code},apr);reqNote=" · ส่งคำขออนุมัติถึง "+apr.join(", ")}catch(e){reqNote=" · ส่งคำขออนุมัติอัตโนมัติไม่สำเร็จ: "+e.message}}
+ let p={...d,id:"sp-"+id,listItemId:String(id),version:1,updatedAt:pvNow()},acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่ง Service Request เข้า All Projects List",note:"รายการ #"+id+" · รออนุมัติใน Microsoft Lists"+reqNote+(fails.length?" · ไฟล์แนบไม่สำเร็จ: "+fails.join(", "):""),createdAt:pvNow()}];
  try{await mSaveTrack(p,acts,{lists:"success",teams:"blocked",listsNote:"สร้างรายการ #"+id+(sr.attachments?.length?" · ไฟล์แนบ "+(sr.attachments.length-fails.length)+"/"+sr.attachments.length:""),teamsNote:"รออนุมัติก่อนสร้าง Channel",updatedAt:pvNow()})}catch(e){}
  PV.projects=PV.projects.filter(x=>x.id!==d.id);pvSave();await mLoad(!0);let st=await mState();
  return{project:st.projects.find(x=>x.id==="sp-"+id)||p,sync:{lists:"success",teams:fails.length?"failed":"success"}}}
+/* ===== Microsoft Lists Approvals (SP.Approvals — API เดียวกับที่หน้า Lists ใช้) ===== */
+var spQ=s=>"'"+String(s).replace(/'/g,"''")+"'";
+async function spApprovalGet(id){try{let r=await SP(`/SP.Approvals.GetItemRequest?listId=${spQ(M.lid)}&itemId=${spQ(id)}&url=''&version='1'`);return r&&r.Id?r:null}catch(e){if(e.status===404||e.status===400)return null;throw e}}
+async function spItemVersion(id){let j=await SP(`/web/lists(guid'${M.lid}')/items(${id})?$select=owshiddenversion`);return String(j.owshiddenversion||1)}
+function mApprovers(){let s=M.cache?.settings||{};return[...new Set((s.approverEmails||[]).map(e=>e.toLowerCase()))]}
+async function spApprovalRequest(p,approvers){let v=await spItemVersion(p.listItemId);
+ await SP("/SP.Approvals.CreateItemRequest",{method:"POST",json:{creationInfo:{listId:M.lid,itemId:Number(p.listItemId),url:"",version:v,approvers:approvers.join(","),title:p.name||p.code,details:"",awaitAll:!1}}});return v}
+async function mApprovalStatus(id){let it=await G(`/sites/${M.sid}/lists/${M.lid}/items/${id}?$expand=fields($select=${M.cols.approval?.name||"_ApprovalStatus"})`);return M_APPROVAL[it.fields?.[M.cols.approval?.name||"_ApprovalStatus"]]||"draft"}
+async function spApprovalRespond(p,decision,comments){let id=p.listItemId,req=await spApprovalGet(id),v="1";
+ if(!req||!(req.Status===1||req.AllowRespond)){v=await spApprovalRequest(p,[M.profile.email]);req=await spApprovalGet(id)}
+ if(!req)throw new PvErr("สร้างคำขออนุมัติใน Microsoft Lists ไม่สำเร็จ",502);
+ if(!req.AllowRespond)throw new PvErr("บัญชีนี้ไม่ใช่ผู้อนุมัติของคำขอนี้ใน Microsoft Lists",403);
+ let fn=decision==="approved"?"ApproveItemRequest":"RejectItemRequest",body=ver=>({listId:M.lid,itemId:Number(id),url:"",version:ver,approvalId:req.Id,comments:comments||""});
+ try{await SP("/SP.Approvals."+fn,{method:"POST",json:body(v)})}catch(e){let v2=await spItemVersion(id);if(v2===v)throw e;await SP("/SP.Approvals."+fn,{method:"POST",json:body(v2)})}
+ for(let i=0;i<6;i++){let s=await mApprovalStatus(id);if(s===decision)return s;await new Promise(z=>setTimeout(z,1200))}
+ throw new PvErr("ส่งผลอนุมัติแล้ว แต่ Microsoft Lists ยังไม่ยืนยันสถานะ — กดรีเฟรชอีกครั้งในอีกสักครู่",409)}
 /* ใช้กฎ workflow ชุดเดียวกับโหมดจำลอง แล้วบันทึกลง Microsoft 365 */
 async function mRun(action,b){await mLoad(!0);let st=await mState(),p0=st.projects.find(x=>x.id===b.projectId);if(!p0)throw new PvErr("ไม่พบโครงการ หรือไม่มีสิทธิ์เข้าถึง",404);
  let role=M.role;if(role==="viewer")throw new PvErr("บัญชีนี้ดูได้อย่างเดียว",403);
  if(role==="sales"&&!["sales_response","note"].includes(action))throw new PvErr("เซลส์อัปเดตได้เฉพาะผลลูกค้าและบันทึกติดตาม",403);
- if(action==="update"&&p0.stage==="pending"&&["approved","rejected"].includes(b.stage)&&p0.listApproval!==b.stage)throw new PvErr(p0.listApproval==="approved"?"ผลใน Microsoft Lists คืออนุมัติแล้ว":"การอนุมัติทำใน Microsoft Lists (Approvals) — เปิดรายการ #"+p0.listItemId+" กด Approve/Reject แล้วกลับมากดรีเฟรช",409);
+ let approvalNote="";
+ if(action==="update"&&p0.stage==="pending"&&["approved","rejected"].includes(b.stage)&&p0.listApproval!==b.stage){if(role!=="admin")throw new PvErr("เฉพาะผู้อนุมัติ",403);
+  await spApprovalRespond(p0,b.stage,b.stage==="rejected"?(b.nextAction||""):"");p0.listApproval=b.stage;p0.approvalStatus=b.stage;approvalNote="Microsoft Lists ยืนยัน: "+(b.stage==="approved"?"Approved":"Rejected")+" โดย "+M.profile.name;
+  if(!mApprovers().includes(M.profile.email.toLowerCase()))try{let s=JSON.parse(JSON.stringify(M.cache.settings));s.approverEmails=[...mApprovers(),M.profile.email.toLowerCase()];await mSaveSettings(s)}catch(e){}}
  let save=PV,chan=null;PV={...PV,session:st.session,projects:[JSON.parse(JSON.stringify(p0))],activities:[],syncJobs:[],microsoftObservations:{},accounts:st.accounts};
  let r,np,acts;try{
   if(action==="channel"){if(!["admin","engineer"].includes(role))throw new PvErr("เฉพาะ Engineer / ผู้อนุมัติ",403);if(p0.listApproval!=="approved")throw new PvErr("ต้องอนุมัติใน Microsoft Lists ก่อนสร้าง Channel",409);
    chan=await mChannel(p0,st.accounts.find(a=>a.id===p0.accountId));let p=PV.projects[0];Object.assign(p,{channelId:chan.channelId,channelUrl:chan.channelUrl,teamId:chan.teamId,permissionsVerifiedAt:chan.verified?pvNow():void 0});pvTouch(p);pvLog(p,"สร้าง Private Channel "+p.code,chan.note);r={project:p}}
   else if(action==="sync"){r={project:PV.projects[0]}}
   else r=PV_ACT[action](b);
-  np=PV.projects[0];acts=PV.activities}finally{PV=save}
+  np=PV.projects[0];acts=PV.activities;if(approvalNote&&acts[0])acts[0].note=approvalNote+(acts[0].note?" · "+acts[0].note:"")}finally{PV=save}
  let sync={lists:"success",teams:"blocked",listsNote:"",teamsNote:"",updatedAt:pvNow()};
  try{sync.listsNote=await mWriteBack(np)}catch(e){sync.lists="failed";sync.listsNote="เขียนกลับ List ไม่สำเร็จ: "+e.message}
  if(action!=="note"||np.channelId){try{Object.assign(sync,await mTeamsPost(np,acts[0]?.action||"อัปเดต",acts[0]?.note))}catch(e){sync.teams="failed";sync.teamsNote="ส่งข้อความ Teams ไม่สำเร็จ: "+e.message}}
@@ -629,7 +649,7 @@ async function boot(){
  M.profile=pr;M.isApprover=(CFG.approverHashes||[]).includes(b64u(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pr.email.toLowerCase()))));gate("busy","กำลังโหลด All Projects List…");
  try{await mToken("graph");await mInit();await mLoad(!0)}catch(e){console.error(e);gate("login","เชื่อมต่อ SharePoint ไม่สำเร็จ: "+e.message);return}
  PV_KEY="9d-ops-v13-"+pr.oid;PV=pvLoad();PV.session={userId:pr.oid,name:pr.name,email:pr.email,role:"sales"};pvSave();
- PV_PROFILE.name=pr.name;PV_PROFILE.email=pr.email;M.role=mRole(pr.email);
+ PV_PROFILE.name=pr.name;PV_PROFILE.email=pr.email;M.role=mRole(pr.email);if(M.isApprover&&M.tl&&!mApprovers().includes(pr.email)){try{let s=JSON.parse(JSON.stringify(M.cache.settings));s.approverEmails=[...mApprovers(),pr.email];await mSaveSettings(s)}catch(e){console.warn(e)}}
  document.getElementById("gate").style.display="none";
  let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> Microsoft 365 · ${mEsc(pr.name)} (${mEsc(pr.email)}) · ${({admin:"ผู้อนุมัติ / Admin",engineer:"Engineer",sales:"Sales",viewer:"Viewer"})[M.role]}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}))}
