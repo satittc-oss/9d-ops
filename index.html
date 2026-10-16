@@ -529,7 +529,7 @@ async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(
  return{syncJobs:jobs,session,accounts:[...Object.values(accMap),],projects:all,activities:acts.slice(0,400),members:own?members.filter(m=>m.role!=="sales"||m.email.toLowerCase()===M.profile.email.toLowerCase()):members,settings:{listUrl:M.listWebUrl,...s.settings},bridgeConfigured:!0,samplePreview:!1,microsoftObservations:obs}}
 /* --- Writes --- */
 async function mSaveTrack(p,acts,syncInfo){if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
- let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","autoReqDone","autoReqAt","autoReqErr"];
+ let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","autoReqDone","autoReqAt","autoReqErr"];
  let pl={};keep.forEach(k=>{if(p[k]!==void 0)pl[k]=p[k]});pl.activities=[...acts,...(old.activities||[])].slice(0,120);pl.sync=syncInfo||old.sync;
  let body={Title:p.code,ProjectItemId:id,TrackVersion:p.version,Payload:JSON.stringify(pl)};
  if(old.itemId)await G(`/sites/${M.sid}/lists/${M.tl}/items/${old.itemId}/fields`,{method:"PATCH",json:body});else await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:body}})}
@@ -649,7 +649,7 @@ async function mRun(action,b){await mLoad(!0);let st=await mState(),p0=st.projec
  let save=PV,chan=null;PV={...PV,session:st.session,projects:[JSON.parse(JSON.stringify(p0))],activities:[],syncJobs:[],microsoftObservations:{},accounts:st.accounts};
  let r,np,acts;try{
   if(action==="channel"){if(!["admin","engineer"].includes(role))throw new PvErr("เฉพาะ Engineer / ผู้อนุมัติ",403);if(p0.listApproval!=="approved")throw new PvErr("ต้องอนุมัติใน Microsoft Lists ก่อนสร้าง Channel",409);
-   let acc0=st.accounts.find(a=>a.id===p0.accountId);chan=await mChannel(p0,acc0);if(chan.created){try{let x=await mChannelSetup(p0,chan,acc0);if(x)chan.note+=" · "+x}catch(e){chan.note+=" · ตั้งค่า Channel เพิ่มเติมไม่สำเร็จ: "+e.message}}let p=PV.projects[0];Object.assign(p,{channelId:chan.channelId,channelUrl:chan.channelUrl,teamId:chan.teamId,permissionsVerifiedAt:chan.verified?pvNow():void 0});pvTouch(p);pvLog(p,(b.auto?"สร้าง Private Channel อัตโนมัติ ":"สร้าง Private Channel ")+p.code,chan.note);p.autoChanErr="";r={project:p}}
+   let acc0=st.accounts.find(a=>a.id===p0.accountId);chan=await mChannel(p0,acc0);if(chan.created){chan.setupAt=pvNow();try{let x=await mChannelSetup(p0,chan,acc0);if(x)chan.note+=" · "+x}catch(e){chan.note+=" · ตั้งค่า Channel เพิ่มเติมไม่สำเร็จ: "+e.message}}let p=PV.projects[0];Object.assign(p,{channelId:chan.channelId,channelUrl:chan.channelUrl,teamId:chan.teamId,permissionsVerifiedAt:chan.verified?pvNow():void 0,setupAt:chan.setupAt||p.setupAt});pvTouch(p);pvLog(p,(b.auto?"สร้าง Private Channel อัตโนมัติ ":"สร้าง Private Channel ")+p.code,chan.note);p.autoChanErr="";r={project:p}}
   else if(action==="sync"){r={project:PV.projects[0]}}
   else r=PV_ACT[action](b);
   np=PV.projects[0];acts=PV.activities;if(approvalNote&&acts[0])acts[0].note=approvalNote+(acts[0].note?" · "+acts[0].note:"")}finally{PV=save}
@@ -668,7 +668,18 @@ async function mAutoChannels(){if(M.role==="sales"||M.role==="viewer"||M.autoBus
  let since=new Date(CFG.autoChannelSince||"2026-10-16T00:00:00+07:00").toISOString();await mLoad(!0);let st=await mState(),tr=M.cache.track;
  let todo=st.projects.filter(p=>String(p.id).startsWith("sp-")&&p.listApproval==="approved"&&!p.channelId&&!TS.channels[p.id]&&!(TS.all||[]).some(x=>x.pid===p.id)&&!["closed","rejected"].includes(p.stage)&&!/finish|loss/i.test(p.listLatest||"")&&!/win|loss/i.test(p.listWinLoss||"")&&(p.createdAt||"")>=since)
   .filter(p=>{let t=tr[Number(p.listItemId)];return!(t?.autoChanAt&&t.autoChanErr&&Date.now()-Date.parse(t.autoChanAt)<36e5)}).slice(0,5);
- for(let p of todo){let r=await mAutoChannel(p.id);done.push({code:p.code,...r})}}finally{M.autoBusy=!1}return done}
+ for(let p of todo){let r=await mAutoChannel(p.id);done.push({code:p.code,...r})}
+ try{await mSetupCatchUp(since)}catch(e){console.warn("[9D] setup catch-up",e)}}finally{M.autoBusy=!1}return done}
+/* Channel ที่เว็บสร้างแต่ยังไม่ได้โพสต์ข้อความเปิดงาน @แท็ก / คัดลอกไฟล์แนบ (เช่น สร้างจากหน้าเว็บเวอร์ชันเก่าที่ยังไม่ได้รีเฟรช) → ทำย้อนหลังครั้งเดียว ครั้งละไม่เกิน 3 งาน */
+async function mSetupCatchUp(since){await mLoad(!0);let st=await mState(),tr=M.cache.track,n=0;
+ for(let p of st.projects){if(n>=3)break;if(!String(p.id).startsWith("sp-")||!p.channelId||!p.teamId||(p.createdAt||"")<since)continue;let t=tr[Number(p.listItemId)]||{};if(t.setupAt)continue;
+  let mk=(st.activities||[]).find(a=>a.projectId===p.id&&/^สร้าง Private Channel/.test(a.action||"")&&/^สร้าง Channel /.test(a.note||""));if(!mk)continue;
+  let msgs=[];try{msgs=(await mHttp(`${M_GRAPH}/teams/${p.teamId}/channels/${p.channelId}/messages?$top=50`,{},"teams")).value||[]}catch(e){continue}
+  let has=msgs.some(m=>/\[9D\] เปิดงาน/.test(m.body?.content||""));n++;
+  let acc=st.accounts.find(a=>a.id===p.accountId),note="";
+  if(!has){try{note=await mChannelSetup(p,{teamId:p.teamId,channelId:p.channelId},acc,{name:mk.actor,email:Object.values(CFG.engineers).find(e=>mNorm(e.split("@")[0])===mNorm(String(mk.actor).split(" ")[0]))||""})}catch(e){note="ไม่สำเร็จ: "+e.message}}
+  await mSaveTrack({...p,setupAt:pvNow()},has?[]:[{id:"act-"+pvUid(),actor:M.profile.name,action:"โพสต์ข้อความเปิดงาน @แท็ก ย้อนหลัง",note,createdAt:pvNow()}]);
+  if(!has&&typeof mToast==="function")mToast(p.code+" · โพสต์ข้อความเปิดงานใน Channel ย้อนหลัง: "+note)}}
 async function mAdmin(action,b){if(M.role!=="admin")throw new PvErr("เฉพาะผู้ดูแลระบบ",403);await mLoad(!0);let s=JSON.parse(JSON.stringify(M.cache.settings));s.accounts=s.accounts||{};s.members=s.members||[];s.settings=s.settings||{};
  if(action==="account"){let e=pvTxt(b.email,200,"อีเมล",!0).toLowerCase();if(b.id&&b.id!=="acc-"+e){let old=b.id.replace(/^acc-/,"");delete s.accounts[old]}s.accounts[e]={name:pvTxt(b.name,100,"ชื่อ Account",!0),teamId:pvTxt(b.teamId,100,"Team ID"),color:b.color||"blue"}}
  else if(action==="member"){let e=pvTxt(b.email,200,"อีเมล",!0).toLowerCase(),r=["admin","engineer","sales","viewer"].includes(b.role)?b.role:"viewer";s.members=s.members.filter(m=>m.email.toLowerCase()!==e);s.members.push({userId:"invited:"+e,name:pvTxt(b.name,100,"ชื่อ",!0),email:e,role:r})}
@@ -752,18 +763,19 @@ async function mUploadToDrive(drive,folderId,name,blob){name=String(name).replac
  if(blob.size<=4e6){await mHttp(`${M_GRAPH}${path}/content?@microsoft.graph.conflictBehavior=rename`,{method:"PUT",body:blob,headers:{"Content-Type":blob.type||"application/octet-stream"}});return}
  let ss=await G(`${path}/createUploadSession`,{method:"POST",json:{item:{"@microsoft.graph.conflictBehavior":"rename"}}}),size=blob.size,step=3276800,pos=0;
  while(pos<size){let end=Math.min(pos+step,size),r=await fetch(ss.uploadUrl,{method:"PUT",headers:{"Content-Range":`bytes ${pos}-${end-1}/${size}`},body:blob.slice(pos,end)});if(!r.ok)throw new Error("อัปโหลดไม่สำเร็จ (HTTP "+r.status+")");pos=end}}
-async function mChannelSetup(p,ch,acc){let notes=[],copied=[],files=[];
+async function mChannelSetup(p,ch,acc,creator){let notes=[],copied=[],files=[];if(!ch.members)try{ch.members=(await G(`/teams/${ch.teamId}/channels/${ch.channelId}/members`)).value||[]}catch(e){ch.members=[]}
  try{files=(await SP(`/web/lists(guid'${M.lid}')/items(${p.listItemId})/AttachmentFiles`)).value||[]}catch(e){notes.push("อ่านไฟล์แนบไม่สำเร็จ: "+e.message)}
  if(files.length){let folder=null;for(let i=0;i<12&&!folder;i++){try{folder=await G(`/teams/${ch.teamId}/channels/${ch.channelId}/filesFolder`)}catch(e){await mWaitMs(5e3)}}
   if(!folder?.parentReference?.driveId)notes.push("โฟลเดอร์ไฟล์ของ Channel ยังไม่พร้อม — ยังไม่ได้คัดลอกไฟล์แนบ "+files.length+" ไฟล์");
   else for(let f of files){try{let rel=String(f.ServerRelativeUrl||"").split("/").map(x=>encodeURIComponent(x).replace(/'/g,"''")).join("/");
    let r=await SP(`/web/GetFileByServerRelativePath(decodedurl='${rel}')/$value`,{raw:1}),blob=await r.blob();await mUploadToDrive(folder.parentReference.driveId,folder.id,f.FileName,blob);copied.push(f.FileName)}catch(e){notes.push("คัดลอก "+f.FileName+" ไม่สำเร็จ: "+e.message)}}}
  if(copied.length)notes.unshift("คัดลอกไฟล์แนบ "+copied.length+" ไฟล์ไปที่ Files ของ Channel");
- let me=M.profile,cur=ch.members||[],ae=(acc?.email||"").toLowerCase(),sm=cur.find(m=>(m.email||"").toLowerCase()===ae),sr=p.serviceRequest||{};
- let ments=[{id:0,mentionText:me.name,mentioned:{user:{id:me.oid,displayName:me.name,userIdentityType:"aadUser"}}}];
- if(sm?.userId&&sm.userId!==me.oid){let nm=sm.displayName||acc?.name||ae;ments.push({id:1,mentionText:nm,mentioned:{user:{id:sm.userId,displayName:nm,userIdentityType:"aadUser"}}})}
+ let cur=ch.members||[],ce=String(creator?.email||"").toLowerCase(),cm=creator?cur.find(m=>ce&&(m.email||"").toLowerCase()===ce||mNorm(m.displayName)===mNorm(creator.name)):null,me=creator?{name:cm?.displayName||creator.name,oid:cm?.userId||""}:M.profile,ae=(acc?.email||"").toLowerCase(),sm=cur.find(m=>(m.email||"").toLowerCase()===ae),sr=p.serviceRequest||{};
+ let ments=me.oid?[{id:0,mentionText:me.name,mentioned:{user:{id:me.oid,displayName:me.name,userIdentityType:"aadUser"}}}]:[];
+ if(sm?.userId&&sm.userId!==me.oid){let nm=sm.displayName||acc?.name||ae;ments.push({id:ments.length?1:0,mentionText:nm,mentioned:{user:{id:sm.userId,displayName:nm,userIdentityType:"aadUser"}}})}
+ let cM=me.oid?ments.find(m=>m.mentioned.user.id===me.oid):null,sM=ments.find(m=>m!==cM);
  let html=`<p><b>[9D] เปิดงาน ${mEsc(p.code)}${p.name&&p.name!==p.code?" · "+mEsc(p.name):""}</b></p>`+
-  `<p>สร้าง Channel โดย <at id="0">${mEsc(me.name)}</at>${ments[1]?` · ผู้ขอ (Sales) <at id="1">${mEsc(ments[1].mentionText)}</at>`:(acc?.name?" · ผู้ขอ (Sales) "+mEsc(acc.name):"")}</p>`+
+  `<p>สร้าง Channel โดย ${cM?`<at id="${cM.id}">${mEsc(me.name)}</at>`:mEsc(me.name)}${sM?` · ผู้ขอ (Sales) <at id="${sM.id}">${mEsc(sM.mentionText)}</at>`:(acc?.name?" · ผู้ขอ (Sales) "+mEsc(acc.name):"")}</p>`+
   `<p>ลูกค้า: ${mEsc(p.client||"—")}${(sr.brands||[]).length?" · Brand: "+mEsc(sr.brands.join(", ")):""}${(sr.workTypes||[]).length?" · งาน: "+mEsc(sr.workTypes.join(", ")):""}${sr.urgency?" · ความเร่งด่วน: "+mEsc(sr.urgency):""}</p>`+
   (sr.notes?`<p>รายละเอียด: ${mEsc(sr.notes).slice(0,800)}</p>`:"")+
   (copied.length?`<p>ไฟล์แนบจาก Service Request (${copied.length}): ${copied.map(mEsc).join(", ")} — อยู่ในแท็บ Files ของ Channel นี้</p>`:"")+
@@ -781,6 +793,7 @@ window.fetch=async(e,a={})=>{let u=String(e),m=(a.method||"GET").toUpperCase(),J
   if(act==="seed")return J({ok:!0});
   if(["account","member","settings"].includes(act))return J(await mAdmin(act,b));
   if(act==="create"||(isLocal(b.projectId)&&!(act==="submit"&&!String(b.projectId).startsWith("demo-")))){let f=PV_ACT[act];if(!f)throw new PvErr("ไม่รองรับคำสั่งนี้");let snap=JSON.stringify(PV);try{let r=f(b);pvSave();return J(r)}catch(x){PV=JSON.parse(snap);throw x}}
+  if(["submit","decide","channel"].includes(act)){let nv=await mVerNew();if(nv)throw new PvErr("หน้าเว็บนี้เป็นเวอร์ชันเก่า ("+M_VER+") มีเวอร์ชันใหม่ "+nv+" แล้ว — กดรีเฟรช (Cmd+Shift+R) ก่อนทำรายการ",409)}
   if(act==="submit")return J(await mSubmit(b));
   if(act==="request_approval")return J(await mRequestApproval(b));if(act==="decide")return J(await mDecide(b));
   if(!PV_ACT[act]&&!["channel","sync"].includes(act))throw new PvErr("ไม่รองรับคำสั่งนี้");
@@ -839,6 +852,13 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
+var M_VER="v14.5";
+/* เช็กเวอร์ชันล่าสุดบน GitHub Pages — กันหน้าเว็บที่เปิดค้างไว้ใช้โค้ดเก่าสร้าง Channel/อนุมัติ */
+async function mVerNew(){try{let t=await (await pvOrig(location.pathname+"?_v="+Date.now(),{cache:"no-store"})).text(),m=t.match(/M_VER="(v[0-9.]+)"/);return m&&m[1]!==M_VER?m[1]:""}catch{return""}}
+if(String(CFG.clientId).startsWith("11111111-"))window.__t={setVer:v=>{M_VER=v},catchUp:s=>{M.cacheAt=0;return mSetupCatchUp(s)}};
+window.mVerWatch=async()=>{let nv=await mVerNew();if(!nv||M.verToast===nv)return;M.verToast=nv;
+ if(document.hidden&&!document.querySelector("input[name=code]"))return location.reload();
+ mToast("มีหน้าเว็บเวอร์ชันใหม่ "+nv+" (ตอนนี้ "+M_VER+") — กดรีเฟรชก่อนอนุมัติหรือสร้าง Channel",!0,{label:"รีเฟรชตอนนี้",fn:()=>location.reload()})};
 window.mToast=(msg,err,act)=>{let w=document.getElementById("nine-toasts");if(!w){w=document.createElement("div");w.id="nine-toasts";w.setAttribute("role","status");document.body.appendChild(w)}let t=document.createElement("div");t.className="nine-toast"+(err?" err":"");t.textContent=msg;if(act){let a=document.createElement("button");a.className="act";a.textContent=act.label;a.onclick=()=>{t.remove();act.fn()};t.appendChild(a)}let x=document.createElement("button");x.textContent="✕";x.setAttribute("aria-label","ปิด");x.onclick=()=>t.remove();t.appendChild(x);w.appendChild(t);setTimeout(()=>t.remove(),err?15e3:8e3)};
 /* Service Request = ฟอร์มของบริษัทใน Microsoft Lists (ลิงก์ฟอร์มไม่จำกัดสิทธิ์) — ฝังในหน้าเว็บไม่ได้ (SharePoint ห้าม iframe) จึงเปิดแท็บใหม่ แล้วเฝ้าดูรายการใหม่ของผู้ใช้ */
 window.mOpenForm=()=>{window.open(CFG.formUrl||Yh,"_blank");M.formBase=new Set((M.cache?.items||[]).map(i=>String(i.id)));
@@ -875,9 +895,9 @@ async function boot(){
  PV_KEY="9d-ops-v13-"+pr.oid;PV=pvLoad();PV.session={userId:pr.oid,name:pr.name,email:pr.email,role:"sales"};pvSave();
  PV_PROFILE.name=pr.name;PV_PROFILE.email=pr.email;M.role=mRole(pr.email);
  document.getElementById("gate").style.display="none";
- let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> Microsoft 365 · ${mEsc(pr.name)} (${mEsc(pr.email)}) · ${({admin:"Admin",engineer:"Engineer",sales:"Sales — เห็นเฉพาะงานของตนเอง",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">💬 Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a> · <span class="ver">v14.4</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";
+ let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> Microsoft 365 · ${mEsc(pr.name)} (${mEsc(pr.email)}) · ${({admin:"Admin",engineer:"Engineer",sales:"Sales — เห็นเฉพาะงานของตนเอง",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">💬 Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);setInterval(syncAuto,10*60e3);new MutationObserver(()=>mNavInject()).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(mNavInject,300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>mNavInject()).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(mNavInject,300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 boot();})();
