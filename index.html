@@ -575,7 +575,7 @@ async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(
  return{syncJobs:jobs,session,accounts:[...Object.values(accMap),],projects:all,activities:acts.slice(0,400),members:own?members.filter(m=>m.role!=="sales"||m.email.toLowerCase()===M.profile.email.toLowerCase()):members,settings:{listUrl:M.listWebUrl,...s.settings},bridgeConfigured:!0,samplePreview:!1,microsoftObservations:obs}}
 /* --- Writes --- */
 async function mSaveTrack(p,acts,syncInfo){if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
- let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr"];
+ let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles"];
  if(old.itemId){try{let cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${old.itemId}?$expand=fields($select=Payload)`),fp=JSON.parse(cur.fields?.Payload||"{}");old={...old,...fp,itemId:old.itemId}}catch(e){}}
  /* v16.1: อ่านค่าล่าสุดก่อนเขียน แล้วทับเฉพาะช่องที่ส่งมา — กันข้อมูลเก่าของอีกแท็บ/อีกคนลบสถานะที่เพิ่งบันทึก */
  let pl={};keep.forEach(k=>{if(old[k]!==void 0)pl[k]=old[k];if(p[k]!==void 0)pl[k]=p[k]});pl.pstat=mPsNewer(old.pstat,p.pstat);if(!pl.pstat)delete pl.pstat;pl.activities=[...acts,...(old.activities||[])].slice(0,120);pl.sync=syncInfo||old.sync;
@@ -659,16 +659,19 @@ async function mSubmit(b){let d=PV.projects.find(x=>x.id===b.projectId&&!x.demo)
  await mLoad(!0);let dup=(M.cache?.items||[]).find(i=>mCodeClean(i.fields?.ProjectCode)===mCodeClean(d.code));if(dup)throw new PvErr("Project Code "+mCodeClean(d.code)+" มีอยู่แล้ว (รายการ #"+dup.id+") — เปลี่ยนเลขแล้วกด Submit อีกครั้ง",409);
  /* v16.6: ทุกคนในบริษัทมีสิทธิ์ "9D Submit Request" (เพิ่มรายการได้ แก้/ลบไม่ได้) → สร้างผ่าน Microsoft 365 ตรง ๆ ใช้ได้ทุกเบราว์เซอร์ (รวมแอปบน iPhone)
     มีไฟล์แนบ → ลองฟอร์มก่อน (ฟอร์มแนบไฟล์ได้ / สิทธิ์ Add แนบไฟล์ไม่ได้) · ไม่มีไฟล์แนบ → Graph ก่อน แล้วค่อยฟอร์มถ้าไม่มีสิทธิ์ */
- let id,fails=[],via="graph",fr=null,files=(sr.attachments||[]).length,denied=!1;
+ let id,fails=[],via="graph",fr=null,files=(sr.attachments||[]).length,denied=!1,reqFiles=null;
  let viaGraph=async()=>{let it;try{it=await G(`/sites/${M.sid}/lists/${M.lid}/items`,{method:"POST",json:{fields:f}})}catch(e){if(e.status===403){denied=!0;return!1}throw e}
-  id=it.id;via="graph";for(let a of sr.attachments||[]){let file=PV_FILES.get(a.id);if(!file){fails.push(a.name);continue}try{await SP(`/web/lists(guid'${M.lid}')/items(${id})/AttachmentFiles/add(FileName='${encodeURIComponent(a.name.replace(/'/g,"''"))}')`,{method:"POST",body:await file.arrayBuffer()})}catch(e){fails.push(a.name)}}return!0};
+  id=it.id;via="graph";let pend=[];for(let a of sr.attachments||[]){let file=PV_FILES.get(a.id);if(!file){fails.push(a.name);continue}try{await SP(`/web/lists(guid'${M.lid}')/items(${id})/AttachmentFiles/add(FileName='${encodeURIComponent(a.name.replace(/'/g,"''"))}')`,{method:"POST",body:await file.arrayBuffer()})}catch(e){pend.push({name:a.name,file})}}
+  /* v16.8 สิทธิ์ "9D Submit Request" แนบไฟล์เข้ารายการตรง ๆ ไม่ได้ → เก็บไว้ใน Documents › 9D Request Files แล้วฝั่ง Engineer แนบเข้ารายการให้อัตโนมัติ */
+  if(pend.length){try{let u=await mReqFilesUpload(d.code,id,pend);if(u.ok.length)reqFiles={folder:u.folder,url:u.url,names:u.ok,at:pvNow(),by:M.profile.name};fails.push(...u.bad)}catch(e){console.warn("[9D] reqfiles upload",e);fails.push(...pend.map(x=>x.name))}}return!0};
  let viaForm=async()=>{if(!CFG.formUrl)return!1;try{fr=await mFormSubmit(d,sr)}catch(e){console.warn("[9D] ส่งผ่านฟอร์มไม่สำเร็จ",e)}if(fr){id=fr.id;fails=fr.missing;via="form";return!0}return!1};
  if(files){if(!await viaForm())await viaGraph()}else{if(!await viaGraph())await viaForm()}
  if(!id){let msg=denied?"ส่งคำขอเข้า All Projects List ไม่สำเร็จ — บัญชีนี้ยังไม่มีสิทธิ์เพิ่มรายการ และเบราว์เซอร์นี้ส่งผ่านฟอร์มไม่ได้ (ยังไม่ได้เข้าสู่ระบบ SharePoint หรือบล็อกคุกกี้) · ข้อมูลยังเก็บเป็นร่าง: เปิด SharePoint ด้วยบัญชีนี้แล้วกด “ส่งรายการที่ยังค้าง” หรือแจ้งผู้ดูแล":"ส่งคำขอเข้า All Projects List ไม่สำเร็จ — ข้อมูลยังเก็บเป็นร่าง ลองกด “ส่งรายการที่ยังค้าง” อีกครั้ง";
   try{mToast(msg,!0,{label:"เปิดฟอร์ม",fn:()=>mOpenForm()})}catch{}throw new PvErr(msg,denied?403:502)}
  if(fails.length)try{mToast("ส่งคำขอแล้ว (#"+id+") แต่แนบไฟล์ไม่ได้ "+fails.length+" ไฟล์: "+fails.join(", ")+" — แนบไฟล์ใน Teams Channel ของงานหลังอนุมัติ",!0)}catch{}
+ else if(reqFiles)try{mToast("ส่งคำขอแล้ว (#"+id+") · ไฟล์แนบ "+reqFiles.names.length+" ไฟล์เก็บไว้แล้ว — ระบบจะแนบเข้ารายการให้เมื่อ Engineer เปิดเว็บ")}catch{}
  let reqNote=" · Request Status: รอ Engineer พิจารณา",reqOk=!0;
- let p={...d,id:"sp-"+id,listItemId:String(id),version:1,updatedAt:pvNow(),autoReqDone:reqOk||void 0,autoReqAt:reqOk?void 0:pvNow(),autoReqErr:reqOk?void 0:reqNote},acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่ง Service Request เข้า All Projects List"+(via==="form"?" ผ่านฟอร์ม Service Request":""),note:"รายการ #"+id+reqNote+(fails.length?" · ไฟล์แนบไม่สำเร็จ: "+fails.join(", "):""),createdAt:pvNow()}];
+ let p={...d,id:"sp-"+id,listItemId:String(id),version:1,updatedAt:pvNow(),reqFiles:reqFiles||void 0,autoReqDone:reqOk||void 0,autoReqAt:reqOk?void 0:pvNow(),autoReqErr:reqOk?void 0:reqNote},acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่ง Service Request เข้า All Projects List"+(via==="form"?" ผ่านฟอร์ม Service Request":""),note:"รายการ #"+id+reqNote+(reqFiles?" · ไฟล์แนบ "+reqFiles.names.length+" ไฟล์เก็บไว้ที่ Documents › "+reqFiles.folder+" (รอแนบเข้ารายการ)":"")+(fails.length?" · ไฟล์แนบไม่สำเร็จ: "+fails.join(", "):""),createdAt:pvNow()}];
  try{await mSaveTrack(p,acts,{lists:"success",teams:"blocked",listsNote:"สร้างรายการ #"+id+(sr.attachments?.length?" · ไฟล์แนบ "+(sr.attachments.length-fails.length)+"/"+sr.attachments.length:""),teamsNote:"รออนุมัติก่อนสร้าง Channel",updatedAt:pvNow()})}catch(e){}
  PV.projects=PV.projects.filter(x=>x.id!==d.id);pvSave();await mLoad(!0);let st=await mState();
  return{project:st.projects.find(x=>x.id==="sp-"+id)||p,sync:{lists:"success",teams:fails.length?"failed":"success"}}}
@@ -1026,6 +1029,26 @@ async function mCertSave(rows){if(!mIsEng())throw new PvErr("เฉพาะ Eng
  CERT.at=0;return n}
 async function mCertDelete(id){if(!mIsEng())throw new PvErr("เฉพาะ Engineer",403);let lid=await mCertList(!1);await G(`/sites/${SVC.sid}/lists/${lid}/items/${id}`,{method:"DELETE"});CERT.at=0}
 async function mSetCertCfg(o){if(!mIsEng())throw new PvErr("เฉพาะ Engineer",403);await mLoad(!0);let s={...(M.cache?.settings||{})};if(o.courses)s.certCourses=o.courses;if(o.remind)s.certRemindDays=Number(o.remind)||90;if(o.contacts)s.certContacts={...(s.certContacts||{}),...o.contacts};if(o.folder!==void 0)s.certFolder=o.folder;await mSaveSettings(s);if(M.cache)M.cache.settings=s;return s}
+
+/* ===== v16.8 ไฟล์แนบของคำขอที่ส่งด้วยสิทธิ์ "9D Submit Request" ===== */
+var REQF_ROOT="9D Request Files",mFsName=v=>String(v||"").replace(/[\\/:*?"<>|#%\u0000-\u001f]+/g,"_").replace(/^[.\s]+|[.\s]+$/g,"").slice(0,120)||"file";
+var mDrivePath=p=>p.split("/").map(encodeURIComponent).join("/");
+async function mReqFilesUpload(code,id,files){let folder=REQF_ROOT+"/"+mFsName(code)+"_"+id,ok=[],bad=[],url="";
+ for(let x of files){try{await mHttp(`${M_GRAPH}/sites/${M.sid}/drive/root:/${mDrivePath(folder+"/"+mFsName(x.name))}:/content`,{method:"PUT",body:x.file,headers:{"Content-Type":x.file.type||"application/octet-stream"}});ok.push(x.name)}catch(e){console.warn("[9D] upload",x.name,e);bad.push(x.name)}}
+ if(ok.length){try{url=(await G(`/sites/${M.sid}/drive/root:/${mDrivePath(folder)}?$select=webUrl`)).webUrl||""}catch(e){}}
+ return{folder,url,ok,bad}}
+var mSpAlias=v=>encodeURIComponent("'"+String(v).replace(/'/g,"''")+"'");
+async function mReqFilesAuto(){if(!["admin","engineer"].includes(M.role)||M.rfBusy)return 0;M.rfBusy=!0;let n=0;try{await mLoad(!0);let tr=M.cache?.track||{};
+ let lib=CFG.sitePath+"/Shared Documents/";
+ for(let [lid,t] of Object.entries(tr)){let rf=t.reqFiles;if(!rf||rf.done||!rf.folder)continue;
+  try{let fs=(await SP(`/web/GetFolderByServerRelativePath(decodedurl=@a)/Files?@a=${mSpAlias(lib+rf.folder)}&$select=Name`)).value||[];
+   let have=new Set(((await SP(`/web/lists(guid'${M.lid}')/items(${lid})/AttachmentFiles?$select=FileName`)).value||[]).map(x=>x.FileName)),ok=0;
+   for(let f of fs){if(!have.has(f.Name)){let r=await SP(`/web/GetFileByServerRelativePath(decodedurl=@a)/$value?@a=${mSpAlias(lib+rf.folder+"/"+f.Name)}`,{raw:1}),buf=await r.arrayBuffer();
+     await SP(`/web/lists(guid'${M.lid}')/items(${lid})/AttachmentFiles/add(FileName='${encodeURIComponent(f.Name.replace(/'/g,"''"))}')`,{method:"POST",body:buf})}ok++}
+   let st=await mState(),p=st.projects.find(x=>String(x.listItemId)===String(lid));if(!p)continue;
+   await mSaveTrack({...p,reqFiles:{...rf,done:pvNow(),doneBy:M.profile.name}},[{id:"act-"+pvUid(),actor:M.profile.name,action:"แนบไฟล์ของคำขอเข้ารายการแล้ว",note:ok+" ไฟล์ จาก Documents › "+rf.folder+" (อัตโนมัติ)",createdAt:pvNow()}]);n++}
+  catch(e){console.warn("[9D] reqfiles auto #"+lid,e)}if(n>=5)break}}
+ catch(e){console.warn("[9D] reqfiles",e)}finally{M.rfBusy=!1}return n}
 
 /* ===== แดชบอร์ด (v15) — แทนหน้า "ภาพรวม" เดิม
    1) Teams Channel เป็นหลัก: ความเคลื่อนไหวรายวัน, Engineer ร่วมตอบ, Channel ที่รอ Engineer ตอบ
@@ -1699,7 +1722,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.7";
+var M_VER="v16.8";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -1749,7 +1772,7 @@ async function boot(){
  document.getElementById("gate").style.display="none";
  let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">💬 Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync();mCodeAuto()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync();mCodeAuto()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 /* ---- PWA: ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ / คอมพิวเตอร์ (v16.4) ---- */
@@ -1764,6 +1787,12 @@ window.pwaInstall=async()=>{if(PWA.evt){let e=PWA.evt;PWA.evt=null;e.prompt();le
 addEventListener("beforeinstallprompt",e=>{e.preventDefault();PWA.evt=e;pwaSlot()});
 addEventListener("appinstalled",()=>{PWA.evt=null;pwaSlot()});
 if("serviceWorker"in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(e=>console.warn("[9D] sw",e)));
+/* v16.8 ช่องค้นหาด้านบน: พิมพ์/กด Enter ตอนอยู่หน้าแดชบอร์ด (ภาพรวม / สถานะ / ยืมสินค้า / งานเซอร์วิส) → ไปหน้า "โครงการทั้งหมด" ที่แสดงผลค้นหา */
+function gsGo(inp){let v=inp.value;if(!v.trim())return;let navs=[...document.querySelectorAll(".sidebar .nav-item")],pj=navs.find(n=>/โครงการทั้งหมด/.test(n.textContent));
+ if(!document.body.classList.contains("dv-on")&&!document.querySelector(".nav-item.active:not(.dv-nav)")?.textContent.match(/ภาพรวม/))return;if(!pj)return;pj.click();
+ setTimeout(()=>{let i2=document.querySelector(".global-search input");if(i2&&i2.value!==v){let set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set;set.call(i2,v);i2.dispatchEvent(new Event("input",{bubbles:!0}))}if(i2){i2.focus();try{i2.setSelectionRange(v.length,v.length)}catch(e){}}},120)}
+document.addEventListener("keydown",e=>{let i=e.target;if(e.key==="Enter"&&i?.closest?.(".global-search")){e.preventDefault();gsGo(i)}},!0);
+var gsT=0;document.addEventListener("input",e=>{let i=e.target;if(i?.closest?.(".global-search")&&document.body.classList.contains("dv-on")){clearTimeout(gsT);gsT=setTimeout(()=>{let c=document.querySelector(".global-search input");if(c)gsGo(c)},650)}},!0);
 boot();})();
 /*! Bundled license information:
 
