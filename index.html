@@ -1635,6 +1635,8 @@ window.fetch=async(e,a={})=>{let u=String(e),m=(a.method||"GET").toUpperCase(),J
  if(u.startsWith("/api/operations")){if(m==="GET")return J(await mState());
   let b=JSON.parse(a.body||"{}"),act=b.action;
   if(act==="seed")return J({ok:!0});
+  /* v16.7: ปุ่ม "ส่งรายการที่ยังค้าง" บนร่างที่ยังไม่เข้า List = ส่งคำขอเข้า All Projects List (เดิมขึ้น "ต้องส่งคำขอเข้า Microsoft Lists ก่อน") */
+  if(act==="sync"&&isLocal(b.projectId)&&!String(b.projectId).startsWith("demo-")){let d=PV.projects.find(x=>x.id===b.projectId);if(d&&!d.listItemId&&!d.demo)act=b.action="submit"}
   if(["account","member","settings"].includes(act))return J(await mAdmin(act,b));
   if(act==="create"||(isLocal(b.projectId)&&!(act==="submit"&&!String(b.projectId).startsWith("demo-")))){let f=PV_ACT[act];if(!f)throw new PvErr("ไม่รองรับคำสั่งนี้");let snap=JSON.stringify(PV);try{let r=f(b);pvSave();return J(r)}catch(x){PV=JSON.parse(snap);throw x}}
   if(["submit","decide","channel","pstatus"].includes(act)){let nv=await mVerNew();if(nv)throw new PvErr("หน้าเว็บนี้เป็นเวอร์ชันเก่า ("+M_VER+") มีเวอร์ชันใหม่ "+nv+" แล้ว — กดรีเฟรช (Cmd+Shift+R) ก่อนทำรายการ",409)}
@@ -1697,7 +1699,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.6";
+var M_VER="v16.7";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
