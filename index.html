@@ -657,12 +657,16 @@ async function mSubmit(b){let d=PV.projects.find(x=>x.id===b.projectId&&!x.demo)
  let miss=[["code",d.code,"Project Code"],["source",sr.source,"ช่องทางที่มาของงาน"],["brands",sr.brands,"Brand"],["notes",sr.notes,"หมายเหตุเพิ่มเติม"],["urgency",sr.urgency,"ความเร่งด่วน"],["closingChance",sr.closingChance,"โอกาสปิดงาน"]].filter(x=>M.cols[x[0]]&&(!x[1]||(Array.isArray(x[1])&&!x[1].length)||!String(x[1]).trim())).map(x=>x[2]);
  if(miss.length)throw new PvErr("กรอกให้ครบตามฟอร์ม Service Request: "+miss.join(", "),400);
  await mLoad(!0);let dup=(M.cache?.items||[]).find(i=>mCodeClean(i.fields?.ProjectCode)===mCodeClean(d.code));if(dup)throw new PvErr("Project Code "+mCodeClean(d.code)+" มีอยู่แล้ว (รายการ #"+dup.id+") — เปลี่ยนเลขแล้วกด Submit อีกครั้ง",409);
- let id,fails=[],via="form",fr=null;
- if(CFG.formUrl){try{fr=await mFormSubmit(d,sr)}catch(e){console.warn("[9D] ส่งผ่านฟอร์มไม่สำเร็จ",e)}}
- if(fr){id=fr.id;fails=fr.missing}else{via="graph";
- let it;try{it=await G(`/sites/${M.sid}/lists/${M.lid}/items`,{method:"POST",json:{fields:f}})}catch(e){if(e.status===403){try{mToast("บัญชีนี้ยังไม่มีสิทธิ์เพิ่มรายการใน All Projects List — ข้อมูลที่กรอกยังเก็บไว้ในร่าง ระหว่างนี้ส่งผ่านฟอร์ม Service Request ได้",!0,{label:"เปิดฟอร์ม",fn:()=>mOpenForm()})}catch{}throw new PvErr("บัญชีนี้ยังไม่มีสิทธิ์เพิ่มรายการใน All Projects List (ต้องให้ผู้ดูแลเปิดสิทธิ์ Add) — ระหว่างนี้ส่งผ่านฟอร์ม Service Request ได้",403)}throw e}
- id=it.id;
- for(let a of sr.attachments||[]){let file=PV_FILES.get(a.id);if(!file){fails.push(a.name);continue}try{await SP(`/web/lists(guid'${M.lid}')/items(${id})/AttachmentFiles/add(FileName='${encodeURIComponent(a.name.replace(/'/g,"''"))}')`,{method:"POST",body:await file.arrayBuffer()})}catch(e){fails.push(a.name+" ("+e.message+")")}}}
+ /* v16.6: ทุกคนในบริษัทมีสิทธิ์ "9D Submit Request" (เพิ่มรายการได้ แก้/ลบไม่ได้) → สร้างผ่าน Microsoft 365 ตรง ๆ ใช้ได้ทุกเบราว์เซอร์ (รวมแอปบน iPhone)
+    มีไฟล์แนบ → ลองฟอร์มก่อน (ฟอร์มแนบไฟล์ได้ / สิทธิ์ Add แนบไฟล์ไม่ได้) · ไม่มีไฟล์แนบ → Graph ก่อน แล้วค่อยฟอร์มถ้าไม่มีสิทธิ์ */
+ let id,fails=[],via="graph",fr=null,files=(sr.attachments||[]).length,denied=!1;
+ let viaGraph=async()=>{let it;try{it=await G(`/sites/${M.sid}/lists/${M.lid}/items`,{method:"POST",json:{fields:f}})}catch(e){if(e.status===403){denied=!0;return!1}throw e}
+  id=it.id;via="graph";for(let a of sr.attachments||[]){let file=PV_FILES.get(a.id);if(!file){fails.push(a.name);continue}try{await SP(`/web/lists(guid'${M.lid}')/items(${id})/AttachmentFiles/add(FileName='${encodeURIComponent(a.name.replace(/'/g,"''"))}')`,{method:"POST",body:await file.arrayBuffer()})}catch(e){fails.push(a.name)}}return!0};
+ let viaForm=async()=>{if(!CFG.formUrl)return!1;try{fr=await mFormSubmit(d,sr)}catch(e){console.warn("[9D] ส่งผ่านฟอร์มไม่สำเร็จ",e)}if(fr){id=fr.id;fails=fr.missing;via="form";return!0}return!1};
+ if(files){if(!await viaForm())await viaGraph()}else{if(!await viaGraph())await viaForm()}
+ if(!id){let msg=denied?"ส่งคำขอเข้า All Projects List ไม่สำเร็จ — บัญชีนี้ยังไม่มีสิทธิ์เพิ่มรายการ และเบราว์เซอร์นี้ส่งผ่านฟอร์มไม่ได้ (ยังไม่ได้เข้าสู่ระบบ SharePoint หรือบล็อกคุกกี้) · ข้อมูลยังเก็บเป็นร่าง: เปิด SharePoint ด้วยบัญชีนี้แล้วกด “ส่งรายการที่ยังค้าง” หรือแจ้งผู้ดูแล":"ส่งคำขอเข้า All Projects List ไม่สำเร็จ — ข้อมูลยังเก็บเป็นร่าง ลองกด “ส่งรายการที่ยังค้าง” อีกครั้ง";
+  try{mToast(msg,!0,{label:"เปิดฟอร์ม",fn:()=>mOpenForm()})}catch{}throw new PvErr(msg,denied?403:502)}
+ if(fails.length)try{mToast("ส่งคำขอแล้ว (#"+id+") แต่แนบไฟล์ไม่ได้ "+fails.length+" ไฟล์: "+fails.join(", ")+" — แนบไฟล์ใน Teams Channel ของงานหลังอนุมัติ",!0)}catch{}
  let reqNote=" · Request Status: รอ Engineer พิจารณา",reqOk=!0;
  let p={...d,id:"sp-"+id,listItemId:String(id),version:1,updatedAt:pvNow(),autoReqDone:reqOk||void 0,autoReqAt:reqOk?void 0:pvNow(),autoReqErr:reqOk?void 0:reqNote},acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่ง Service Request เข้า All Projects List"+(via==="form"?" ผ่านฟอร์ม Service Request":""),note:"รายการ #"+id+reqNote+(fails.length?" · ไฟล์แนบไม่สำเร็จ: "+fails.join(", "):""),createdAt:pvNow()}];
  try{await mSaveTrack(p,acts,{lists:"success",teams:"blocked",listsNote:"สร้างรายการ #"+id+(sr.attachments?.length?" · ไฟล์แนบ "+(sr.attachments.length-fails.length)+"/"+sr.attachments.length:""),teamsNote:"รออนุมัติก่อนสร้าง Channel",updatedAt:pvNow()})}catch(e){}
@@ -1693,7 +1697,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.5";
+var M_VER="v16.6";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
