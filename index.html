@@ -355,9 +355,9 @@ body.dv-on .main-content>*:not(#dashv){display:none!important}#dashv{display:non
 .dv-ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:10px}.dv-seg{display:inline-flex;background:#fff;border:1px solid var(--dv-grid);border-radius:8px;padding:3px}
 .dv-seg button{border:0;background:none;padding:7px 14px;border-radius:6px;font:inherit;font-size:12px;font-weight:600;color:var(--dv-ink2);cursor:pointer}.dv-seg button.on{background:var(--dv-ink);color:#fff}
 .dv-seg button:focus-visible,.dv-btn:focus-visible,.dv-link:focus-visible,.dv-act button:focus-visible{outline:2px solid var(--dv-blue);outline-offset:2px}
-.dv-new{display:inline-flex;align-items:center;gap:6px;border:0;background:var(--dv-blue);color:#fff;border-radius:8px;padding:9px 16px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.dv-new:hover{background:#1d3478}.dv-new:focus-visible{outline:2px solid var(--dv-blue);outline-offset:2px}.dv-new span{font-size:16px;line-height:1}.dv-sync{font-size:12px;color:var(--dv-muted);display:inline-flex;align-items:center;gap:6px}.dv-btn{border:1px solid var(--dv-grid);background:#fff;border-radius:8px;padding:7px 14px;font:inherit;font-size:12px;font-weight:600;color:var(--dv-ink);cursor:pointer}.dv-btn:hover{border-color:var(--dv-blue)}
+.code-auto{display:block;margin-top:6px;font-size:11px;color:#2b5d8a}.dv-new{display:inline-flex;align-items:center;gap:6px;border:0;background:var(--dv-blue);color:#fff;border-radius:8px;padding:9px 16px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.dv-new:hover{background:#1d3478}.dv-new:focus-visible{outline:2px solid var(--dv-blue);outline-offset:2px}.dv-new span{font-size:16px;line-height:1}.dv-sync{font-size:12px;color:var(--dv-muted);display:inline-flex;align-items:center;gap:6px}.dv-btn{border:1px solid var(--dv-grid);background:#fff;border-radius:8px;padding:7px 14px;font:inherit;font-size:12px;font-weight:600;color:var(--dv-ink);cursor:pointer}.dv-btn:hover{border-color:var(--dv-blue)}
 .dv-spin{width:11px;height:11px;border:2px solid #c9d4e3;border-top-color:var(--dv-blue);border-radius:50%;display:inline-block;animation:dsp 1s linear infinite}
-.dv-sec{margin-top:26px}.dv-sec-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}.dv-sec-h h2{margin:0;font-size:18px}.dv-sec-h.sm{margin-top:22px}.dv-sec-h h3{margin:0;font-size:15px}
+.dv-range{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:-8px 0 18px;padding:12px 14px;background:#fff;border:1px solid var(--dv-grid);border-radius:10px;font-size:12px;color:var(--dv-ink2)}.dv-range label{display:inline-flex;align-items:center;gap:6px}.dv-range input{font:inherit;font-size:13px;color:var(--dv-ink);border:1px solid var(--dv-grid);border-radius:7px;padding:6px 8px}.dv-range input:focus-visible{outline:2px solid var(--dv-blue);outline-offset:1px}.dv-rl{color:var(--dv-muted)}.dv-list .dv-li-r{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none;overflow:visible;white-space:nowrap}.dv-x{border:1px solid var(--dv-grid);background:#fff;border-radius:6px;padding:3px 8px;font:inherit;font-size:11px;color:var(--dv-ink2);cursor:pointer;white-space:nowrap}.dv-x:hover{border-color:var(--dv-ink2);color:var(--dv-ink)}.dv-x:focus-visible{outline:2px solid var(--dv-blue);outline-offset:1px}.dv-other{margin-top:10px;border-top:1px solid var(--dv-grid);padding-top:8px}.dv-other summary{cursor:pointer;font-size:12px;color:var(--dv-muted)}.dv-other summary:hover{color:var(--dv-ink2)}.dv-other .dv-list em{color:var(--dv-muted);font-weight:400}.dv-sec{margin-top:26px}.dv-sec-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}.dv-sec-h h2{margin:0;font-size:18px}.dv-sec-h.sm{margin-top:22px}.dv-sec-h h3{margin:0;font-size:15px}
 .dv-link{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:var(--dv-blue);cursor:pointer;text-decoration:none}.dv-link:hover{text-decoration:underline}
 .dv-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
 .dv-kpi{background:var(--dv-surface);border:1px solid var(--dv-grid);border-radius:10px;padding:14px 16px}.dv-kpi-l{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dv-ink2)}.dv-kpi b{display:block;font-size:30px;line-height:1.15;margin-top:6px;font-variant-numeric:tabular-nums}.dv-kpi small{display:block;font-size:11px;color:var(--dv-muted);margin-top:2px}
@@ -644,6 +644,7 @@ async function mSubmit(b){let d=PV.projects.find(x=>x.id===b.projectId&&!x.demo)
  put("code",d.code);put("name",d.name||d.code);put("client",d.client==="—"?"":d.client);put("source",sr.source);put("brands",sr.brands);put("workTypes",sr.workTypes);put("notes",sr.notes);put("urgency",sr.urgency);put("closingChance",sr.closingChance);put("assignedAt",sr.assignedAt);put("estimatedValue",sr.estimatedValue);put("latest","In Progress");put("winLoss","Process");if(c.updatedAt)f[c.updatedAt.name]=new Date().toISOString();
  let miss=[["code",d.code,"Project Code"],["source",sr.source,"ช่องทางที่มาของงาน"],["brands",sr.brands,"Brand"],["notes",sr.notes,"หมายเหตุเพิ่มเติม"],["urgency",sr.urgency,"ความเร่งด่วน"],["closingChance",sr.closingChance,"โอกาสปิดงาน"]].filter(x=>M.cols[x[0]]&&(!x[1]||(Array.isArray(x[1])&&!x[1].length)||!String(x[1]).trim())).map(x=>x[2]);
  if(miss.length)throw new PvErr("กรอกให้ครบตามฟอร์ม Service Request: "+miss.join(", "),400);
+ await mLoad(!0);let dup=(M.cache?.items||[]).find(i=>mCodeClean(i.fields?.ProjectCode)===mCodeClean(d.code));if(dup)throw new PvErr("Project Code "+mCodeClean(d.code)+" มีอยู่แล้ว (รายการ #"+dup.id+") — เปลี่ยนเลขแล้วกด Submit อีกครั้ง",409);
  let id,fails=[],via="form",fr=null;
  if(CFG.formUrl){try{fr=await mFormSubmit(d,sr)}catch(e){console.warn("[9D] ส่งผ่านฟอร์มไม่สำเร็จ",e)}}
  if(fr){id=fr.id;fails=fr.missing}else{via="graph";
@@ -749,7 +750,7 @@ async function mDecide(b){if(!M.isApprover)throw new PvErr("เฉพาะผ�
 var TS={at:0,busy:null,channels:{},extra:[],all:[],progress:null,err:"",teamsCount:0,chanCount:0};
 var mKey=s=>String(s||"").normalize("NFC").toUpperCase().replace(/[^\p{L}\p{N}]/gu,"");
 var mTok=s=>{let m=String(s||"").normalize("NFC").replace(/^[^\p{L}\p{N}]+/u,"").trim().toUpperCase().match(/^[A-Z]{2,}[-_ ]?\d[\dA-Z-]*/);if(!m)return"";let t=m[0].replace(/[-_ ]/g,"");if(!/\d{3,}/.test(t))return"";return t.replace(/\d+/g,d=>String(+d))};
-try{let o=JSON.parse(sessionStorage.getItem("9d-teams-sync")||"null");if(o&&o.v===4&&Date.now()-o.at<30*60e3)Object.assign(TS,o,{busy:null,progress:null})}catch{}
+try{let o=JSON.parse(sessionStorage.getItem("9d-teams-sync")||"null");if(o&&o.v===5&&Date.now()-o.at<30*60e3)Object.assign(TS,o,{busy:null,progress:null})}catch{}
 async function mPool(arr,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,arr.length)},async()=>{while(i<arr.length){let x=arr[i++];try{await fn(x)}catch(e){console.warn(e)}}}))}
 function mEngName(name){let k=mNorm(name);if(!k)return"";for(let n of Hd){let e=(CFG.engineers[n]||"").split("@")[0];if(k.startsWith(mNorm(n))||(e&&k.startsWith(mNorm(e))))return n}return""}
 var mPlain=h=>String(h||"").replace(/<attachment[^>]*>.*?<\/attachment>/gi,"[ไฟล์แนบ]").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
@@ -773,17 +774,17 @@ async function mTeamsSync(force){if(TS.busy)return TS.busy;if(!force&&TS.at&&Dat
   for(let p of projects)if(p.channelId&&p.teamId&&!all.some(x=>x.c.id===p.channelId))all.push({c:{id:p.channelId,teamId:p.teamId,displayName:p.code,webUrl:p.channelUrl,teamName:""},p,score:9});
   let pairs=Object.values(prim);
   let out={},ext=[],list=[],done=0;TS.progress={done:0,total:all.length};
-  await mPool(all,6,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",eng:{},recent:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
+  await mPool(all,6,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",lastMent:[],lastId:"",eng:{},recent:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
    try{
    if(!M.teamsOK){r.error="ยังไม่ได้รับสิทธิ์อ่านข้อความ";return}
-   let msgs=[],add=(x,root)=>{if(!x||x.messageType!=="message"||x.deletedDateTime)return;let u=x.from?.user;if(!u)return;let at=x.createdDateTime||"",by=u.displayName||"";r.msgs++;if(at){let dk=new Date(Date.parse(at)+252e5).toISOString().slice(0,10);r.days[dk]=(r.days[dk]||0)+1}
-    if(at>r.last){r.last=at;r.lastBy=by}let n=mEngName(by);if(n){let e=r.eng[n]=r.eng[n]||{n:0,last:"",first:at};e.n++;if(at>e.last)e.last=at;if(at<e.first)e.first=at}
+   let msgs=[],add=(x,root)=>{if(!x||x.messageType!=="message"||x.deletedDateTime)return;let u=x.from?.user;if(!u)return;let at=x.createdDateTime||"",by=u.displayName||"";r.msgs++;let dk=at?new Date(Date.parse(at)+252e5).toISOString().slice(0,10):"";if(dk)r.days[dk]=(r.days[dk]||0)+1;
+    if(at>r.last){r.last=at;r.lastBy=by;r.lastId=x.id;r.lastMent=(x.mentions||[]).map(m=>m.mentioned?.user?.displayName||(m.mentioned?.conversation?"@"+(m.mentionText||"channel"):m.mentionText||"")).filter(Boolean)}let n=mEngName(by);if(n){let e=r.eng[n]=r.eng[n]||{n:0,last:"",first:at,days:{}};e.n++;if(at>e.last)e.last=at;if(at<e.first)e.first=at;if(dk)e.days[dk]=(e.days[dk]||0)+1}
     msgs.push({id:x.id,at,by,text:(mPlain(x.body?.content)||x.subject||"(ข้อความ)").slice(0,280)})};
    try{let u=`${M_GRAPH}/teams/${c.teamId}/channels/${c.id}/messages?$top=50&$expand=replies`,k=0;
     while(u&&k<4){let j=await mHttp(u,{},"teams");for(let m of j.value||[]){add(m);for(let y of m.replies||[])add(y,m)}u=j["@odata.nextLink"];k++}}catch(e){r.error=e.message}
    r.recent=msgs.sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8)}finally{TS.progress.done=++done;if(done%10===0)try{typeof mDashRender==="function"&&mDashRender()}catch{}}});
   TS.channels=out;TS.extra=ext;TS.all=list;TS.progress=null;TS.at=Date.now();TS.err=M.teamsOK?"":M.teamsErr;TS.teamsCount=teams.length;TS.chanCount=chans.length;
-  try{sessionStorage.setItem("9d-teams-sync",JSON.stringify({...TS,busy:null,progress:null,v:4}))}catch{}
+  try{sessionStorage.setItem("9d-teams-sync",JSON.stringify({...TS,busy:null,progress:null,v:5}))}catch{}
   let nlink=0;if(M.role!=="sales"&&M.role!=="viewer"&&M.tl)for(let{p,c}of pairs)if(!p.channelId&&nlink++<40){try{await mSaveTrack({...p,channelId:c.id,channelUrl:c.webUrl||"",teamId:c.teamId},[{id:"act-"+pvUid(),actor:M.profile.name,action:"เชื่อม Teams Channel อัตโนมัติ",note:"พบ Channel "+c.displayName+(c.teamName?" ใน Team "+c.teamName:""),createdAt:pvNow()}])}catch(e){}}
   M.cacheAt=0}catch(e){TS.err=e.message;console.error("[9D teams]",e)}finally{TS.busy=null}return TS})();return TS.busy}
 /* ผูก Channel กับโครงการด้วยมือ (Engineer/Admin) — เก็บใน settings.channelMap ของ 9D Project Tracking; "none" = ไม่ใช่ Channel งานโครงการ */
@@ -821,20 +822,52 @@ async function mChannelSetup(p,ch,acc,creator){let notes=[],copied=[],files=[];i
   `<p><small>สร้างอัตโนมัติโดย 9D Integrated Operations</small></p>`;
  try{await mHttp(`${M_GRAPH}/teams/${ch.teamId}/channels/${ch.channelId}/messages`,{method:"POST",json:{body:{contentType:"html",content:html},mentions:ments}},"teams");notes.push("@แท็ก "+ments.map(m=>m.mentionText).join(", ")+" ใน Channel แล้ว")}catch(e){notes.push("โพสต์ข้อความ @แท็ก ไม่สำเร็จ: "+e.message)}
  return notes.join(" · ")}
+/* ===== Project Code อัตโนมัติ (v15.1) — เรียนรู้รูปแบบจากรหัสล่าสุดของผู้ใช้คนนั้น แล้วออกเลขถัดไป =====
+   รองรับ: CHW261006 (ย่อ+ปปดด+ลำดับ), PPJ-2026-10-04, ASP26052 (ย่อ+ปป+ลำดับ), HTP2026068, JJ2026-018, SW-2026-P005, YPW1399 (ลำดับต่อเนื่อง)
+   ไม่มีประวัติ → ตัวย่อจากชื่อบัญชี (2 ตัวแรกของชื่อ + ตัวแรกของนามสกุล) + ปปดด + ลำดับ 2 หลัก เช่น THK261001 */
+var mCodeClean=c=>String(c||"").trim().split(/[\s_\t]+/)[0].toUpperCase();
+function mCodeTpl(code,created){let c=mCodeClean(code),d=new Date(Date.parse(created||0)+252e5),Y=String(d.getUTCFullYear()),y=Y.slice(2),M=String(d.getUTCMonth()+1).padStart(2,"0"),m;
+ if(!/^[A-Z][A-Z-]*[A-Z0-9-]*\d+$/.test(c))return null;
+ const T=[[new RegExp("^([A-Z][A-Z-]*?)("+Y+")([^0-9]*)("+M+")([^0-9]*)(\\d{2,4})$"),"YYYY","MM"],[new RegExp("^([A-Z][A-Z-]*?)("+y+")("+M+")(\\d{2,3})$"),"YY","MM"],
+  [new RegExp("^([A-Z][A-Z-]*?)("+Y+")([^0-9]*)(\\d{2,5})$"),"YYYY",""],[new RegExp("^([A-Z]{2,}[A-Z-]*?)("+y+")([^0-9]*)(\\d{3})$"),"YY",""],[/^([A-Z]{2,}[^0-9]*)(\d{2,6})$/,"",""]];
+ for(let[re,yk,mk]of T)if(m=c.match(re)){if(yk==="YYYY"&&mk)return{pre:m[1],y:yk,mid:m[3],m:mk,mid2:m[5],len:m[6].length,seq:+m[6]};if(yk==="YY"&&mk)return{pre:m[1],y:yk,mid:"",m:mk,mid2:"",len:m[4].length,seq:+m[4]};
+  if(yk)return{pre:m[1],y:yk,mid:m[3],m:"",mid2:"",len:m[4].length,seq:+m[4]};return{pre:m[1],y:"",mid:"",m:"",mid2:"",len:m[2].length,seq:+m[2]}}return null}
+var mTplKey=t=>[t.pre,t.y,t.mid,t.m,t.mid2].join("|");
+function mTplHead(t,now){let d=new Date(now+252e5),Y=String(d.getUTCFullYear()),M=String(d.getUTCMonth()+1).padStart(2,"0");return t.pre+(t.y==="YYYY"?Y:t.y==="YY"?Y.slice(2):"")+t.mid+(t.m?M:"")+t.mid2}
+function mNextCode(email,name){let items=M.cache?.items||[],me=String(email||"").toLowerCase(),now=Date.now(),mine=items.filter(i=>(i.createdBy?.user?.email||"").toLowerCase()===me).sort((a,b)=>(b.createdDateTime||"").localeCompare(a.createdDateTime||"")).slice(0,12);
+ let votes={};for(let i of mine){let t=mCodeTpl(i.fields?.ProjectCode,i.createdDateTime);if(!t||/^TEST/.test(t.pre))continue;let k=mTplKey(t),v=votes[k]=votes[k]||{t,n:0,first:i.createdDateTime,lens:{}};v.n++;v.lens[t.len]=(v.lens[t.len]||0)+1}
+ for(let v of Object.values(votes))v.t={...v.t,len:+Object.entries(v.lens).sort((a,b)=>b[1]-a[1]||b[0]-a[0])[0][0]}
+ let best=Object.values(votes).sort((a,b)=>b.n-a.n||(b.first||"").localeCompare(a.first||""))[0]?.t,learned=!!best;
+ if(!best){let w=String(name||me.split("@")[0]).replace(/[^A-Za-z ]/g," ").trim().split(/\s+/).filter(Boolean),ini=((w[0]||"XX").slice(0,2)+(w[1]?w[1][0]:(w[0]||"X").slice(2,3))).toUpperCase();best={pre:ini,y:"YY",mid:"",m:"MM",mid2:"",len:2}}
+ let head=mTplHead(best,now),max=0,used=new Set(items.map(i=>mCodeClean(i.fields?.ProjectCode)));
+ for(let c of used){if(!c.startsWith(head))continue;let rest=c.slice(head.length);if(/^\d+$/.test(rest))max=Math.max(max,+rest)}
+ let n=max+1,code=head+String(n).padStart(best.len,"0");while(used.has(code))code=head+String(++n).padStart(best.len,"0");
+ let fmt=best.pre+(best.y==="YYYY"?"[ปี ค.ศ.]":best.y==="YY"?"[ปี 2 หลัก]":"")+best.mid+(best.m?"[เดือน]":"")+best.mid2+"[ลำดับ "+best.len+" หลัก]";
+ return{code,learned,fmt}}
+/* ซ่อนรายการ "รอ Engineer ตอบ" ทีละ Channel (ไม่ใช่งานทีมเรา) — กลับมาแสดงเมื่อมีข้อความใหม่หลังจากนั้น; เก็บใน settings (เห็นทั้งทีม) */
+async function mWaitDismiss(channelId,lastAt){await mLoad(!0);let s={...(M.cache?.settings||{})};s.waitIgnore={...(s.waitIgnore||{}),[channelId]:{at:lastAt,by:M.profile.name,on:pvNow()}};await mSaveSettings(s);if(M.cache)M.cache.settings=s;return s.waitIgnore}
 
 /* ===== แดชบอร์ด (v15) — แทนหน้า "ภาพรวม" เดิม
    1) Teams Channel เป็นหลัก: ความเคลื่อนไหวรายวัน, Engineer ร่วมตอบ, Channel ที่รอ Engineer ตอบ
    2) คำขอจากเซลส์ (All Projects List) ใช้เพื่อพิจารณาอนุมัติ: งานประเภทไหน แบรนด์ไหน ใครส่ง + กล่องรออนุมัติ
    ไม่แสดงสถานะงานจาก SharePoint (ดำเนินการ/รอข้อมูล/เกินกำหนด ฯลฯ) อีกต่อไป ===== */
-var DV={days:30,st:null,stAt:0,busy:!1,sig:"",tm:0};
+var DV={days:30,custom:null,showCustom:!1,st:null,stAt:0,busy:!1,sig:"",tm:0};
 var dvTitle=n=>String(n||"").charAt(0)+String(n||"").slice(1).toLowerCase();
 var dvNum=n=>Number(n||0).toLocaleString("th-TH");
 var dvDay=ms=>new Date(ms+252e5).toISOString().slice(0,10);
 var dvTH=d=>{let t=new Date(d+"T00:00:00Z");return t.getUTCDate()+" "+["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][t.getUTCMonth()]};
+var dvTH2=d=>dvTH(d)+" "+(Number(String(d).slice(0,4))+543);
+/* ช่วงวันที่ที่เลือก (เวลาไทย): ปุ่ม 7/30/90 วัน หรือเลือกเองจากปฏิทิน */
+function dvRange(){let now=Date.now();if(DV.custom){let a=Date.parse(DV.custom.from+"T00:00:00+07:00"),b=Date.parse(DV.custom.to+"T23:59:59+07:00");if(b<a)[a,b]=[b,a];
+  return{since:a,until:Math.min(b,now),label:dvTH2(dvDay(a))+" – "+dvTH2(dvDay(Math.min(b,now))),from:dvDay(a),to:dvDay(Math.min(b,now))}}
+ let since=Date.parse(dvDay(now-(DV.days-1)*864e5)+"T00:00:00+07:00");return{since,until:now,label:DV.days+" วันล่าสุด",from:dvDay(since),to:dvDay(now)}}
+function dvKeys(R){let k=[];for(let t=R.since;t<=R.until;t+=864e5)k.push(dvDay(t));let last=dvDay(R.until);if(k[k.length-1]!==last)k.push(last);return[...new Set(k)]}
+var dvIn=(days,keys)=>keys.reduce((s,d)=>s+((days||{})[d]||0),0);
 var dvAgo=iso=>{if(!iso)return"—";let h=(Date.now()-Date.parse(iso))/36e5;return h<1?"ไม่ถึงชั่วโมง":h<24?Math.floor(h)+" ชม.":Math.floor(h/24)+" วัน"};
 var dvIcon={warn:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
  ok:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
  no:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+ cal:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
  wait:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'};
 
 /* ---- ติดตั้งในหน้า: แสดงแทนเนื้อหา "ภาพรวม" เมื่อเมนูนั้นถูกเลือก ---- */
@@ -845,7 +878,10 @@ function dvSync(){let items=[...document.querySelectorAll(".sidebar .nav-item")]
  if(on){if(!host){host=document.createElement("section");host.id="dashv";host.setAttribute("aria-label","แดชบอร์ด");main.prepend(host);dvRender()}else if(host.parentElement!==main||main.firstElementChild!==host){main.prepend(host)}
   if(!document.body.classList.contains("dv-on")){document.body.classList.add("dv-on");DV.stAt=0;dvRender()}}
  else if(document.body.classList.contains("dv-on"))document.body.classList.remove("dv-on")}
-window.dvSetDays=d=>{DV.days=d;try{localStorage.setItem("9d-dv-days",String(d))}catch{}dvRender()};
+window.dvSetDays=d=>{DV.days=d;DV.custom=null;DV.showCustom=!1;try{localStorage.setItem("9d-dv-days",String(d));localStorage.removeItem("9d-dv-range")}catch{}dvRender()};
+window.dvToggleCustom=()=>{DV.showCustom=!DV.showCustom;dvRender()};
+window.dvApplyRange=e=>{e.preventDefault();let f=e.target,a=f.elements.from.value,b=f.elements.to.value;if(!a||!b){mToast("เลือกวันที่เริ่มต้นและสิ้นสุด",!0);return}if(b<a)[a,b]=[b,a];DV.custom={from:a,to:b};DV.showCustom=!0;try{localStorage.setItem("9d-dv-range",JSON.stringify(DV.custom))}catch{}dvRender()};
+try{let r=JSON.parse(localStorage.getItem("9d-dv-range")||"null");if(r&&r.from&&r.to){DV.custom=r;DV.showCustom=!0}}catch{}
 try{let d=Number(localStorage.getItem("9d-dv-days"));if([7,30,90].includes(d))DV.days=d}catch{}
 window.dvRefresh=async()=>{DV.stAt=0;dvRender();try{await mTeamsSync(!0)}catch(e){mToast("ซิงค์ Teams ไม่สำเร็จ: "+e.message,!0)}DV.stAt=0;dvRender()};
 async function dvState(){if(!DV.st||Date.now()-DV.stAt>15e3){DV.st=await mState();DV.stAt=Date.now()}return DV.st}
@@ -871,37 +907,48 @@ function dvLine(pts,w){let h=200,L=34,R=12,T=12,B=26,iw=Math.max(60,w-L-R),ih=h-
 function dvTip(e,html){let t=document.getElementById("dv-tip");if(!t){t=document.createElement("div");t.id="dv-tip";t.setAttribute("role","tooltip");document.body.appendChild(t)}if(!html){t.style.display="none";return}
  t.innerHTML=html;t.style.display="block";let x=e.clientX+14,y=e.clientY+14,r=t.getBoundingClientRect();if(x+r.width>innerWidth-8)x=e.clientX-r.width-14;if(y+r.height>innerHeight-8)y=e.clientY-r.height-14;t.style.left=x+"px";t.style.top=y+"px"}
 function dvWire(host,pts){
+ host.querySelectorAll(".dv-x").forEach(b=>{b.onclick=()=>dvDismiss(b.dataset.ch,b.dataset.at,b.dataset.name)});
  host.querySelectorAll(".dv-bar").forEach(b=>{b.onmousemove=e=>dvTip(e,mEsc(b.dataset.tip));b.onmouseleave=()=>dvTip(null,"");b.onfocus=()=>{let r=b.getBoundingClientRect();dvTip({clientX:r.right-120,clientY:r.top},mEsc(b.dataset.tip))};b.onblur=()=>dvTip(null,"")});
  let hit=host.querySelector(".dv-hit");if(hit&&pts){let svg=hit.ownerSVGElement,cr=svg.querySelector(".dv-cross"),dt=svg.querySelector(".dv-hov"),d=hit.dataset,n=+d.n,L=+d.l,iw=+d.iw,T=+d.t,ih=+d.ih,top=+d.top;
   hit.onmousemove=e=>{let b=svg.getBoundingClientRect(),i=Math.round((e.clientX-b.left-L)/(n<2?1:iw/(n-1)));i=Math.max(0,Math.min(n-1,i));let x=L+(n<2?iw/2:i*iw/(n-1)),y=T+ih-pts[i].v/top*ih;
-   cr.setAttribute("x1",x);cr.setAttribute("x2",x);cr.style.display="";dt.setAttribute("cx",x);dt.setAttribute("cy",y);dt.style.display="";dvTip(e,`<b>${dvTH(pts[i].d)}</b><br>${dvNum(pts[i].v)} ข้อความ`)};
+   cr.setAttribute("x1",x);cr.setAttribute("x2",x);cr.style.display="";dt.setAttribute("cx",x);dt.setAttribute("cy",y);dt.style.display="";dvTip(e,`<b>${pts[i].wk?"สัปดาห์ "+dvTH(pts[i].d)+" – "+dvTH(pts[i].e):dvTH(pts[i].d)}</b><br>${dvNum(pts[i].v)} ข้อความ`)};
   hit.onmouseleave=()=>{cr.style.display="none";dt.style.display="none";dvTip(null,"")}}}
 
 /* ---- วาดหน้า ---- */
 async function dvRender(){let host=document.getElementById("dashv");if(!host||DV.busy)return;DV.busy=!0;
- try{let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",days=DV.days,since=Date.now()-days*864e5,sinceIso=new Date(since).toISOString();
+ try{let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
   DV.sig=[TS.at,TS.progress?.done,M.cacheAt,(M.cache?.items||[]).length].join("|");
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
   let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>แดชบอร์ด</h1><p class="dv-sub">${staff?"ความเคลื่อนไหวใน Teams Channel และคำขอจากเซลส์ที่รอพิจารณา":"คำขอ Service Request ของคุณและสถานะการพิจารณา"}</p></div>
-   <div class="dv-ctrl"><button type="button" class="dv-new" onclick="dvNew()"><span aria-hidden="true">+</span> ส่ง Service Request</button><div class="dv-seg" role="group" aria-label="ช่วงเวลา">${[7,30,90].map(d=>`<button type="button" class="${d===days?"on":""}" aria-pressed="${d===days}" onclick="dvSetDays(${d})">${d} วัน</button>`).join("")}</div>
-   ${staff?`<span class="dv-sync">${TS.progress?`<i class="dv-spin"></i>กำลังซิงค์ Teams ${TS.progress.done}/${TS.progress.total}`:TS.at?"ซิงค์ Teams "+new Date(TS.at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+" น.":"ยังไม่ได้ซิงค์ Teams"}</span><button type="button" class="dv-btn" onclick="dvRefresh()">รีเฟรช</button>`:""}</div></header>`;
+   <div class="dv-ctrl"><button type="button" class="dv-new" onclick="dvNew()"><span aria-hidden="true">+</span> ส่ง Service Request</button><div class="dv-seg" role="group" aria-label="ช่วงเวลา">${[7,30,90].map(d=>`<button type="button" class="${!DV.custom&&d===DV.days?"on":""}" aria-pressed="${!DV.custom&&d===DV.days}" onclick="dvSetDays(${d})">${d} วัน</button>`).join("")}<button type="button" class="${DV.custom?"on":""}" aria-pressed="${!!DV.custom}" aria-expanded="${DV.showCustom}" onclick="dvToggleCustom()">${dvIcon.cal} เลือกช่วง</button></div>
+   ${staff?`<span class="dv-sync">${TS.progress?`<i class="dv-spin"></i>กำลังซิงค์ Teams ${TS.progress.done}/${TS.progress.total}`:TS.at?"ซิงค์ Teams "+new Date(TS.at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+" น.":"ยังไม่ได้ซิงค์ Teams"}</span><button type="button" class="dv-btn" onclick="dvRefresh()">รีเฟรช</button>`:""}</div></header>
+   ${DV.showCustom?`<form class="dv-range" onsubmit="dvApplyRange(event)"><label>ตั้งแต่ <input type="date" name="from" value="${R.from}" max="${dvDay(Date.now())}" required></label><label>ถึง <input type="date" name="to" value="${R.to}" max="${dvDay(Date.now())}" required></label><button type="submit" class="dv-btn">ใช้ช่วงนี้</button><span class="dv-rl">${DV.custom?"แสดงข้อมูล "+mEsc(rl):"เลือกวันแล้วกด ใช้ช่วงนี้"}</span></form>`:""}`;
   let teams="";
-  if(staff){let chans=(TS.all||[]).filter(r=>!r.ignored),active=chans.filter(r=>r.last>=sinceIso),dayKeys=[];for(let t=since;t<=Date.now();t+=864e5)dayKeys.push(dvDay(t));dayKeys=[...new Set(dayKeys)];
-   let pts=dayKeys.map(d=>({d,v:chans.reduce((s,r)=>s+((r.days||{})[d]||0),0)})),msgs=pts.reduce((s,p)=>s+p.v,0);
-   let eng=Hd.map(n=>({n,ch:chans.filter(r=>r.eng?.[n]?.last>=sinceIso)})),engActive=eng.filter(x=>x.ch.length).length;
-   let wait=chans.filter(r=>r.last&&r.last>=new Date(Date.now()-Math.max(days,30)*864e5).toISOString()&&r.lastBy&&!mEngName(r.lastBy)).sort((a,b)=>a.last.localeCompare(b.last));
+  if(staff){let chans=(TS.all||[]).filter(r=>!r.ignored),active=chans.filter(r=>r.days?dvIn(r.days,keys)>0:(r.last>=sinceIso&&r.last<=untilIso));
+   let msgs=chans.reduce((s,r)=>s+dvIn(r.days,keys),0),oldest=chans.reduce((m,r)=>{let k=Object.keys(r.days||{}).sort()[0];return k&&(!m||k<m)?k:m},"");
+   let eng=Hd.map(n=>({n,ch:chans.filter(r=>{let e=r.eng?.[n];return e&&(e.days?dvIn(e.days,keys)>0:e.last>=sinceIso&&e.last<=untilIso)})})),engActive=eng.filter(x=>x.ch.length).length;
+   /* รอ Engineer ตอบ = ข้อความล่าสุด (ภายใน 45 วัน) ไม่ใช่ของ Engineer และ (มาจากเซลส์เจ้าของ Team/โครงการ หรือ แท็ก Engineer / ทั้ง Channel)
+      แผนกอื่นคุยกันเองโดยไม่แท็ก Engineer → ไม่นับ; กด "ไม่ใช่งานเรา" เพื่อซ่อนจนกว่าจะมีข้อความใหม่ */
+   let ign=M.cache?.settings?.waitIgnore||{},pById=Object.fromEntries(st.projects.map(p=>[p.id,p])),accN=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a.name||""]));
+   let isSales=r=>{let a=mNorm(String(r.lastBy).split(/\s+/)[0]);if(a.length<3)return!1;let p=r.pid&&pById[r.pid],an=p?accN[p.accountId]:"";return mNorm(r.teamName).includes(a)||(!!an&&mNorm(an).startsWith(a))};
+   let tagsUs=r=>!Array.isArray(r.lastMent)||r.lastMent.some(n=>String(n).startsWith("@")||mEngName(n));
+   let cand=chans.filter(r=>r.last&&r.last>=new Date(Date.now()-45*864e5).toISOString()&&r.lastBy&&!mEngName(r.lastBy)),hidden=cand.filter(r=>ign[r.channelId]?.at&&ign[r.channelId].at>=r.last);cand=cand.filter(r=>!hidden.includes(r));
+   let wait=cand.filter(r=>isSales(r)||tagsUs(r)).sort((a,b)=>a.last.localeCompare(b.last)),other=cand.filter(r=>!wait.includes(r)).sort((a,b)=>b.last.localeCompare(a.last));
+   let wItem=(r,x)=>`<li><a href="${mEsc(r.url||"#")}" target="_blank" rel="noreferrer"><b>${mEsc(r.name)}</b><span>${mEsc(r.teamName||"")} · ${mEsc(r.lastBy)}${(r.lastMent||[]).length?" → "+mEsc(r.lastMent.slice(0,2).map(n=>String(n).startsWith("@")?n:"@"+n).join(", ")):""}: ${mEsc((r.recent?.[0]?.text||"").slice(0,70))}</span></a><span class="dv-li-r"><em>${dvAgo(r.last)}</em>${x?`<button type="button" class="dv-x" data-ch="${mEsc(r.channelId)}" data-at="${mEsc(r.last)}" data-name="${mEsc(r.name)}">ไม่ใช่งานเรา</button>`:""}</span></li>`;
    let byTeam={};for(let r of active){let k=r.teamName||"ไม่ระบุ Team";byTeam[k]=(byTeam[k]||0)+1}let teamRows=Object.entries(byTeam).sort((a,b)=>b[1]-a[1]);if(teamRows.length>8){let rest=teamRows.slice(7).reduce((s,x)=>s+x[1],0);teamRows=[...teamRows.slice(0,7),["อื่น ๆ ("+(teamRows.length-7)+" Team)",rest]]}
    let syncing=!TS.at;
    teams=`<section class="dv-sec" aria-labelledby="dv-t1"><div class="dv-sec-h"><h2 id="dv-t1">Teams Channel</h2><button type="button" class="dv-link" onclick="mDash()">ตาราง Channel ทั้งหมด / ผูก Channel กับโครงการ →</button></div>
     ${syncing?`<p class="dv-empty">${TS.progress?`กำลังอ่านข้อความจาก Teams (${TS.progress.done}/${TS.progress.total} Channel)…`:TS.err?mEsc(TS.err):"กำลังเตรียมข้อมูล Teams…"}</p>`:`
-    <div class="dv-kpis">${dvKpi("Channel ที่มีความเคลื่อนไหว",dvNum(active.length),"จากทั้งหมด "+dvNum(chans.length)+" Channel")}${dvKpi("ข้อความใน Channel",dvNum(msgs),"ใน "+days+" วันล่าสุด")}${dvKpi(dvIcon.warn+" รอ Engineer ตอบ",dvNum(wait.length),"ข้อความล่าสุดมาจากเซลส์/ลูกค้า",wait.length?"warn":"")}${dvKpi("Engineer ที่ร่วมตอบ",engActive+"/"+Hd.length,"ตอบอย่างน้อย 1 Channel")}</div>
-    <div class="dv-grid ${half?"two":""}"><div class="dv-card wide"><h3>ข้อความใน Teams ต่อวัน</h3><p class="dv-cap">รวมทุก Channel (ไม่นับ General) · ${days} วันล่าสุด</p><div class="dv-plot"></div></div>
-     <div class="dv-card"><h3>Engineer × จำนวน Channel ที่ร่วมตอบ</h3><p class="dv-cap">1 Channel = 1 งานที่มีส่วนร่วม · ${days} วันล่าสุด</p>${dvBars(eng.map(x=>({label:dvTitle(x.n),v:x.ch.length,tip:dvTitle(x.n)+": "+x.ch.length+" Channel"+(x.ch.length?" — "+x.ch.slice(0,5).map(r=>r.name).join(", ")+(x.ch.length>5?" …":""):"")})).sort((a,b)=>b.v-a.v),{unit:"Channel"})}</div></div>
-    <div class="dv-grid ${half?"two-even":""}"><div class="dv-card"><h3>${dvIcon.warn} รอ Engineer ตอบ</h3><p class="dv-cap">Channel ที่ข้อความล่าสุดไม่ได้มาจาก Engineer · รอนานสุดอยู่บน</p>
-      ${wait.length?`<ol class="dv-list">${wait.slice(0,8).map(r=>`<li><a href="${mEsc(r.url||"#")}" target="_blank" rel="noreferrer"><b>${mEsc(r.name)}</b><span>${mEsc(r.teamName||"")} · ${mEsc(r.lastBy)}: ${mEsc((r.recent?.[0]?.text||"").slice(0,70))}</span></a><em>${dvAgo(r.last)}</em></li>`).join("")}</ol>${wait.length>8?`<p class="dv-more">และอีก ${wait.length-8} Channel</p>`:""}`:`<p class="dv-empty ok">${dvIcon.ok} ไม่มี Channel ที่รอ Engineer ตอบ</p>`}</div>
-     <div class="dv-card"><h3>Channel ที่เคลื่อนไหว แยกตาม Team</h3><p class="dv-cap">Team ส่วนใหญ่ตั้งชื่อตามเซลส์ · ${days} วันล่าสุด</p>${dvBars(teamRows.map(([k,v])=>({label:k,v,tip:k+": "+v+" Channel ที่มีข้อความ"})),{unit:"Channel"})}</div></div>`}</section>`}
+    <div class="dv-kpis">${dvKpi("Channel ที่มีความเคลื่อนไหว",dvNum(active.length),"จากทั้งหมด "+dvNum(chans.length)+" Channel")}${dvKpi("ข้อความใน Channel",dvNum(msgs),rl)}${dvKpi(dvIcon.warn+" รอ Engineer ตอบ",dvNum(wait.length),"เซลส์ถามมา หรือแท็ก Engineer",wait.length?"warn":"")}${dvKpi("Engineer ที่ร่วมตอบ",engActive+"/"+Hd.length,"ตอบอย่างน้อย 1 Channel")}</div>
+    <div class="dv-grid ${half?"two":""}"><div class="dv-card wide"><h3>ข้อความใน Teams ต่อวัน</h3><p class="dv-cap">รวมทุก Channel (ไม่นับ General) · ${mEsc(rl)}${keys.length>120?" · รวมเป็นรายสัปดาห์":""}${oldest&&keys[0]<oldest?" · ข้อมูลที่ระบบอ่านได้เริ่มที่ "+dvTH2(oldest)+" (อ่านย้อนหลังสูงสุด ~200 โพสต์ต่อ Channel)":""}</p><div class="dv-plot"></div></div>
+     <div class="dv-card"><h3>Engineer × จำนวน Channel ที่ร่วมตอบ</h3><p class="dv-cap">1 Channel = 1 งานที่มีส่วนร่วม · ${mEsc(rl)}</p>${dvBars(eng.map(x=>({label:dvTitle(x.n),v:x.ch.length,tip:dvTitle(x.n)+": "+x.ch.length+" Channel"+(x.ch.length?" — "+x.ch.slice(0,5).map(r=>r.name).join(", ")+(x.ch.length>5?" …":""):"")})).sort((a,b)=>b.v-a.v),{unit:"Channel"})}</div></div>
+    <div class="dv-grid ${half?"two-even":""}"><div class="dv-card"><h3>${dvIcon.warn} รอ Engineer ตอบ</h3><p class="dv-cap">ข้อความล่าสุดมาจากเซลส์เจ้าของงาน หรือแท็ก Engineer / ทั้ง Channel · สถานะปัจจุบัน (ไม่ขึ้นกับช่วงวันที่) · รอนานสุดอยู่บน</p>
+      ${wait.length?`<ol class="dv-list">${wait.slice(0,10).map(r=>wItem(r,!0)).join("")}</ol>${wait.length>10?`<p class="dv-more">และอีก ${wait.length-10} Channel</p>`:""}`:`<p class="dv-empty ok">${dvIcon.ok} ไม่มี Channel ที่รอ Engineer ตอบ</p>`}
+      ${other.length?`<details class="dv-other"><summary>ไม่นับ ${other.length} Channel — แผนกอื่น/คนนอกทีมคุยกันโดยไม่ได้แท็ก Engineer</summary><ol class="dv-list">${other.slice(0,15).map(r=>wItem(r,!1)).join("")}</ol></details>`:""}
+      ${hidden.length?`<p class="dv-more">ซ่อนไว้ ${hidden.length} Channel (กด "ไม่ใช่งานเรา") — จะกลับมาเมื่อมีข้อความใหม่</p>`:""}</div>
+     <div class="dv-card"><h3>Channel ที่เคลื่อนไหว แยกตาม Team</h3><p class="dv-cap">Team ส่วนใหญ่ตั้งชื่อตามเซลส์ · ${mEsc(rl)}</p>${dvBars(teamRows.map(([k,v])=>({label:k,v,tip:k+": "+v+" Channel ที่มีข้อความ"})),{unit:"Channel"})}</div></div>`}</section>`}
   /* ---- คำขอจากเซลส์ ---- */
-  let ps=st.projects.filter(p=>String(p.id).startsWith("sp-")),inP=ps.filter(p=>(p.createdAt||"")>=sinceIso),pend=ps.filter(p=>p.listApproval==="pending").sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
+  let ps=st.projects.filter(p=>String(p.id).startsWith("sp-")),inP=ps.filter(p=>(p.createdAt||"")>=sinceIso&&(p.createdAt||"")<=untilIso),pend=ps.filter(p=>p.listApproval==="pending").sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
   let acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a])),cnt=(list,f)=>{let m={};for(let p of list)for(let k of [].concat(f(p)||[]).filter(Boolean))m[k]=(m[k]||0)+1;let r=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(r.length>8){let rest=r.slice(7).reduce((s,x)=>s+x[1],0);r=[...r.slice(0,7),["อื่น ๆ",rest]]}return r.map(([label,v])=>({label,v,tip:label+": "+v+" คำขอ"}))};
   let ap=inP.filter(p=>p.listApproval==="approved").length,rj=inP.filter(p=>p.listApproval==="rejected").length;
   let card=p=>{let sr=p.serviceRequest||{},a=acc[p.accountId],chip=p.listApproval==="approved"?`<span class="dv-st ok">${dvIcon.ok} อนุมัติแล้ว</span>`:p.listApproval==="rejected"?`<span class="dv-st no">${dvIcon.no} ไม่อนุมัติ</span>`:`<span class="dv-st wait">${dvIcon.wait} รอพิจารณา</span>`;
@@ -914,14 +961,14 @@ async function dvRender(){let host=document.getElementById("dashv");if(!host||DV
     ${p.listApproval==="pending"&&M.isApprover?`<div class="dv-act"><button type="button" class="dv-ok" onclick="dvDecide('${p.id}','approved')">${dvIcon.ok} อนุมัติ</button><button type="button" class="dv-no" onclick="dvDecide('${p.id}','rejected')">ไม่อนุมัติ</button>${CFG.approveUrl?`<a href="${mEsc(CFG.approveUrl)}" target="_blank" rel="noreferrer">อนุมัติใน Lists ↗</a>`:""}</div>`:""}</article>`};
   let mine=!staff,listShown=staff?pend:inP.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
   let reqs=`<section class="dv-sec" aria-labelledby="dv-t2"><div class="dv-sec-h"><h2 id="dv-t2">${mine?"คำขอของฉัน":"คำขอจากเซลส์ · พิจารณาอนุมัติ"}</h2>${staff&&CFG.approveUrl?`<a class="dv-link" href="${mEsc(CFG.approveUrl)}" target="_blank" rel="noreferrer">เปิด All Projects List ↗</a>`:""}</div>
-   <div class="dv-kpis">${dvKpi(dvIcon.wait+" รอพิจารณา",dvNum(pend.length),"ทั้งหมดที่ยังไม่ได้ตัดสิน",pend.length?"warn":"")}${dvKpi("คำขอเข้ามา",dvNum(inP.length),"ใน "+days+" วันล่าสุด")}${dvKpi(dvIcon.ok+" อนุมัติ",dvNum(ap),"ของคำขอในช่วงนี้")}${dvKpi(dvIcon.no+" ไม่อนุมัติ",dvNum(rj),"ของคำขอในช่วงนี้")}</div>
-   ${inP.length?`<div class="dv-grid ${half?"three":""}"><div class="dv-card"><h3>ประเภทงานที่ขอ</h3><p class="dv-cap">คำขอ ${days} วันล่าสุด (1 คำขอเลือกได้หลายประเภท)</p>${dvBars(cnt(inP,p=>p.serviceRequest?.workTypes),{unit:"คำขอ"})}</div>
-    <div class="dv-card"><h3>Brand</h3><p class="dv-cap">คำขอ ${days} วันล่าสุด</p>${dvBars(cnt(inP,p=>p.serviceRequest?.brands),{unit:"คำขอ"})}</div>
-    <div class="dv-card"><h3>${mine?"ช่องทางที่มาของงาน":"เซลส์ที่ส่งคำขอ"}</h3><p class="dv-cap">คำขอ ${days} วันล่าสุด</p>${dvBars(mine?cnt(inP,p=>p.serviceRequest?.source):cnt(inP,p=>acc[p.accountId]?.name||"ไม่ระบุ"),{unit:"คำขอ"})}</div></div>`:`<p class="dv-empty">ยังไม่มีคำขอเข้ามาใน ${days} วันล่าสุด</p>`}
+   <div class="dv-kpis">${dvKpi(dvIcon.wait+" รอพิจารณา",dvNum(pend.length),"ทั้งหมดที่ยังไม่ได้ตัดสิน",pend.length?"warn":"")}${dvKpi("คำขอเข้ามา",dvNum(inP.length),rl)}${dvKpi(dvIcon.ok+" อนุมัติ",dvNum(ap),"ของคำขอในช่วงนี้")}${dvKpi(dvIcon.no+" ไม่อนุมัติ",dvNum(rj),"ของคำขอในช่วงนี้")}</div>
+   ${inP.length?`<div class="dv-grid ${half?"three":""}"><div class="dv-card"><h3>ประเภทงานที่ขอ</h3><p class="dv-cap">คำขอ ${mEsc(rl)} (1 คำขอเลือกได้หลายประเภท)</p>${dvBars(cnt(inP,p=>p.serviceRequest?.workTypes),{unit:"คำขอ"})}</div>
+    <div class="dv-card"><h3>Brand</h3><p class="dv-cap">คำขอ ${mEsc(rl)}</p>${dvBars(cnt(inP,p=>p.serviceRequest?.brands),{unit:"คำขอ"})}</div>
+    <div class="dv-card"><h3>${mine?"ช่องทางที่มาของงาน":"เซลส์ที่ส่งคำขอ"}</h3><p class="dv-cap">คำขอ ${mEsc(rl)}</p>${dvBars(mine?cnt(inP,p=>p.serviceRequest?.source):cnt(inP,p=>acc[p.accountId]?.name||"ไม่ระบุ"),{unit:"คำขอ"})}</div></div>`:`<p class="dv-empty">ยังไม่มีคำขอเข้ามาในช่วง ${mEsc(rl)}</p>`}
    <div class="dv-sec-h sm"><h3>${mine?"คำขอในช่วงนี้":"กล่องรออนุมัติ"} <span class="dv-count">${listShown.length}</span></h3>${staff?`<p class="dv-cap">เรียงจากคำขอที่รอนานที่สุด</p>`:""}</div>
    ${listShown.length?`<div class="dv-reqs">${listShown.slice(0,24).map(card).join("")}</div>`:`<p class="dv-empty ok">${dvIcon.ok} ${mine?"ยังไม่มีคำขอในช่วงนี้":"ไม่มีคำขอที่รอพิจารณา"}</p>`}</section>`;
   host.innerHTML=head+teams+reqs;
-  let pts=null;if(staff&&TS.at){let chans=(TS.all||[]).filter(r=>!r.ignored),keys=[];for(let t=since;t<=Date.now();t+=864e5)keys.push(dvDay(t));pts=[...new Set(keys)].map(d=>({d,v:chans.reduce((s,r)=>s+((r.days||{})[d]||0),0)}))}
+  let pts=null;if(staff&&TS.at){let chans=(TS.all||[]).filter(r=>!r.ignored);pts=keys.map(d=>({d,v:chans.reduce((s,r)=>s+((r.days||{})[d]||0),0)}));if(pts.length>120){let w=[];for(let i=0;i<pts.length;i+=7){let c=pts.slice(i,i+7);w.push({d:c[0].d,e:c[c.length-1].d,v:c.reduce((s,p)=>s+p.v,0),wk:!0})}pts=w}}
   let plot=host.querySelector(".dv-plot");if(plot&&pts)plot.innerHTML=dvLine(pts,Math.max(240,plot.clientWidth));
   dvWire(host,pts)}
  catch(e){console.error("[9D] dashboard",e);host.innerHTML=`<p class="dv-empty">โหลดแดชบอร์ดไม่สำเร็จ: ${mEsc(e.message)}</p>`}finally{DV.busy=!1}}
@@ -934,6 +981,7 @@ window.dvDecide=async(id,decision)=>{let p=(DV.st?.projects||[]).find(x=>x.id===
  DV.stAt=0;M.cacheAt=0;dvRender()};
 
 window.dvNew=()=>{let b=[...document.querySelectorAll(".main-content button")].find(x=>/สร้างโครงการ/.test(x.textContent));if(b)b.click();else mToast("ไม่พบหน้าต่าง Service Request — ลองเปิดจากเมนู โครงการทั้งหมด",!0)};
+window.dvDismiss=async(ch,at,name)=>{try{await mWaitDismiss(ch,at);mToast("ซ่อน "+name+" จากรายการรอตอบแล้ว — จะกลับมาเมื่อมีข้อความใหม่",!1,{label:"เลิกทำ",fn:async()=>{try{await mWaitDismiss(ch,"");dvRender()}catch(e){mToast("เลิกทำไม่สำเร็จ: "+e.message,!0)}}});dvRender()}catch(e){mToast("บันทึกไม่สำเร็จ: "+e.message,!0)}};
 /* ===== Router: หน้าเว็บเรียก /api/* → Microsoft 365 (ข้อมูลจริง) หรือร้านข้อมูลในเบราว์เซอร์ (ตัวอย่าง/ร่าง) ===== */
 var pvOrig=window.fetch.bind(window),isLocal=id=>/^(demo-|p-)/.test(String(id||""));
 window.fetch=async(e,a={})=>{let u=String(e),m=(a.method||"GET").toUpperCase(),J=(o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{"Content-Type":"application/json"}});
@@ -1003,7 +1051,12 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v15.0";
+var M_VER="v15.1";
+/* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
+function mCodeAuto(){let el=document.querySelector("input[name=code]");if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
+ let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
+ Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,r.code);el.dispatchEvent(new Event("input",{bubbles:!0}));
+ let h=document.createElement("small");h.className="code-auto";h.textContent=(r.learned?"ออกเลขถัดไปให้อัตโนมัติตามรูปแบบรหัสของคุณ ":"ออกเลขให้อัตโนมัติจากชื่อบัญชี ")+r.fmt+" · แก้ไขได้";el.insertAdjacentElement("afterend",h)}
 /* เช็กเวอร์ชันล่าสุดบน GitHub Pages — กันหน้าเว็บที่เปิดค้างไว้ใช้โค้ดเก่าสร้าง Channel/อนุมัติ */
 async function mVerNew(){try{let t=await (await pvOrig(location.pathname+"?_v="+Date.now(),{cache:"no-store"})).text(),m=t.match(/M_VER="(v[0-9.]+)"/);return m&&m[1]!==M_VER?m[1]:""}catch{return""}}
 if(String(CFG.clientId).startsWith("11111111-"))window.__t={ts:()=>TS,render:()=>{DV.stAt=0;return dvRender()},setVer:v=>{M_VER=v},catchUp:s=>{M.cacheAt=0;return mSetupCatchUp(s)}};
@@ -1048,7 +1101,7 @@ async function boot(){
  document.getElementById("gate").style.display="none";
  let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> Microsoft 365 · ${mEsc(pr.name)} (${mEsc(pr.email)}) · ${({admin:"Admin",engineer:"Engineer",sales:"Sales — เห็นเฉพาะงานของตนเอง",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">💬 Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync();mCodeAuto()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 boot();})();
