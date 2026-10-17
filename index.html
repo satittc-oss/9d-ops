@@ -1355,14 +1355,72 @@ function dvLoanHTML(L){let c=dvLoanCfg(),D=L.doc||{},S=L.sign||{},terms=String(c
  <p class="dd-ack">ผู้ยืมได้ตรวจรับสินค้าตามรายการข้างต้นครบถ้วน อยู่ในสภาพพร้อมใช้งาน และยอมรับเงื่อนไขการยืมสินค้าทุกข้อ</p>
  <section class="dd-signs">${DV_SIGN.map(sign).join("")}</section>
  <footer class="dd-f"><span>${e(L.no||"")} · ${e(c.co.name)}</span><span>ออกโดยระบบ 9D Integrated Operations · พิมพ์ ${dvTH2(dvToday())}</span></footer></article>`}
+/* ---- v16.5 สร้างไฟล์ PDF จริงจากเอกสาร (วาดหน้าเอกสารลง canvas → JPEG → PDF) — ใช้ได้ทุกเครื่อง รวมถึงแอปบน iPhone ที่สั่งพิมพ์จากเบราว์เซอร์ไม่ได้ ---- */
+var DV_MM=96/25.4;
+function dvPdfOps(root){let R0=root.getBoundingClientRect(),ops=[],brk=[],rng=document.createRange(),seg=window.Intl&&Intl.Segmenter?new Intl.Segmenter("th",{granularity:"grapheme"}):null,mc=document.createElement("canvas").getContext("2d"),clear=c=>!c||c==="transparent"||/rgba\([^)]*,\s*0\)$/.test(c);
+ let text=(n,cs)=>{let t=n.data;if(!t.trim())return;let font=`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;mc.font=font;let m=mc.measureText("Hgกั"),asc=m.fontBoundingBoxAscent||parseFloat(cs.fontSize)*.9,dsc=m.fontBoundingBoxDescent||parseFloat(cs.fontSize)*.25,ls=parseFloat(cs.letterSpacing)||0,up=cs.textTransform==="uppercase";
+  let gs=seg?[...seg.segment(t)].map(s=>[s.index,s.segment]):Array.from(t).reduce((a,c)=>{let i=a.length?a[a.length-1][0]+a[a.length-1][1].length:0;a.push([i,c]);return a},[]),run=null;
+  let flush=()=>{if(run&&run.s.trim()){let s=up?run.s.toUpperCase():run.s;if(ls){for(let g of run.g)ops.push({t:"x",x:g.x,y:g.y,s:up?g.s.toUpperCase():g.s,font,c:cs.color})}else ops.push({t:"x",x:run.x,y:run.y,s:s.replace(/\s+$/,""),font,c:cs.color})}run=null};
+  for(let[i,g]of gs){rng.setStart(n,i);rng.setEnd(n,i+g.length);let rs=rng.getClientRects(),r=rs[rs.length-1];if(!r||(!r.width&&/\s/.test(g)))continue;let x=r.left-R0.left,y=r.top-R0.top+(r.height-(asc+dsc))/2+asc,s=/\s/.test(g)?" ":g;
+   if(run&&Math.abs(y-run.y)<1.5){if(!(s===" "&&run.s.endsWith(" ")))run.s+=s;run.g.push({x,y,s})}else{flush();if(s===" ")continue;run={x,y,s,g:[{x,y,s}]}}}
+  flush()};
+ let walk=el=>{let cs=getComputedStyle(el);if(cs.display==="none"||cs.visibility==="hidden"||el.getAttribute("aria-hidden")==="true"&&el!==root)return;let r=el.getBoundingClientRect(),x=r.left-R0.left,y=r.top-R0.top,w=r.width,h=r.height;
+  if(el.matches("tr,li,.dd-h,.dd-2,.dd-note,.dd-terms,.dd-terms h3,.dd-ack,.dd-signs,.dd-f,p"))brk.push(y,y+h);
+  if(!clear(cs.backgroundColor))ops.push({t:"r",x,y,w,h,c:cs.backgroundColor,rad:parseFloat(cs.borderTopLeftRadius)||0});
+  let sd=["Top","Right","Bottom","Left"].map(k=>({w:parseFloat(cs["border"+k+"Width"])||0,c:cs["border"+k+"Color"],s:cs["border"+k+"Style"]}));
+  if(sd.every(b=>b.w&&b.s!=="none"&&b.c===sd[0].c&&b.w===sd[0].w&&b.s===sd[0].s))ops.push({t:"b",x,y,w,h,c:sd[0].c,lw:sd[0].w,rad:parseFloat(cs.borderTopLeftRadius)||0,dash:sd[0].s});
+  else sd.forEach((b,k)=>{if(!b.w||b.s==="none"||clear(b.c))return;let L=[[x,y+b.w/2,x+w,y+b.w/2],[x+w-b.w/2,y,x+w-b.w/2,y+h],[x,y+h-b.w/2,x+w,y+h-b.w/2],[x+b.w/2,y,x+b.w/2,y+h]][k];ops.push({t:"l",p:L,c:b.c,lw:b.w,dash:b.s})});
+  if(el.tagName==="IMG"&&el.naturalWidth){ops.push({t:"i",el,x,y,w,h});return}
+  let k0=ops.length;for(let n of el.childNodes){if(n.nodeType===3)text(n,cs);else if(n.nodeType===1)walk(n)}
+  if(el.tagName==="LI"&&cs.display==="list-item"&&/decimal/.test(cs.listStyleType)){let f=ops.slice(k0).find(o=>o.t==="x");if(f){let font=`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`,idx=[...el.parentNode.children].filter(c=>c.tagName==="LI").indexOf(el)+(Number(el.parentNode.getAttribute("start"))||1),mk=idx+". ";mc.font=font;ops.push({t:"x",x:x-mc.measureText(mk).width,y:f.y,s:mk.trim(),font,c:cs.color})}}};
+ walk(root);let th=root.querySelector(".dd-items thead"),tb=root.querySelector(".dd-items tbody"),hd=null;if(th&&tb){let a=th.getBoundingClientRect(),b=tb.getBoundingClientRect();hd={y:a.top-R0.top,h:a.height,b0:b.top-R0.top,b1:b.bottom-R0.top}}
+ return{hd,ops,brk:[...new Set(brk.map(v=>Math.round(v*10)/10))].sort((a,b)=>a-b),W:R0.width,H:R0.height}}
+function dvPdfPaint(ctx,ops){for(let o of ops){ctx.save();
+ if(o.t==="r"){ctx.fillStyle=o.c;ctx.beginPath();o.rad&&ctx.roundRect?ctx.roundRect(o.x,o.y,o.w,o.h,o.rad):ctx.rect(o.x,o.y,o.w,o.h);ctx.fill()}
+ else if(o.t==="b"){ctx.strokeStyle=o.c;ctx.lineWidth=o.lw;if(o.dash==="dotted")ctx.setLineDash([o.lw,o.lw*2]);else if(o.dash==="dashed")ctx.setLineDash([o.lw*3,o.lw*2]);let k=o.lw/2;ctx.beginPath();o.rad&&ctx.roundRect?ctx.roundRect(o.x+k,o.y+k,o.w-o.lw,o.h-o.lw,o.rad):ctx.rect(o.x+k,o.y+k,o.w-o.lw,o.h-o.lw);ctx.stroke()}
+ else if(o.t==="l"){ctx.strokeStyle=o.c;ctx.lineWidth=o.lw;if(o.dash==="dotted")ctx.setLineDash([o.lw,o.lw*2]);else if(o.dash==="dashed")ctx.setLineDash([o.lw*3,o.lw*2]);ctx.beginPath();ctx.moveTo(o.p[0],o.p[1]);ctx.lineTo(o.p[2],o.p[3]);ctx.stroke()}
+ else if(o.t==="i"){try{ctx.drawImage(o.el,o.x,o.y,o.w,o.h)}catch(e){}}
+ else if(o.t==="x"){ctx.font=o.font;ctx.fillStyle=o.c;ctx.textBaseline="alphabetic";ctx.fillText(o.s,o.x,o.y)}
+ ctx.restore()}}
+/* รวมรูป JPEG หลายหน้าเป็นไฟล์ PDF ขนาด A4 */
+function dvPdfFile(pages,title){let enc=new TextEncoder(),parts=[],off=0,xr=[],push=b=>{if(typeof b==="string")b=enc.encode(b);parts.push(b);off+=b.length};
+ let n=pages.length,cnt=3+n*3,obj=(id,...body)=>{xr[id]=off;push(id+" 0 obj\n");body.forEach(push);push("\nendobj\n")},W=595.28,H=841.89;
+ push("%PDF-1.4\n%âãÏÓ\n");obj(1,"<< /Type /Catalog /Pages 2 0 R >>");obj(2,`<< /Type /Pages /Kids [${pages.map((_,i)=>3+i*3+" 0 R").join(" ")}] /Count ${n} >>`);
+ pages.forEach((p,i)=>{let pid=3+i*3,c=`q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`;obj(pid,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${pid+2} 0 R >> >> /Contents ${pid+1} 0 R >>`);
+  obj(pid+1,`<< /Length ${c.length} >>\nstream\n${c}\nendstream`);obj(pid+2,`<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>\nstream\n`,p.jpeg,"\nendstream")});
+ let xo=off;push(`xref\n0 ${cnt}\n0000000000 65535 f \n`+Array.from({length:cnt-1},(_,k)=>String(xr[k+1]).padStart(10,"0")+" 00000 n \n").join(""));
+ push(`trailer\n<< /Size ${cnt} /Root 1 0 R >>\nstartxref\n${xo}\n%%EOF\n`);return new Blob(parts,{type:"application/pdf"})}
+async function dvDocPdf(html){let host=document.createElement("div");host.setAttribute("aria-hidden","true");host.style.cssText="position:fixed;left:-20000px;top:0;width:210mm;pointer-events:none;-webkit-text-size-adjust:100%;text-size-adjust:100%";host.innerHTML=html;document.body.appendChild(host);
+ try{try{await Promise.race([Promise.all(["400 10pt Roboto","500 10pt Roboto","300 10pt Roboto","400 10pt 'Noto Sans Thai'","500 10pt 'Noto Sans Thai'","600 10pt 'Noto Sans Thai'"].map(f=>document.fonts.load(f,"กขค Abc"))),new Promise(r=>setTimeout(r,3500))]);await document.fonts.ready}catch(e){}
+  await Promise.all([...host.querySelectorAll("img")].map(i=>i.complete?0:new Promise(r=>{i.onload=i.onerror=r;setTimeout(r,3000)})));
+  let dd=host.querySelector(".dd");dd.style.boxShadow="none";let{ops,brk,W,H,hd}=dvPdfOps(dd),PH=297*DV_MM,TOP=12*DV_MM,BOT=10*DV_MM,S=2.5,cuts=[0];
+  let rep=y=>hd&&y>hd.b0+1&&y<hd.b1-1?hd.h:0;/* หน้าที่เริ่มกลางตารางสินค้า → พิมพ์หัวตารางซ้ำ */
+  if(H>PH+2){let st=0;while(H-st>PH-(st?TOP+rep(st):0)+1){let lim=st+PH-(st?TOP+rep(st):0)-BOT,c=brk.filter(v=>v>st+40&&v<=lim).pop()||lim;cuts.push(c);st=c}}
+  let pages=[];for(let i=0;i<cuts.length;i++){let a=cuts[i],b=i+1<cuts.length?cuts[i+1]:H,cv=document.createElement("canvas");cv.width=Math.round(210*DV_MM*S);cv.height=Math.round(PH*S);let ctx=cv.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,cv.width,cv.height);ctx.scale(S,S);
+   let hh=i?rep(a):0;if(hh){ctx.save();ctx.beginPath();ctx.rect(0,TOP,W,hh);ctx.clip();ctx.translate(0,TOP-hd.y);dvPdfPaint(ctx,ops);ctx.restore()}
+   let y0=i?TOP+hh:0;ctx.beginPath();ctx.rect(0,y0,W,b-a);ctx.clip();ctx.translate(0,y0-a);dvPdfPaint(ctx,ops);
+   let blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",.9));if(!blob)throw new Error("เบราว์เซอร์สร้างรูปหน้าเอกสารไม่ได้");pages.push({w:cv.width,h:cv.height,jpeg:new Uint8Array(await blob.arrayBuffer())});cv.width=cv.height=1}
+  return dvPdfFile(pages)}finally{host.remove()}}
+/* ส่งไฟล์ให้ผู้ใช้: คอมพิวเตอร์ = ดาวน์โหลดทันที · มือถือ/แอป = แผ่นเมนู (บันทึกไปยังไฟล์ / พิมพ์ / ส่ง LINE ผ่านปุ่มแชร์ของเครื่อง) */
+function dvPdfDeliver(blob,name,forPrint){let file=new File([blob],name,{type:"application/pdf"}),url=URL.createObjectURL(blob),kb=Math.max(1,Math.round(blob.size/1024)),touch=matchMedia("(pointer:coarse)").matches,can=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+ let dl=()=>{let a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove()};
+ if(!touch&&!forPrint){dl();mToast("ดาวน์โหลด "+name+" แล้ว ("+kb+" KB)");setTimeout(()=>URL.revokeObjectURL(url),6e4);return}
+ if(!touch&&forPrint){let f=document.createElement("iframe");f.style.cssText="position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0";f.src=url;document.body.appendChild(f);f.onload=()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){window.open(url,"_blank")}};setTimeout(()=>{f.remove();URL.revokeObjectURL(url)},12e4);return}
+ let row=(a,ic,t,sub)=>`<button type="button" class="dv-srow" data-a="${a}"><span class="ic">${ic}</span><span class="tx"><b>${t}</b>${sub?`<small>${sub}</small>`:""}</span><span class="ch" aria-hidden="true">›</span></button>`;
+ let d=dvSheet("ไฟล์ PDF พร้อมแล้ว",`${mEsc(name)} · ${kb} KB`,`<div class="dv-sgroup">${can?row("share",forPrint?dvSI.print:dvSI.share,forPrint?"พิมพ์":"บันทึก / ส่งต่อ PDF",forPrint?"แตะ แล้วเลือก “พิมพ์” ในเมนูของเครื่อง":"บันทึกไปยังไฟล์ · พิมพ์ · ส่ง LINE / อีเมล / Teams"):""}${can&&forPrint?row("share2",dvSI.share,"บันทึก / ส่งต่อ PDF","บันทึกไปยังไฟล์ · ส่ง LINE / อีเมล"):""}${row("open",dvSI.doc,"เปิดดู PDF",can?"":"แล้วกดปุ่มแชร์ ↑ เพื่อบันทึกหรือพิมพ์")}${can?"":row("dl",dvSI.pdf,"ดาวน์โหลดไฟล์","")}</div>`);
+ d.addEventListener("close",()=>setTimeout(()=>URL.revokeObjectURL(url),12e4));
+ d.querySelectorAll("[data-a]").forEach(b=>b.onclick=async()=>{let a=b.dataset.a;if(a==="share"||a==="share2"){try{await navigator.share({files:[file],title:name})}catch(e){if(e.name!=="AbortError")mToast("แชร์ไม่สำเร็จ: "+e.message,!0)}return}d.close();if(a==="dl")dl();else window.open(url,"_blank")})}
+window.dvLoanPdf=async(id,forPrint)=>{let L=(LOAN.items||[]).find(x=>x.id===id);if(!L)return;let name=(L.no+"_"+L.customer).replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,80)+".pdf";
+ mToast("กำลังสร้างไฟล์ PDF…");try{let b=await dvDocPdf(dvLoanHTML(L));document.querySelectorAll(".nine-toast").forEach(t=>{if(/กำลังสร้างไฟล์ PDF/.test(t.textContent))t.remove()});dvPdfDeliver(b,name,forPrint)}catch(e){console.error(e);mToast("สร้าง PDF ไม่สำเร็จ: "+e.message,!0)}};
+
 window.dvLoanDoc=(id,mode)=>{let L=(LOAN.items||[]).find(x=>x.id===id);if(!L)return;document.getElementById("dv-print")?.remove();
  let w=document.createElement("div");w.id="dv-print";w.setAttribute("role","dialog");w.setAttribute("aria-modal","true");w.setAttribute("aria-label","ใบยืม "+L.no);
  w.innerHTML=`<div class="dv-ptool"><button type="button" class="dv-btn" data-a="close">✕ ปิด</button><b>${mEsc(L.no)} · ${mEsc(L.customer)}</b><span class="dv-sp"></span><button type="button" class="dv-btn" data-a="edit">แก้ไข / เซ็น</button><button type="button" class="dv-btn" data-a="pdf">${dvIcon.dl} บันทึกเป็น PDF</button><button type="button" class="dv-new" data-a="print">🖨 พิมพ์</button></div><div class="dv-pscroll"><div class="dv-pscale">${dvLoanHTML(L)}</div></div>`;
  document.body.appendChild(w);document.body.classList.add("dv-printing");let fit=()=>{let s=w.querySelector(".dv-pscale"),a=w.querySelector(".dd"),k=Math.min(1,(w.querySelector(".dv-pscroll").clientWidth-16)/a.offsetWidth);s.style.transform=k<1?`scale(${k})`:"";s.style.height=k<1?a.offsetHeight*k+"px":""};fit();addEventListener("resize",fit);
  let t0=document.title,close=()=>{removeEventListener("resize",fit);w.remove();document.body.classList.remove("dv-printing");document.title=t0;document.removeEventListener("keydown",esc)},esc=e=>{if(e.key==="Escape")close()};document.addEventListener("keydown",esc);
- let pr=()=>{document.title=(L.no+"_"+L.customer).replace(/[\\/:*?"<>|]+/g," ").slice(0,80);Promise.race([document.fonts?.ready||Promise.resolve(),new Promise(r=>setTimeout(r,2500))]).then(()=>setTimeout(()=>{window.print();setTimeout(()=>document.title=t0,1500)},50))};
+ let pr=()=>{if(pwaStandalone()&&pwaIOS()){dvLoanPdf(id,!0);return}document.title=(L.no+"_"+L.customer).replace(/[\\/:*?"<>|]+/g," ").slice(0,80);Promise.race([document.fonts?.ready||Promise.resolve(),new Promise(r=>setTimeout(r,2500))]).then(()=>setTimeout(()=>{window.print();setTimeout(()=>document.title=t0,1500)},50))};
  w.querySelector("[data-a=close]").onclick=close;w.querySelector("[data-a=print]").onclick=pr;w.querySelector("[data-a=edit]").onclick=()=>{close();dvLoanForm(id)};
- let pdf=()=>{mToast("ในหน้าต่างพิมพ์ เลือก “บันทึกเป็น PDF / Save as PDF” (iPhone: ปุ่มแชร์ ↑ → บันทึกไปยังไฟล์) — ชื่อไฟล์เป็นเลขที่ใบยืม");pr()};w.querySelector("[data-a=pdf]").onclick=pdf;w.querySelector("[data-a=close]").focus();
+ let pdf=()=>dvLoanPdf(id);w.querySelector("[data-a=pdf]").onclick=pdf;w.querySelector("[data-a=close]").focus();
  if(mode==="print")setTimeout(pr,350);if(mode==="pdf")setTimeout(pdf,350)};
 /* v16.2 เมนู "ต้องการทำอะไร?" ของใบยืม (bottom sheet บนมือถือ) */
 var dvSI={doc:dvIcon.doc,print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg>',
@@ -1380,11 +1438,11 @@ window.dvLoanMenu=id=>{let L=(LOAN.items||[]).find(x=>x.id===id);if(!L)return;le
  let nm=k=>D[k+"Name"]||(k==="sender"?L.engineer:k==="receiver"?L.contact:c.approver.name)||"";
  let sgRow=([k,t])=>{let s=L.sign?.[k];return row("sign:"+k,dvSI.pen,"ให้"+t+"เซ็น",(nm(k)?mEsc(nm(k))+" · ":"")+(s?.img?`<span class="dv-okt">✓ เซ็นแล้ว ${dvTH2(dvDay(Date.parse(s.at)))}</span>`:"ยังไม่ได้เซ็น"),s?.img?"done":"")};
  let d=dvSheet("ต้องการทำอะไร?",`ใบยืม ${mEsc(L.no)} · ${mEsc(L.customer)}`,
-  `<div class="dv-sgroup"><p>เอกสารใบยืม</p>${row("view",dvSI.doc,"ดูใบยืม","เอกสาร A4 พร้อมโลโก้และเงื่อนไข")}${row("print",dvSI.print,"พิมพ์ใบยืม")}${row("pdf",dvSI.pdf,"ดาวน์โหลดเป็น PDF","เลือก “บันทึกเป็น PDF” ในหน้าต่างพิมพ์")}${row("share",dvSI.share,"แชร์สรุปใบยืม","ส่งต่อทาง LINE / อีเมล / Teams")}</div>
+  `<div class="dv-sgroup"><p>เอกสารใบยืม</p>${row("view",dvSI.doc,"ดูใบยืม","เอกสาร A4 พร้อมโลโก้และเงื่อนไข")}${row("print",dvSI.print,"พิมพ์ใบยืม")}${row("pdf",dvSI.pdf,"บันทึกเป็น PDF","ไฟล์ PDF · บันทึกลงเครื่อง / ส่ง LINE / อีเมล")}${row("share",dvSI.share,"แชร์สรุปใบยืม","ส่งต่อทาง LINE / อีเมล / Teams")}</div>
   <div class="dv-sgroup"><p>ลงนาม <small>${DV_SIGN.filter(([k])=>L.sign?.[k]?.img).length}/3</small></p>${DV_SIGN.map(sgRow).join("")}</div>
   <div class="dv-sgroup"><p>การยืม</p>${left?row("ret",dvSI.ret,"บันทึกรับคืน",`ยังไม่คืน ${left} รายการ`):""}${L.status!=="คืนครบ"?row("due",dvSI.cal,"ขยายกำหนดคืน","ปัจจุบัน "+dvTH2(L.dueDate)+(dvOver(L)?' · <span class="dv-red">เกินกำหนด</span>':"")):""}${row("edit",dvSI.edit,"แก้ไขใบยืม","ข้อมูลลูกค้า · รายการสินค้า · ผู้ลงนาม")}</div>`);
  d.querySelectorAll("[data-a]").forEach(b=>b.onclick=async()=>{let a=b.dataset.a;d.close();
-  if(a==="view")dvLoanDoc(id);else if(a==="print")dvLoanDoc(id,"print");else if(a==="pdf")dvLoanDoc(id,"pdf");else if(a==="edit")dvLoanForm(id);else if(a==="ret")dvLoanReturn(id);else if(a==="due")dvLoanDue(id);
+  if(a==="view")dvLoanDoc(id);else if(a==="print")dvLoanDoc(id,"print");else if(a==="pdf")dvLoanPdf(id);else if(a==="edit")dvLoanForm(id);else if(a==="ret")dvLoanReturn(id);else if(a==="due")dvLoanDue(id);
   else if(a==="share"){let t=dvLoanText(L);try{if(navigator.share){await navigator.share({title:"ใบยืม "+L.no,text:t});return}}catch(e){if(e.name==="AbortError")return}try{await navigator.clipboard.writeText(t);mToast("คัดลอกสรุปใบยืมแล้ว — วางใน LINE / อีเมลได้เลย")}catch(e){mToast("แชร์ไม่ได้ในเบราว์เซอร์นี้",!0)}}
   else if(a.startsWith("sign:"))dvLoanSign(id,a.slice(5))})};
 window.dvLoanSign=async(id,k)=>{let L=(LOAN.items||[]).find(x=>x.id===id);if(!L)return;let c=dvLoanCfg(),D=L.doc||{},t=DV_SIGN.find(x=>x[0]===k)[1],n=D[k+"Name"]||(k==="sender"?L.engineer:k==="receiver"?L.contact:c.approver.name)||"";
@@ -1635,7 +1693,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.4";
+var M_VER="v16.5";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -1976,6 +2034,8 @@ button.dv-brand.on{background:var(--dv-ink);color:#fff}button.dv-brand:focus-vis
 .dv-lform textarea[name=body]{font-size:13px;line-height:1.6}
 @media(max-width:680px){.dv-ctbl table{min-width:0}.dv-ctbl thead{display:none}.dv-ctbl tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 14px;border-bottom:1px solid #f0f3f7}.dv-ctbl td{border:0;padding:0}.dv-ctbl td:nth-child(2){grid-column:1}.dv-ctbl td:nth-child(3),.dv-ctbl td:nth-child(4){display:none}.dv-ctbl td:nth-child(5){grid-column:2;grid-row:1/3;text-align:right}
  .dv-ch{padding:12px 14px 10px}.dv-cact{width:100%}}
+/* v16.5: กัน iPhone ขยายตัวอักษรเอง (Text Autosizing) — เงื่อนไขในใบยืมเคยใหญ่เกิน */
+html,body,#dv-print,.dd{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}
 /* ===== v16.4 Nine Distribution Corporate Identity — โครงแบบ CI Sheet: แถบดำ · ริบบอนไล่สีฟ้า→น้ำเงิน · หัวข้อเลขลำดับเส้นบาง · การ์ดขาวเส้นบาง =====
    Nine Blue #284397 · Nine Gray #686666 · Rich Black #0B0B0C · Sky #4CA8D8 (ใช้ในไล่สีเท่านั้น) · Roboto / Noto Sans Thai */
 :root{--nine-blue:#284397;--nine-gray:#686666;--nine-black:#0b0b0c;--nine-sky:#4ca8d8;--nine-grad:linear-gradient(90deg,#4ca8d8 0%,#2f6fc0 38%,#284397 72%,#1c2f72 100%);
@@ -2071,4 +2131,5 @@ h1,h2,h3{font-weight:500;letter-spacing:0;color:var(--ink)}
 .owner-avatar{background:var(--nine-blue)!important;color:#fff!important;border-radius:3px!important}.sidebar-user small{color:#8e8e8e!important}
 .g-pwa{margin:12px 0 0!important;text-align:center}.g-pwa:empty{display:none}
 .g-card{box-shadow:0 20px 60px #0009!important}
+@media screen{#dv-print{background:#3b3b3e}.dv-ptool{background:var(--nine-black);position:relative}.dv-ptool::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--nine-grad)}}
 </style></body></html>
