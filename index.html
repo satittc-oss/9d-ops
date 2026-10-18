@@ -515,16 +515,16 @@ var mNorm=s=>String(s||"").toLowerCase().replace(/[\s_·.\-\/]/g,"");
 /* --- Site, list, columns, tracking list --- */
 async function mInit(){
  let site=await G("/sites/"+CFG.siteHost+":"+CFG.sitePath+"?$select=id,webUrl");M.sid=site.id;
- let list=await G(`/sites/${M.sid}/lists/${M.lid}?$select=id,displayName,webUrl`);M.listWebUrl=list.webUrl;
- let cols=await gAll(`/sites/${M.sid}/lists/${M.lid}/columns`),found={};
+ /* v16.12: หลังได้ site id แล้ว โหลด list / คอลัมน์ / รายชื่อผู้ใช้ / tracking list พร้อมกัน (ไม่ต้องรอทีละคำขอ) */
+ let eng=(async()=>{try{let us=(await SP("/web/siteusers?$select=Title,Email&$filter=PrincipalType eq 1")).value||[];for(let n of Hd){if(CFG.engineers[n])continue;let u=us.find(x=>x.Email&&(mNorm(x.Email.split("@")[0])===mNorm(n)||mNorm(x.Title).startsWith(mNorm(n))));if(u)CFG.engineers[n]=u.Email.toLowerCase()}}catch(e){M.status.engErr=e.message}})(),trk=mTracking();
+ let[list,cols]=await Promise.all([G(`/sites/${M.sid}/lists/${M.lid}?$select=id,displayName,webUrl`),gAll(`/sites/${M.sid}/lists/${M.lid}/columns`)]),found={};M.listWebUrl=list.webUrl;
  for(let k in M_COLS){let[lbl,def,type]=M_COLS[k],c=cols.find(x=>x.name===def)||cols.find(x=>mNorm(x.displayName)===mNorm(lbl));found[k]=c?{name:c.name,type,readOnly:!!c.readOnly,required:!!c.required,choices:c.choice?.choices||null,fill:!!c.choice?.allowTextEntry}:null}
  M.cols=found;
  /* ตัวเลือกในฟอร์มเว็บ = ตัวเลือกใน List เสมอ */
  for(let k of["source","brands","workTypes","urgency","closingChance","estimatedValue"])if(found[k]?.choices?.length)ga[k].splice(0,ga[k].length,...found[k].choices);
  M.status.missing=Object.entries(found).filter(([k,v])=>!v).map(([k])=>M_COLS[k][0]);
 
- try{let us=(await SP("/web/siteusers?$select=Title,Email&$filter=PrincipalType eq 1")).value||[];for(let n of Hd){if(CFG.engineers[n])continue;let u=us.find(x=>x.Email&&(mNorm(x.Email.split("@")[0])===mNorm(n)||mNorm(x.Title).startsWith(mNorm(n))));if(u)CFG.engineers[n]=u.Email.toLowerCase()}}catch(e){M.status.engErr=e.message}
- await mResolveApprovers();await mTracking()}
+ await eng;await mResolveApprovers();await trk}
 async function mTracking(){try{
  let ls=await gAll(`/sites/${M.sid}/lists?$select=id,displayName`),t=ls.find(x=>x.displayName===CFG.trackingListName);
  if(!t)t=await G(`/sites/${M.sid}/lists`,{method:"POST",json:{displayName:CFG.trackingListName,description:"สถานะติดตามโครงการของ 9D Integrated Operations (จัดการโดยเว็บไซต์ อย่าแก้ไขด้วยมือ)",list:{template:"genericList",hidden:!1},columns:[{name:"ProjectItemId",number:{}},{name:"Payload",text:{allowMultipleLines:!0,textType:"plain",linesForEditing:6}},{name:"TrackVersion",number:{}}]}});
@@ -533,10 +533,12 @@ async function mTracking(){try{
 async function mLoad(force){if(!force&&M.cache&&Date.now()-M.cacheAt<6e3)return M.cache;
  if(!M.sid)await mInit();
  let sel=Object.values(M.cols).filter(Boolean).map(c=>c.type==="user"?c.name+"LookupId":c.name).concat(["Created","Modified","Attachments"]).join(",");
+ /* v16.12: อ่านรายการโครงการกับ tracking พร้อมกัน */
+ let tiP=(async()=>{if(!M.tl&&!M.trackErr)await mTracking();return M.tl?await gAll(`/sites/${M.sid}/lists/${M.tl}/items?$expand=fields($select=Title,ProjectItemId,Payload,TrackVersion)&$top=500`):null})();tiP.catch(()=>{});
  let items=await gAll(`/sites/${M.sid}/lists/${M.lid}/items?$expand=fields($select=${sel})&$select=id,webUrl,createdBy,createdDateTime,lastModifiedDateTime&$top=500`);
  let track={},settings={settings:{},accounts:{},members:[]};
- if(!M.tl&&!M.trackErr)await mTracking();
- if(M.tl){let ti=await gAll(`/sites/${M.sid}/lists/${M.tl}/items?$expand=fields($select=Title,ProjectItemId,Payload,TrackVersion)&$top=500`);
+ let ti=await tiP;
+ if(ti){
   let slog={};for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
    else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id})}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
@@ -579,7 +581,7 @@ async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(
  return{syncJobs:jobs,session,accounts:[...Object.values(accMap),],projects:all,activities:acts.slice(0,400),members:own?members.filter(m=>m.role!=="sales"||m.email.toLowerCase()===M.profile.email.toLowerCase()):members,settings:{listUrl:M.listWebUrl,...s.settings},bridgeConfigured:!0,samplePreview:!1,microsoftObservations:obs}}
 /* --- Writes --- */
 async function mSaveTrack(p,acts,syncInfo){if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
- let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr"];
+ let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr"];
  if(old.itemId){try{let cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${old.itemId}?$expand=fields($select=Payload)`),fp=JSON.parse(cur.fields?.Payload||"{}");old={...old,...fp,itemId:old.itemId}}catch(e){}}
  /* v16.1: อ่านค่าล่าสุดก่อนเขียน แล้วทับเฉพาะช่องที่ส่งมา — กันข้อมูลเก่าของอีกแท็บ/อีกคนลบสถานะที่เพิ่งบันทึก */
  let pl={};keep.forEach(k=>{if(old[k]!==void 0)pl[k]=old[k];if(p[k]!==void 0)pl[k]=p[k]});pl.pstat=mPsNewer(old.pstat,p.pstat);if(!pl.pstat)delete pl.pstat;pl.activities=[...acts,...(old.activities||[])].slice(0,120);pl.sync=syncInfo||old.sync;
@@ -618,7 +620,7 @@ async function mCreateTeam(acc){if(!acc?.email)throw new PvErr("ไม่รู�
  for(let i=0;i<20&&!tid;i++){await mWaitMs(3e3);M.teams=await gAll("/me/joinedTeams?$select=id,displayName");tid=M.teams.find(x=>x.displayName===nm)?.id||""}
  if(!tid)throw new PvErr("ส่งคำสั่งสร้าง Team "+nm+" แล้ว แต่ Microsoft ยังสร้างไม่เสร็จ — ลองกดสร้าง Channel อีกครั้งในอีก 1–2 นาที",409);
  for(let i=0;i<20;i++){try{await G(`/teams/${tid}?$select=id`);break}catch(e){await mWaitMs(3e3)}}
- let owners=[...new Set(Object.values(CFG.engineers).map(e=>e.toLowerCase()))].filter(e=>e!==me);
+ let owners=mEngOwners().filter(e=>e!==me);
  for(let e of owners)await mHttp(`${M_GRAPH}/teams/${tid}/members`,{method:"POST",json:mMember(e,!0)},"tadmin").catch(x=>console.warn(x));
  if(!owners.includes(acc.email.toLowerCase())&&acc.email.toLowerCase()!==me)await mHttp(`${M_GRAPH}/teams/${tid}/members`,{method:"POST",json:mMember(acc.email,!1)},"tadmin").catch(x=>console.warn(x));
  M.teams=null;try{await mLoad(!0);let s=JSON.parse(JSON.stringify(M.cache.settings));s.accounts=s.accounts||{};let e=acc.email.toLowerCase();s.accounts[e]={...(s.accounts[e]||{}),name:s.accounts[e]?.name||acc.name||nm,teamId:tid,color:s.accounts[e]?.color||acc.color||"blue"};await mSaveSettings(s)}catch(e){console.warn(e)}
@@ -627,16 +629,22 @@ async function mCreateTeam(acc){if(!acc?.email)throw new PvErr("ไม่รู�
 function mChanName(p){let code=String(p.code||"").replace(/\s+/g," ").trim(),name=String(p.name||"").replace(/\s+/g," ").trim(),n=code;
  if(name&&name!==code&&!mKey(code).includes(mKey(name)))n=code+"_"+name;
  n=n.replace(/[~#%&*{}+/\\:<>?|'"]/g,"-").replace(/^[._\s-]+/,"");n=[...n].slice(0,50).join("").replace(/[.\s]+$/,"");return n||("Project-"+p.listItemId)}
+/* v16.12: Owner ของ Channel = Engineer ที่หาเจอจาก site users + สมาชิกที่ตั้งเป็น Engineer/Admin ในหน้าตั้งค่า (คนที่ไม่เคยเปิด site จะไม่อยู่ใน site users) */
+function mEngOwners(withMe=!0){let m=(M.cache?.settings?.members||[]).filter(x=>["admin","engineer"].includes(x.role)).map(x=>x.email);
+ return[...new Set([...Object.values(CFG.engineers),...m,withMe?M.profile.email:""].filter(e=>e&&e.includes("@")).map(e=>e.toLowerCase()))]}
+/* เซลส์ผู้ขอ = Sales Account ของงาน · ถ้าไม่รู้อีเมล ใช้ผู้สร้างรายการใน List */
+function mSalesEmail(p,acc){let e=(acc?.email||"").toLowerCase();if(e.includes("@"))return e;let it=(M.cache?.items||[]).find(i=>String(i.id)===String(p.listItemId));return String(it?.createdBy?.user?.email||"").toLowerCase()}
+var mPermKey=(p,acc)=>[...mEngOwners(!1),"s:"+mSalesEmail(p,acc)].sort().join(",");
 var mMember=(email,owner)=>({"@odata.type":"#microsoft.graph.aadUserConversationMember",roles:owner?["owner"]:[],"user@odata.bind":`${M_GRAPH}/users('${email}')`});
 async function mChannel(p,acc){let tid=p.teamId,ex=null,name=mChanName(p),newTeam=!1;
  if(p.channelId&&tid){try{ex=await G(`/teams/${tid}/channels/${p.channelId}`)}catch(e){ex=null}}
  if(!ex){let before=M.lastTeamCreated;tid=await mFindTeam(acc,!0);newTeam=M.lastTeamCreated&&M.lastTeamCreated!==before;
   let list=(await gAll(`/teams/${tid}/channels?$select=id,displayName,webUrl,membershipType`)),k=mKey(name),ck=mKey(p.code),t=mTok(p.code);
   ex=list.find(c=>mKey(c.displayName)===k)||list.find(c=>mKey(c.displayName)===ck)||(t?list.find(c=>mTok(c.displayName)===t):null)||null}
- let owners=[...new Set([...Object.values(CFG.engineers),M.profile.email].map(e=>e.toLowerCase()))];
+ let owners=mEngOwners();
  let created=!ex;for(let i=0;!ex&&i<(newTeam?8:1);i++){try{ex=await G(`/teams/${tid}/channels`,{method:"POST",json:{displayName:name,description:(p.name+" · "+p.client).slice(0,1024),membershipType:"private",layoutType:"chat",members:[mMember(M.profile.email,!0)]}})}catch(e){if(!newTeam||i===7)throw e;await mWaitMs(5e3)}}
  /* v16.10: Private Channel เพิ่มได้เฉพาะคนที่อยู่ใน Team แล้ว → เพิ่ม Engineer (Owner) + เซลส์ (Member) เข้า Team ก่อน แล้วค่อยเพิ่มเข้า Channel (ลองซ้ำ — Team ใหม่ต้องรอ Microsoft สักครู่) · เก็บข้อผิดพลาดไว้แสดง ไม่กลืนเงียบ */
- let sales=(acc?.email||"").toLowerCase(),errs=await mEnsureTeamMembers(tid,owners,sales);
+ let sales=mSalesEmail(p,acc),errs=await mEnsureTeamMembers(tid,owners,sales);
  let cur=[],has=e=>cur.find(m=>(m.email||"").toLowerCase()===e),cerr={};
  for(let round=0;round<4;round++){cur=(await G(`/teams/${tid}/channels/${ex.id}/members`)).value||[];
   let miss=[...owners.map(e=>[e,!0]),...(sales&&!owners.includes(sales)?[[sales,!1]]:[])].filter(([e,own])=>{let m=has(e);return!m||(own&&!(m.roles||[]).includes("owner"))});if(!miss.length)break;
@@ -644,7 +652,7 @@ async function mChannel(p,acc){let tid=p.teamId,ex=null,name=mChanName(p),newTea
   if(round<3)await mWaitMs(5e3)}
  errs.push(...Object.entries(cerr).map(([e,m])=>e.split("@")[0]+" (Channel): "+m));
  cur=(await G(`/teams/${tid}/channels/${ex.id}/members`)).value||[];
- let okOwners=owners.filter(e=>cur.some(m=>(m.email||"").toLowerCase()===e&&(m.roles||[]).includes("owner"))),okSales=!acc?.email||cur.some(m=>(m.email||"").toLowerCase()===acc.email);
+ let okOwners=owners.filter(e=>cur.some(m=>(m.email||"").toLowerCase()===e&&(m.roles||[]).includes("owner"))),okSales=!sales||cur.some(m=>(m.email||"").toLowerCase()===sales);
  return{teamId:tid,channelId:ex.id,channelUrl:ex.webUrl||"https://teams.microsoft.com/",created,members:cur,errs,verified:okOwners.length===owners.length&&okSales,note:`${created?"สร้าง":"ใช้"} Channel "${ex.displayName||name}"${newTeam?" ใน Team ใหม่ "+M.lastTeamCreated:""} · Owner ${okOwners.length}/${owners.length} คน · เซลส์ ${okSales?"เป็น Member แล้ว":"ยังไม่ได้เพิ่ม"}${errs.length?" · ปัญหา: "+errs.slice(0,3).join(" | ").slice(0,300):""}`}}
 /* เพิ่มคนเข้า Team (ต้องใช้สิทธิ์ TeamMember.ReadWrite.All ใน scope tadmin) */
 async function mEnsureTeamMembers(tid,owners,sales){let errs=[],tm=null,last="";
@@ -657,10 +665,10 @@ async function mEnsureTeamMembers(tid,owners,sales){let errs=[],tm=null,last="";
  return errs}
 /* ซ่อม Channel ที่สมาชิกยังไม่ครบ (ฝั่ง Engineer / ผู้อนุมัติ) — ลองทุก ~30 นาทีต่องาน ครั้งละไม่เกิน 3 งาน */
 async function mPermFixAuto(){if(!["admin","engineer"].includes(M.role)||M.pfBusy)return 0;M.pfBusy=!0;let n=0;try{await mLoad(!0);let st=await mState(),since=Date.parse(CFG.autoChannelSince||"2026-10-16T00:00:00+07:00"),acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a]));
- let T=p=>M.cache?.track?.[Number(p.listItemId)]||{},todo=st.projects.filter(p=>String(p.id).startsWith("sp-")&&p.channelId&&p.teamId&&!p.permissionsVerifiedAt&&Date.parse(p.createdAt||0)>=since&&(!T(p).permFixAt||Date.now()-Date.parse(T(p).permFixAt)>30*60e3)).slice(0,3);
+ let T=p=>M.cache?.track?.[Number(p.listItemId)]||{},todo=st.projects.filter(p=>String(p.id).startsWith("sp-")&&p.channelId&&p.teamId&&(!p.permissionsVerifiedAt||(T(p).permKey||"")!==mPermKey(p,acc[p.accountId]))&&Date.parse(p.createdAt||0)>=since&&(!T(p).permFixAt||Date.now()-Date.parse(T(p).permFixAt)>30*60e3)).slice(0,3);
  for(let p of todo){let a=acc[p.accountId],r=null,err="";try{r=await mChannel(p,a)}catch(e){err=e.message}
   let ok=r?.verified,acts=ok||((r?.errs||[]).join("|")||err)!==(T(p).permErr||"")?[{id:"act-"+pvUid(),actor:M.profile.name,action:ok?"เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว":"เพิ่มสมาชิก Channel ยังไม่ครบ",note:(r?.note||err).slice(0,500)+" (อัตโนมัติ)",createdAt:pvNow()}]:[];
-  try{await mSaveTrack({...p,permissionsVerifiedAt:ok?pvNow():void 0,permFixAt:pvNow(),permErr:ok?"":((r?.errs||[]).join("|")||err)},acts)}catch(e){console.warn("[9D] permfix save",e)}if(ok)n++}}
+  try{await mSaveTrack({...p,permissionsVerifiedAt:ok?pvNow():void 0,permKey:ok?mPermKey(p,a):void 0,permFixAt:pvNow(),permErr:ok?"":((r?.errs||[]).join("|")||err)},acts)}catch(e){console.warn("[9D] permfix save",e)}if(ok)n++}}
  catch(e){console.warn("[9D] permfix",e)}finally{M.pfBusy=!1}return n}
 /* ส่ง Service Request ผ่านฟอร์ม Lists (listforms.aspx) แบบเดียวกับที่หน้าฟอร์มส่งเอง: multipart formValues=[{FieldName,FieldValue}] + __attachment__N + __REQUESTDIGEST
    ใช้ cookie SharePoint ของผู้ใช้ (no-cors) จึงไม่ต้องมีสิทธิ์ Add ใน List — อ่านผลไม่ได้ จึงตรวจจากรายการใหม่ของผู้ใช้ใน List */
@@ -733,7 +741,7 @@ async function mRun(action,b){await mLoad(!0);let st=await mState(),p0=st.projec
  let save=PV,chan=null;PV={...PV,session:st.session,projects:[JSON.parse(JSON.stringify(p0))],activities:[],syncJobs:[],microsoftObservations:{},accounts:st.accounts};
  let r,np,acts;try{
   if(action==="channel"){if(!["admin","engineer"].includes(role))throw new PvErr("เฉพาะ Engineer / ผู้อนุมัติ",403);if(p0.listApproval!=="approved")throw new PvErr("ต้องอนุมัติใน Microsoft Lists ก่อนสร้าง Channel",409);
-   let acc0=st.accounts.find(a=>a.id===p0.accountId);chan=await mChannel(p0,acc0);if(chan.created){chan.setupAt=pvNow();try{let x=await mChannelSetup(p0,chan,acc0);if(x)chan.note+=" · "+x}catch(e){chan.note+=" · ตั้งค่า Channel เพิ่มเติมไม่สำเร็จ: "+e.message}}let p=PV.projects[0];Object.assign(p,{channelId:chan.channelId,channelUrl:chan.channelUrl,teamId:chan.teamId,permissionsVerifiedAt:chan.verified?pvNow():void 0,setupAt:chan.setupAt||p.setupAt});pvTouch(p);pvLog(p,(b.auto?"สร้าง Private Channel อัตโนมัติ ":"สร้าง Private Channel ")+p.code,chan.note);p.autoChanErr="";r={project:p}}
+   let acc0=st.accounts.find(a=>a.id===p0.accountId);chan=await mChannel(p0,acc0);if(chan.created){chan.setupAt=pvNow();try{let x=await mChannelSetup(p0,chan,acc0);if(x)chan.note+=" · "+x}catch(e){chan.note+=" · ตั้งค่า Channel เพิ่มเติมไม่สำเร็จ: "+e.message}}let p=PV.projects[0];Object.assign(p,{channelId:chan.channelId,channelUrl:chan.channelUrl,teamId:chan.teamId,permissionsVerifiedAt:chan.verified?pvNow():void 0,permKey:chan.verified?mPermKey(p0,acc0):void 0,setupAt:chan.setupAt||p.setupAt,chanFilesAt:chan.filesOk?pvNow():p.chanFilesAt});pvTouch(p);pvLog(p,(b.auto?"สร้าง Private Channel อัตโนมัติ ":"สร้าง Private Channel ")+p.code,chan.note);p.autoChanErr="";r={project:p}}
   else if(action==="sync"){r={project:PV.projects[0]}}
   else r=PV_ACT[action](b);
   np=PV.projects[0];acts=PV.activities;if(approvalNote&&acts[0])acts[0].note=approvalNote+(acts[0].note?" · "+acts[0].note:"")}finally{PV=save}
@@ -850,12 +858,26 @@ async function mUploadToDrive(drive,folderId,name,blob){name=String(name).replac
  if(blob.size<=4e6){await mHttp(`${M_GRAPH}${path}/content?@microsoft.graph.conflictBehavior=rename`,{method:"PUT",body:blob,headers:{"Content-Type":blob.type||"application/octet-stream"}});return}
  let ss=await G(`${path}/createUploadSession`,{method:"POST",json:{item:{"@microsoft.graph.conflictBehavior":"rename"}}}),size=blob.size,step=3276800,pos=0;
  while(pos<size){let end=Math.min(pos+step,size),r=await fetch(ss.uploadUrl,{method:"PUT",headers:{"Content-Range":`bytes ${pos}-${end-1}/${size}`},body:blob.slice(pos,end)});if(!r.ok)throw new Error("อัปโหลดไม่สำเร็จ (HTTP "+r.status+")");pos=end}}
-async function mChannelSetup(p,ch,acc,creator){let notes=[],copied=[],files=[];if(!ch.members)try{ch.members=(await G(`/teams/${ch.teamId}/channels/${ch.channelId}/members`)).value||[]}catch(e){ch.members=[]}
- try{files=(await SP(`/web/lists(guid'${M.lid}')/items(${p.listItemId})/AttachmentFiles`)).value||[]}catch(e){notes.push("อ่านไฟล์แนบไม่สำเร็จ: "+e.message)}
- if(files.length){let folder=null;for(let i=0;i<12&&!folder;i++){try{folder=await G(`/teams/${ch.teamId}/channels/${ch.channelId}/filesFolder`)}catch(e){await mWaitMs(5e3)}}
-  if(!folder?.parentReference?.driveId)notes.push("โฟลเดอร์ไฟล์ของ Channel ยังไม่พร้อม — ยังไม่ได้คัดลอกไฟล์แนบ "+files.length+" ไฟล์");
-  else for(let f of files){try{let rel=String(f.ServerRelativeUrl||"").split("/").map(x=>encodeURIComponent(x).replace(/'/g,"''")).join("/");
-   let r=await SP(`/web/GetFileByServerRelativePath(decodedurl='${rel}')/$value`,{raw:1}),blob=await r.blob();await mUploadToDrive(folder.parentReference.driveId,folder.id,f.FileName,blob);copied.push(f.FileName)}catch(e){notes.push("คัดลอก "+f.FileName+" ไม่สำเร็จ: "+e.message)}}}
+/* v16.12: คัดลอกไฟล์ของคำขอไปที่ Files ของ Channel — ไฟล์แนบในรายการ + ไฟล์ที่พักไว้ใน Documents › 9D Request Files (ส่งด้วยสิทธิ์ "9D Submit Request" แนบเข้ารายการตรง ๆ ไม่ได้) · ข้ามไฟล์ที่มีใน Channel แล้ว */
+async function mChanFiles(p,ch,wait=12){let notes=[],copied=[],src=[],bad=0,t=M.cache?.track?.[Number(p.listItemId)]||{};
+ try{for(let f of(await SP(`/web/lists(guid'${M.lid}')/items(${p.listItemId})/AttachmentFiles`)).value||[])src.push({name:f.FileName,path:f.ServerRelativeUrl})}catch(e){notes.push("อ่านไฟล์แนบไม่สำเร็จ: "+e.message);bad++}
+ let rf=t.reqFiles||p.reqFiles;if(rf?.folder){try{for(let f of(await SP(`/web/GetFolderByServerRelativePath(decodedurl=@a)/Files?@a=${mSpAlias(CFG.sitePath+"/Shared Documents/"+rf.folder)}&$select=Name,ServerRelativeUrl`)).value||[])if(!src.some(x=>x.name===f.Name))src.push({name:f.Name,path:f.ServerRelativeUrl})}catch(e){if(e.status!==404){notes.push("อ่านไฟล์ใน Documents › "+rf.folder+" ไม่สำเร็จ: "+e.message);bad++}}}
+ if(!src.length)return{copied,notes,ok:!bad};
+ let folder=null;for(let i=0;i<wait&&!folder;i++){try{folder=await G(`/teams/${ch.teamId}/channels/${ch.channelId}/filesFolder`)}catch(e){if(i<wait-1)await mWaitMs(5e3)}}
+ if(!folder?.parentReference?.driveId){notes.push("โฟลเดอร์ไฟล์ของ Channel ยังไม่พร้อม — ยังไม่ได้คัดลอกไฟล์แนบ "+src.length+" ไฟล์ (ระบบจะลองใหม่)");return{copied,notes,ok:!1}}
+ let drive=folder.parentReference.driveId,have=new Set();try{for(let x of await gAll(`/drives/${drive}/items/${folder.id}/children?$select=name`))have.add(x.name)}catch(e){}
+ for(let f of src){if(have.has(f.name.replace(/[\\/:*?"<>|#%]/g,"_")))continue;
+  try{let r=await SP(`/web/GetFileByServerRelativePath(decodedurl=@a)/$value?@a=${mSpAlias(f.path)}`,{raw:1});await mUploadToDrive(drive,folder.id,f.name,await r.blob());copied.push(f.name)}catch(e){notes.push("คัดลอก "+f.name+" ไม่สำเร็จ: "+e.message);bad++}}
+ return{copied,notes,ok:!bad}}
+/* ซ่อม Channel ที่ยังไม่ได้ไฟล์แนบ (เช่น โฟลเดอร์ Channel ยังไม่พร้อมตอนสร้าง หรือไฟล์ยังพักอยู่ใน Documents) — ลองทุก ~30 นาทีต่องาน ครั้งละไม่เกิน 3 งาน */
+async function mChanFilesAuto(){if(!["admin","engineer"].includes(M.role)||M.cfBusy)return 0;M.cfBusy=!0;let n=0;try{await mLoad(!0);let st=await mState(),since=Date.parse(CFG.autoChannelSince||"2026-10-16T00:00:00+07:00"),T=p=>M.cache?.track?.[Number(p.listItemId)]||{},ago=(x,ms)=>x&&Date.now()-Date.parse(x)<ms;
+ let todo=st.projects.filter(p=>{let t=T(p);return String(p.id).startsWith("sp-")&&p.channelId&&p.teamId&&Date.parse(p.createdAt||0)>=since&&(p.hasAttachments||t.reqFiles?.folder)&&!t.chanFilesAt&&!ago(t.chanFilesTry,30*60e3)&&!ago(t.setupAt,10*60e3)}).slice(0,3);
+ for(let p of todo){let r;try{r=await mChanFiles(p,{teamId:p.teamId,channelId:p.channelId},2)}catch(e){r={copied:[],notes:[e.message],ok:!1}}
+  let err=r.ok?"":r.notes.join(" | ").slice(0,500),acts=r.copied.length||(err&&err!==(T(p).chanFilesErr||""))?[{id:"act-"+pvUid(),actor:M.profile.name,action:r.copied.length?"คัดลอกไฟล์แนบเข้า Channel แล้ว":"คัดลอกไฟล์แนบเข้า Channel ยังไม่สำเร็จ",note:(r.copied.length?r.copied.join(", "):err)+" (อัตโนมัติ)",createdAt:pvNow()}]:[];
+  try{await mSaveTrack({...p,chanFilesAt:r.ok?pvNow():void 0,chanFilesTry:pvNow(),chanFilesErr:err},acts)}catch(e){console.warn("[9D] chanfiles save",e)}if(r.copied.length)n++}}
+ catch(e){console.warn("[9D] chanfiles",e)}finally{M.cfBusy=!1}return n}
+async function mChannelSetup(p,ch,acc,creator){let notes=[],copied=[];if(!ch.members)try{ch.members=(await G(`/teams/${ch.teamId}/channels/${ch.channelId}/members`)).value||[]}catch(e){ch.members=[]}
+ let fr=await mChanFiles(p,ch);copied=fr.copied;notes.push(...fr.notes);ch.filesOk=fr.ok;
  if(copied.length)notes.unshift("คัดลอกไฟล์แนบ "+copied.length+" ไฟล์ไปที่ Files ของ Channel");
  let cur=ch.members||[],ce=String(creator?.email||"").toLowerCase(),cm=creator?cur.find(m=>ce&&(m.email||"").toLowerCase()===ce||mNorm(m.displayName)===mNorm(creator.name)):null,me=creator?{name:cm?.displayName||creator.name,oid:cm?.userId||""}:M.profile,ae=(acc?.email||"").toLowerCase(),sm=cur.find(m=>(m.email||"").toLowerCase()===ae),sr=p.serviceRequest||{};
  let ments=me.oid?[{id:0,mentionText:me.name,mentioned:{user:{id:me.oid,displayName:me.name,userIdentityType:"aadUser"}}}]:[];
@@ -1753,7 +1775,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.11";
+var M_VER="v16.12";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -1804,7 +1826,7 @@ async function boot(){
  document.getElementById("gate").style.display="none";
  let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">💬 Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync();mCodeAuto()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync();mCodeAuto()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 /* ---- PWA: ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ / คอมพิวเตอร์ (v16.4) ---- */
