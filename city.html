@@ -49,7 +49,7 @@ h1{margin:2px 0 0;font-weight:700;font-size:clamp(19px,2.5vw,26px);text-wrap:bal
 .mp{right:12px;top:12px;width:min(236px,calc(100% - 24px));overflow:hidden}
 .mp .hd{width:100%;display:flex;align-items:center;justify-content:space-between;border:0;background:transparent;color:#fff;font:700 13px var(--ui);padding:9px 12px;cursor:pointer}
 .mp .hd span{font-size:12px;opacity:.8}
-.mp .tabs{display:flex;gap:4px;padding:0 8px 6px}.mp .tabs button{flex:1;border:0;border-radius:8px;padding:5px;font:600 12px var(--ui);cursor:pointer;color:var(--muted);background:rgba(255,255,255,.08)}
+.mp .tabs{display:flex;gap:4px;padding:0 8px 6px}.mp .tabs button{white-space:nowrap;padding:5px 3px!important;font-size:11.5px!important}.mp .tabs button{flex:1;border:0;border-radius:8px;padding:5px;font:600 12px var(--ui);cursor:pointer;color:var(--muted);background:rgba(255,255,255,.08)}
 .mp .tabs button.on{color:#fff;background:linear-gradient(180deg,#4ca8d8,#2f6fc0)}
 .mp .body{padding:0 8px 8px;display:flex;flex-direction:column;gap:5px;max-height:220px;overflow:auto}
 .mp.shut .tabs,.mp.shut .body{display:none}
@@ -105,7 +105,7 @@ html.embed body{padding:0;background:#0f1319}html.embed .head,html.embed .note{d
 
   <div class="hud mp" id="mp">
     <button class="hd" id="mpT" aria-expanded="true">📋 รายการงาน <span id="mpC">ซ่อน</span></button>
-    <div class="tabs"><button id="tP" class="on">ทีมงาน</button><button id="tM">งานล่าสุด</button><button id="tR">ผลงาน</button></div>
+    <div class="tabs"><button id="tP" class="on">ทีมงาน</button><button id="tS">เซลส์</button><button id="tM">งานล่าสุด</button><button id="tR">ผลงาน</button></div>
     <div class="body" id="mpb"></div>
   </div>
 
@@ -527,18 +527,22 @@ function applyLive(d){
  if(!live){live=true;jobs.length=0;fx.length=0;thLoad.fill(0);document.documentElement.classList.add("live");if(sel&&sel.type==="job")closeCard()}
  liveAt=Date.now();
  if(d.closed){for(const k of["WON","LOST","CXL"])closed[k]=Math.max(0,Number(d.closed[k])||0)}
+ liveSales=Array.isArray(d.sales)?d.sales.filter(x=>x&&/^#[0-9a-fA-F]{6}$/.test(x.color||"")).slice(0,20):[];
  const seen=new Set();
  for(const r of(d.jobs||[]).slice(0,MAXJ)){const zone=r.stage==="active"&&SUB_ZONES.has(r.zone)?r.zone:STAGE_ZONE[r.stage];if(!zone||!r.id)continue;const id=String(r.id);seen.add(id);
   const th=zone==="E"?(r.eng>=0&&r.eng<4?r.eng:hashS(id)%4):0;let j=jobs.find(x=>x.id===id);
-  if(!j){j={id,live:true,ty:{k:"proj",t:"โครงการ",c:STAGE_COL[r.stage]},col:new THREE.Color(STAGE_COL[r.stage]),code:String(r.code||id),path:[zone],leg:0,state:"wait",node:zone,th,wait:1e9,pos:null,yaw:0,seed:Math.random()*6,d:r,rev:1};jobs.push(j)}
-  else{j.d=r;j.rev=(j.rev||0)+1;j.code=String(r.code||id);j.ty.c=STAGE_COL[r.stage];j.col.set(STAGE_COL[r.stage]);
+  const cc=/^#[0-9a-fA-F]{6}$/.test(r.color||"")?r.color:STAGE_COL[r.stage];
+  if(!j){j={id,live:true,ty:{k:"proj",t:"โครงการ",c:cc},col:new THREE.Color(cc),code:String(r.code||id),path:[zone],leg:0,state:"wait",node:zone,th,wait:1e9,pos:null,yaw:0,seed:Math.random()*6,d:r,rev:1};jobs.push(j)}
+  else{j.d=r;j.rev=(j.rev||0)+1;j.code=String(r.code||id);j.ty.c=cc;j.col.set(cc);
    if(j.state==="wait"){if(j.node!==zone||(zone==="E"&&j.th!==th))moveLive(j,zone,th)}else if(j.path[j.path.length-1]!==zone||(zone==="E"&&j.thNext!==th))j.pendingZone={zone,th}}}
  for(let i=jobs.length-1;i>=0;i--)if(!seen.has(jobs[i].id)){if(sel&&sel.type==="job"&&sel.id===jobs[i].id)closeCard();if(follow===jobs[i].id)follow=null;jobs.splice(i,1)}
  recalcLoad();
  for(const r of d.eng||[]){const e=engs[r.idx];if(!e)continue;if(r.name){ENG[r.idx]=String(r.name);e.name=ENG[r.idx];const c=chips["p"+r.idx];if(c)c.el.firstChild.textContent=ENG[r.idx]}
   e.connected=!!r.connected;e.hidden=!!r.hidden;e.locInfo=r.loc&&Z[r.loc.zone]?r.loc:null;e.want=e.locInfo&&e.locInfo.zone!=="E"?e.locInfo.zone:null}
 }
-function liveCard(j){const d=j.d||{};ct.textContent="🚗 "+(d.code||j.code)+(d.name&&d.name!==d.code?" · "+d.name:"");
+let liveSales=[];
+function liveCard(j){const d=j.d||{};if(d.anon){ct.textContent="🚗 งานของเซลส์ท่านอื่น";cp.textContent=d.engName?"Engineer: "+d.engName:"";cl.textContent=(STAGE_T[d.stage]||d.stage)+" · อยู่ที่ "+Z[j.node].em+" "+Z[j.node].t+" · ไม่แสดงรายละเอียดโครงการ";const x=$("cx2");x.textContent="";x.dataset.key="";return}
+ ct.textContent="🚗 "+(d.code||j.code)+(d.name&&d.name!==d.code?" · "+d.name:"");
  cp.textContent=[d.client&&d.client!=="—"?d.client:"",d.sales?"Sales: "+d.sales:"",d.engName?"Engineer: "+d.engName:"ยังไม่ได้มอบหมาย Engineer"].filter(Boolean).join(" · ");
  cl.textContent=(STAGE_T[d.stage]||d.stage)+(d.subT?" · ⏳ "+d.subT:"")+" · อยู่ที่ "+Z[j.node].em+" "+Z[j.node].t+(d.since?" · ตั้งแต่ "+d.since:"");
  const x=$("cx2"),key=j.id+"|"+(j.rev||0);if(x.dataset.key===key)return;x.dataset.key=key;x.textContent="";
@@ -631,10 +635,12 @@ function closeCard(){card.hidden=true;sel=null;hi.visible=false;jmark.visible=fa
 $("cx").onclick=closeCard;
 
 /* ---------- panels and buttons ---------- */
-const mp=$("mp"),mpb=$("mpb"),tM=$("tM"),tR=$("tR"),tP=$("tP");let mtab=2,mpH="";
+const mp=$("mp"),mpb=$("mpb"),tM=$("tM"),tR=$("tR"),tP=$("tP"),tS=$("tS");let mtab=2,mpH="";
 function setMp(shut){mp.classList.toggle("shut",shut);$("mpT").setAttribute("aria-expanded",String(!shut));$("mpC").textContent=shut?"แสดง":"ซ่อน"}
 $("mpT").onclick=()=>setMp(!mp.classList.contains("shut"));setMp(true);
-function setTab(i){mtab=i;[tM,tR,tP].forEach((b,k)=>b.classList.toggle("on",k===i));renderMission()}tM.onclick=()=>setTab(0);tR.onclick=()=>setTab(1);tP.onclick=()=>setTab(2);
+function setTab(i){mtab=i;[tM,tR,tP,tS].forEach((b,k)=>b.classList.toggle("on",k===i));renderMission()}tM.onclick=()=>setTab(0);tR.onclick=()=>setTab(1);tP.onclick=()=>setTab(2);tS.onclick=()=>setTab(3);
+function salesRows(){if(!live)return`<p class="mx" style="padding:6px 8px;color:var(--muted)">สีรถตามเซลส์จะแสดงเมื่อโหลดข้อมูลจริง</p>`;if(!liveSales.length)return`<p class="mx" style="padding:6px 8px">ยังไม่มีงาน</p>`;
+ return liveSales.map(x=>`<div class="it"><i style="background:${x.color}"></i><span><b>${mEsc(x.name)}</b></span><em>${Number(x.n)||0} งาน</em></div>`).join("")}
 /* แท็บทีมงาน: ชื่อคน + กำลังทำอะไร (ตำแหน่งในเมือง / นัดในปฏิทิน) + งานในมือ */
 function engDoing(i){const e=engs[i],n=thLoad[i];if(live&&!e.hidden&&e.locInfo){const z=Z[e.locInfo.zone];return`📅 ${e.locInfo.label?e.locInfo.label+" · ":""}${z.em} ${z.t}`}
  return e.state==="out"?`กำลังไป ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="there"?`อยู่ที่ ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="back"?"กำลังกลับ Engineering":(n?"ทำงานที่โต๊ะ":"ว่าง 💤")}
@@ -642,7 +648,7 @@ function teamRows(){let h="";const top=a=>{const c={};a.forEach(j=>{const t=(j.d
  ENG.forEach((nm,i)=>{const mine=live?jobs.filter(j=>j.live&&j.d&&j.d.eng===i&&j.d.stage==="active"):null,n=live?mine.length:thLoad[i],x=live?top(mine):"";
   h+=`<button class="it" data-e="${i}"><i style="background:${ENGO[i].shirt}"></i><span><b>👷 ${mEsc(nm)}</b><small>${mEsc(engDoing(i))}${x?" · "+mEsc(x):""}</small></span><em>${n} งาน</em></button>`});
  if(live){const u=jobs.filter(j=>j.live&&j.d&&!(j.d.eng>=0)&&j.d.stage==="active").length;if(u)h+=`<button class="it" data-none="1"><i style="background:#8a94a8"></i><span><b>ยังไม่มอบหมาย Engineer</b><small>ตั้งผู้รับมอบหมายใน All Projects List</small></span><em>${u} งาน</em></button>`}return h}
-function renderMission(){let h="";if(mtab===2)h=teamRows();else if(mtab===0){const list=live?[...jobs].sort((a,b)=>((b.d&&b.d.at)||0)-((a.d&&a.d.at)||0)).slice(0,4):jobs.filter(j=>j.ty.k==="proj").slice(-4).reverse();(list.length?list:jobs.slice(-4)).forEach((j,i)=>{const a=j.state==="move"?Z[j.path[j.leg+1]]:Z[j.node];h+=`<button class="it${i===0?" hot":""}" data-j="${mEsc(j.id)}"><i style="background:${j.ty.c}"></i><span><b>${mEsc(j.code)}</b><small>${j.live?"👷 "+mEsc(j.d.engName||"ยังไม่มอบหมาย")+" · "+mEsc(j.d.subT||STAGE_T[j.d.stage]||""):(j.state==="move"?"กำลังไป ":"รออยู่ที่ ")+a.em+" "+a.t}</small></span><span></span></button>`})}
+function renderMission(){let h="";if(mtab===3)h=salesRows();else if(mtab===2)h=teamRows();else if(mtab===0){const list=live?jobs.filter(j=>!(j.d&&j.d.anon)).sort((a,b)=>((b.d&&b.d.at)||0)-((a.d&&a.d.at)||0)).slice(0,4):jobs.filter(j=>j.ty.k==="proj").slice(-4).reverse();(list.length?list:jobs.slice(-4)).forEach((j,i)=>{const a=j.state==="move"?Z[j.path[j.leg+1]]:Z[j.node];h+=`<button class="it${i===0?" hot":""}" data-j="${mEsc(j.id)}"><i style="background:${j.ty.c}"></i><span><b>${mEsc(j.code)}</b><small>${j.live?"👷 "+mEsc(j.d.engName||"ยังไม่มอบหมาย")+" · "+mEsc(j.d.subT||STAGE_T[j.d.stage]||""):(j.state==="move"?"กำลังไป ":"รออยู่ที่ ")+a.em+" "+a.t}</small></span><span></span></button>`})}
  else h=[["WON","#e0a800","🪙"],["LOST","#e5534b","⏰"],["CXL","#8a94a8","🚫"]].map(([k,c,e])=>`<button class="it" data-z="${k}"><i style="background:${c}"></i><span><b>${Z[k].t}</b><small>${Z[k].s}</small></span><em>${e} ${closed[k]}</em></button>`).join("");if(h!==mpH){mpH=h;mpb.innerHTML=h}}
 mpb.addEventListener("click",e=>{const b=e.target.closest("button");if(!b||b.dataset.none)return;stopAuto();if(b.dataset.e!==undefined){follow=null;select({type:"eng",idx:+b.dataset.e});return}if(b.dataset.j){const j=jobs.find(x=>String(x.id)===b.dataset.j);if(j){select({type:"job",id:j.id});follow=j.id}}else if(b.dataset.z){const z=Z[b.dataset.z];follow=null;select({type:"zone",id:b.dataset.z});goTo(z.cx,z.cz,Math.min(view.dist,58))}});
 const bN=$("bNorm"),bP=$("bPeak"),bS=$("bPause"),bNi=$("bNight"),bSp=$("bSpin");
