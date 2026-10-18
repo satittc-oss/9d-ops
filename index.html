@@ -492,7 +492,7 @@ var jwt=t=>{try{let p=t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");return
 function mSaveAuth(){try{sessionStorage.setItem("9d-auth",JSON.stringify(M.auth))}catch{}}
 async function mLogin(){let v=rnd(48),s=rnd(16),ch=b64u(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)));sessionStorage.setItem("9d-pkce",JSON.stringify({v,s}));
  location.assign(M_AUTH+"/authorize?"+new URLSearchParams({client_id:CFG.clientId,response_type:"code",redirect_uri:M_REDIRECT,response_mode:"query",scope:M_SCOPES,code_challenge:ch,code_challenge_method:"S256",state:s,prompt:"select_account",domain_hint:CFG.allowedDomains[0]||""}))}
-function mLogout(){try{sessionStorage.removeItem("9d-auth")}catch{}location.assign(M_AUTH+"/logout?post_logout_redirect_uri="+encodeURIComponent(M_REDIRECT))}
+function mLogout(){try{sessionStorage.removeItem("9d-auth")}catch{}let gone=0,go=()=>{if(gone++)return;location.assign(M_AUTH+"/logout?post_logout_redirect_uri="+encodeURIComponent(M_REDIRECT))};try{let q=indexedDB.deleteDatabase("9d-ops");q.onsuccess=q.onerror=q.onblocked=go;setTimeout(go,1500)}catch{go()}}
 async function mTokenReq(p){let r=await fetch(M_AUTH+"/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:CFG.clientId,...p})}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error_description||j.error||"เข้าสู่ระบบไม่สำเร็จ");return j}
 function mStore(kind,j){M.auth.rt=j.refresh_token||M.auth.rt;M.auth.tok[kind]={t:j.access_token,exp:Date.now()+(j.expires_in||3600)*1e3};mSaveAuth()}
 async function mToken(kind="graph"){let c=M.auth?.tok?.[kind];if(c&&c.exp-9e4>Date.now())return c.t;if(!M.auth?.rt)throw new PvErr("หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่",401);
@@ -812,7 +812,13 @@ var mFindChan=p=>{let t=mTok(p.code),k=mKey(p.code);return TS.channels?.[p.id]||
 var TS={at:0,busy:null,channels:{},extra:[],all:[],progress:null,err:"",teamsCount:0,chanCount:0};
 var mKey=s=>String(s||"").normalize("NFC").toUpperCase().replace(/[^\p{L}\p{N}]/gu,"");
 var mTok=s=>{let m=String(s||"").normalize("NFC").replace(/^[^\p{L}\p{N}]+/u,"").trim().toUpperCase().match(/^[A-Z]{2,}[-_ ]?\d[\dA-Z-]*/);if(!m)return"";let t=m[0].replace(/[-_ ]/g,"");if(!/\d{3,}/.test(t))return"";return t.replace(/\d+/g,d=>String(+d))};
-try{let o=JSON.parse(sessionStorage.getItem("9d-teams-sync")||"null");if(o&&o.v===6&&Date.now()-o.at<30*60e3)Object.assign(TS,o,{busy:null,progress:null})}catch{}
+/* v16.21 เก็บผลซิงค์ Teams ไว้ในเครื่อง (IndexedDB แยกตามบัญชี, ลบเมื่อออกจากระบบ) — เปิดแอปใหม่เห็นข้อมูลชุดล่าสุดทันที แล้วอัปเดตเบื้องหลังเฉพาะ Channel ที่มีความเคลื่อนไหว */
+var TS_KEY="";
+function tsDB(){return new Promise((ok,no)=>{try{let q=indexedDB.open("9d-ops",1);q.onupgradeneeded=()=>q.result.createObjectStore("kv");q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}})}
+async function tsIdb(mode,fn){let db=await tsDB();try{return await new Promise((ok,no)=>{let tx=db.transaction("kv",mode),rq=fn(tx.objectStore("kv"));tx.oncomplete=()=>ok(rq&&rq.result);tx.onerror=()=>no(tx.error);tx.onabort=()=>no(tx.error)})}finally{db.close()}}
+async function mTsLoad(oid){TS_KEY="ts:"+oid;try{let o=await Promise.race([tsIdb("readonly",st=>st.get(TS_KEY)),new Promise(z=>setTimeout(z,2500))]);if(o&&o.v===7&&o.at&&Date.now()-o.at<7*864e5)Object.assign(TS,o,{busy:null,progress:null,cached:1})}catch(e){console.warn("[9D] teams cache",e)}}
+function mTsSave(){if(!TS_KEY)return;let o={...TS,busy:null,progress:null,cached:0,v:7};tsIdb("readwrite",st=>st.put(o,TS_KEY)).catch(e=>console.warn("[9D] teams cache save",e))}
+var tsWhen=t=>{let d=new Date(t),n=new Date();return(d.toDateString()===n.toDateString()?"":d.toLocaleDateString("th-TH",{day:"numeric",month:"short"})+" ")+d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+" น."};
 async function mPool(arr,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,arr.length)},async()=>{while(i<arr.length){let x=arr[i++];try{await fn(x)}catch(e){console.warn(e)}}}))}
 function mEngName(name){let k=mNorm(name);if(!k)return"";for(let n of Hd){let e=(CFG.engineers[n]||"").split("@")[0];if(k.startsWith(mNorm(n))||(e&&k.startsWith(mNorm(e))))return n}return""}
 var mPlain=h=>String(h||"").replace(/<attachment[^>]*>.*?<\/attachment>/gi,"[ไฟล์แนบ]").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
@@ -836,17 +842,26 @@ async function mTeamsSync(force){if(TS.busy)return TS.busy;if(!force&&TS.at&&Dat
   for(let p of projects)if(p.channelId&&p.teamId&&!all.some(x=>x.c.id===p.channelId))all.push({c:{id:p.channelId,teamId:p.teamId,displayName:p.code,webUrl:p.channelUrl,teamName:""},p,score:9});
   let pairs=Object.values(prim);
   let out={},ext=[],list=[],done=0;TS.progress={done:0,total:all.length};
-  await mPool(all,6,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",lastMent:[],lastId:"",cmds:[],subs:[],eng:{},recent:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
+  /* v16.21 อ่านแบบเพิ่มเฉพาะส่วนที่เปลี่ยน: Channel ที่เคยอ่านแล้ว เช็กบทสนทนาล่าสุด 1 รายการ ($top=1) ถ้าเหมือนเดิมใช้ผลเดิม; อ่านเต็มเมื่อมีข้อความใหม่ / ครบรอบอ่านเต็ม (6–24 ชม. สุ่มกระจาย, ครั้งละ ≤40 Channel) */
+  let prev={},nFull=0,KEEP=["msgs","days","last","lastBy","lastMent","lastId","cmds","subs","eng","recent","sig","fullExp"];for(let x of TS.all||[])if(x&&x.channelId)prev[x.channelId]=x;
+  let sigOf=m=>{if(!m)return"-";let rs=m.replies||[],mx=m.lastModifiedDateTime||m.createdDateTime||"";for(let y of rs){let t=y.lastModifiedDateTime||y.createdDateTime||"";if(t>mx)mx=t}return m.id+"|"+rs.length+"|"+mx};
+  TS.stat={light:0,full:0,same:0};
+  await mPool(all,8,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",lastMent:[],lastId:"",cmds:[],subs:[],eng:{},recent:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
    try{
    if(!M.teamsOK){r.error="ยังไม่ได้รับสิทธิ์อ่านข้อความ";return}
+   let old=prev[c.id];
+   if(old&&old.sig&&!old.error&&!(Date.now()>(old.fullExp||0)&&nFull<40)){TS.stat.light++;let j=null;
+    try{j=await mHttp(`${M_GRAPH}/teams/${c.teamId}/channels/${c.id}/messages?$top=1&$expand=replies`,{},"teams")}catch(e){r.error=e.message}
+    if(!j||sigOf(j.value?.[0])===old.sig){for(let k of KEEP)r[k]=old[k];if(j)TS.stat.same++;return}}
+   if(old&&Date.now()>(old.fullExp||0))nFull++;TS.stat.full++;
    let msgs=[],add=(x,root)=>{if(!x||x.messageType!=="message"||x.deletedDateTime)return;let u=x.from?.user;if(!u)return;let at=x.createdDateTime||"",by=u.displayName||"";r.msgs++;let dk=at?new Date(Date.parse(at)+252e5).toISOString().slice(0,10):"";if(dk)r.days[dk]=(r.days[dk]||0)+1;
     if(at>r.last){r.last=at;r.lastBy=by;r.lastId=x.id;r.lastMent=(x.mentions||[]).map(m=>m.mentioned?.user?.displayName||(m.mentioned?.conversation?"@"+(m.mentionText||"channel"):m.mentionText||"")).filter(Boolean)}let n=mEngName(by);if(n){let e=r.eng[n]=r.eng[n]||{n:0,last:"",first:at,days:{}};e.n++;if(at>e.last)e.last=at;if(at<e.first)e.first=at;if(dk)e.days[dk]=(e.days[dk]||0)+1}
     let tx=mPlain(x.body?.content)||x.subject||"";msgs.push({id:x.id,at,by,text:(tx||"(ข้อความ)").slice(0,280)});let cm=mCmd(tx),sb=cm?"":mSub(tx);if((cm||sb)&&mT(at)>=mT(CFG.statusSince||"2026-10-17T00:00:00+07:00")){let o={id:x.id,root:root?root.id:x.id,at,by};if(cm)r.cmds.push({...o,cmd:cm});else r.subs.push({...o,sub:sb})}};
    try{let u=`${M_GRAPH}/teams/${c.teamId}/channels/${c.id}/messages?$top=50&$expand=replies`,k=0;
-    while(u&&k<4){let j=await mHttp(u,{},"teams");for(let m of j.value||[]){add(m);for(let y of m.replies||[])add(y,m)}u=j["@odata.nextLink"];k++}}catch(e){r.error=e.message}
+    while(u&&k<4){let j=await mHttp(u,{},"teams");if(!k)r.sig=sigOf(j.value?.[0]);for(let m of j.value||[]){add(m);for(let y of m.replies||[])add(y,m)}u=j["@odata.nextLink"];k++}r.fullExp=Date.now()+(6+Math.random()*18)*36e5}catch(e){r.error=e.message;r.sig=""}
    r.recent=msgs.sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8)}finally{TS.progress.done=++done;if(done%10===0)try{typeof mDashRender==="function"&&mDashRender()}catch{}}});
   TS.channels=out;TS.extra=ext;TS.all=list;TS.progress=null;TS.at=Date.now();TS.err=M.teamsOK?"":M.teamsErr;TS.teamsCount=teams.length;TS.chanCount=chans.length;
-  try{sessionStorage.setItem("9d-teams-sync",JSON.stringify({...TS,busy:null,progress:null,v:6}))}catch{}
+  TS.cached=0;mTsSave();
   let nlink=0;if(M.role!=="sales"&&M.role!=="viewer"&&M.tl)for(let{p,c}of pairs)if(!p.channelId&&nlink++<40){try{await mSaveTrack({...p,channelId:c.id,channelUrl:c.webUrl||"",teamId:c.teamId},[{id:"act-"+pvUid(),actor:M.profile.name,action:"เชื่อม Teams Channel อัตโนมัติ",note:"พบ Channel "+c.displayName+(c.teamName?" ใน Team "+c.teamName:""),createdAt:pvNow()}])}catch(e){}}
   M.cacheAt=0}catch(e){TS.err=e.message;console.error("[9D teams]",e)}finally{TS.busy=null}return TS})();return TS.busy}
 /* ผูก Channel กับโครงการด้วยมือ (Engineer/Admin) — เก็บใน settings.channelMap ของ 9D Project Tracking; "none" = ไม่ใช่ Channel งานโครงการ */
@@ -1272,7 +1287,7 @@ async function dvRender(){let host=document.getElementById("dashv");if(!host)ret
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
   let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>แดชบอร์ด</h1><p class="dv-sub">${staff?"ความเคลื่อนไหวใน Teams Channel และคำขอจากเซลส์ที่รอพิจารณา":"คำขอ Service Request ของคุณและสถานะการพิจารณา"}</p></div>
    <div class="dv-ctrl"><button type="button" class="dv-new" onclick="dvNew()"><span aria-hidden="true">+</span> ส่ง Service Request</button><div class="dv-seg" role="group" aria-label="ช่วงเวลา">${[7,30,90].map(d=>`<button type="button" class="${!DV.custom&&d===DV.days?"on":""}" aria-pressed="${!DV.custom&&d===DV.days}" onclick="dvSetDays(${d})">${d} วัน</button>`).join("")}<button type="button" class="${DV.custom?"on":""}" aria-pressed="${!!DV.custom}" aria-expanded="${DV.showCustom}" onclick="dvToggleCustom()">${dvIcon.cal} เลือกช่วง</button></div>
-   ${staff?`<span class="dv-sync">${TS.progress?`<i class="dv-spin"></i>กำลังซิงค์ Teams ${TS.progress.done}/${TS.progress.total}`:TS.at?"ซิงค์ Teams "+new Date(TS.at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+" น.":"ยังไม่ได้ซิงค์ Teams"}</span><button type="button" class="dv-btn" onclick="dvRefresh()">รีเฟรช</button>`:""}</div></header>
+   ${staff?`<span class="dv-sync">${TS.progress?`<i class="dv-spin"></i>${TS.at&&TS.all?.length?`อัปเดต Teams ${TS.progress.done}/${TS.progress.total} · แสดงข้อมูลเมื่อ ${tsWhen(TS.at)}`:`กำลังซิงค์ Teams ${TS.progress.done}/${TS.progress.total}`}`:TS.at?"ซิงค์ Teams "+tsWhen(TS.at):"ยังไม่ได้ซิงค์ Teams"}</span><button type="button" class="dv-btn" onclick="dvRefresh()">รีเฟรช</button>`:""}</div></header>
    ${DV.showCustom?`<form class="dv-range" onsubmit="dvApplyRange(event)"><label>ตั้งแต่ <input type="date" name="from" value="${R.from}" max="${dvDay(Date.now())}" required></label><label>ถึง <input type="date" name="to" value="${R.to}" max="${dvDay(Date.now())}" required></label><button type="submit" class="dv-btn">ใช้ช่วงนี้</button><span class="dv-rl">${DV.custom?"แสดงข้อมูล "+mEsc(rl):"เลือกวันแล้วกด ใช้ช่วงนี้"}</span></form>`:""}`;
   let teams="";
   if(staff){let chans=(TS.all||[]).filter(r=>!r.ignored),active=chans.filter(r=>r.days?dvIn(r.days,keys)>0:(r.last>=sinceIso&&r.last<=untilIso));
@@ -2005,7 +2020,7 @@ window.mDashClose=()=>{document.getElementById("dash").style.display="none";hist
 window.mDashSync=async f=>{TS.busy||mTeamsSync(f!==!1);mDashRender();await TS.busy;mDashRender()};
 window.mDashDays=v=>{DQ.days=Number(v);mDashRender()};window.mDashMap=async cid=>{let r=(TS.all||[]).find(x=>x.channelId===cid);if(!r)return;let v=prompt("ผูก Channel \""+r.name+"\" กับโครงการ\nพิมพ์ Project Code (เช่น HTP2026047)\nพิมพ์ - ถ้าไม่ใช่ Channel งานโครงการ · เว้นว่างเพื่อยกเลิกการผูก",r.pid?(M.cache.items.find(i=>"sp-"+i.id===r.pid)?.fields?.ProjectCode||""):"");if(v===null)return;v=v.trim();let item="";
  if(v==="-")item="none";else if(v){let k=mKey(v),t=mTok(v),its=M.cache.items,hit=its.find(i=>mKey(i.fields?.ProjectCode)===k)||its.find(i=>t&&mTok(i.fields?.ProjectCode)===t)||its.find(i=>{let pk=mKey(i.fields?.ProjectCode);return pk&&k.length>=6&&(pk.startsWith(k)||k.startsWith(pk))});if(!hit){alert("ไม่พบ Project Code \""+v+"\" ใน All Projects List");return}item=hit.id}
- try{await mMapChannel(cid,item);r.ignored=item==="none";r.manual=!!item&&item!=="none";r.pid=r.manual?"sp-"+item:"";if(r.pid&&!TS.channels[r.pid])TS.channels[r.pid]=r;for(let k in TS.channels)if(TS.channels[k]===r&&k!==r.pid)delete TS.channels[k];try{sessionStorage.setItem("9d-teams-sync",JSON.stringify({...TS,busy:null,progress:null,v:3}))}catch{}mDashRender();mDashQ(DQ.q)}catch(e){alert(e.message)}};
+ try{await mMapChannel(cid,item);r.ignored=item==="none";r.manual=!!item&&item!=="none";r.pid=r.manual?"sp-"+item:"";if(r.pid&&!TS.channels[r.pid])TS.channels[r.pid]=r;for(let k in TS.channels)if(TS.channels[k]===r&&k!==r.pid)delete TS.channels[k];mTsSave();mDashRender();mDashQ(DQ.q)}catch(e){alert(e.message)}};
 window.mDashView=v=>{DQ.view=v;mDashRender();mDashQ(DQ.q)};
 window.mDashQ=v=>{DQ.q=v;let k=mNorm(v);document.querySelectorAll("#dash [data-q]").forEach(r=>r.style.display=!k||r.dataset.q.includes(k)?"":"none")};
 window.mDashCsv=()=>{let ch=(TS.all&&TS.all.length?TS.all:[...Object.values(TS.channels),...(TS.extra||[])]).filter(r=>!r.ignored).map(r=>[r.pid||"x:"+r.channelId,r]),pr={};(M.cache?.items||[]).forEach(it=>{let p=mProject(it,M.cache.track[Number(it.id)]);pr[p.id]=p});let q=s=>'"'+String(s??"").replace(/"/g,'""')+'"',rows=[["Project Code (จาก List)","Project Name","Team","Channel",...Hd.map(n=>n+" (ข้อความ)"),"Engineer ที่มีส่วนร่วม","ข้อความทั้งหมด","ตอบล่าสุด","ตอบล่าสุดโดย"]];for(let[id,c]of ch)rows.push([pr[id]?.code||"",pr[id]?.name||"",c.teamName||"",c.name,...Hd.map(n=>c.eng[n]?.n||0),Object.keys(c.eng).join(", "),c.msgs,c.last,c.lastBy]);let blob=new Blob(["\ufeff"+rows.map(r=>r.map(q).join(",")).join("\r\n")],{type:"text/csv"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="teams-monitor-"+new Date().toISOString().slice(0,10)+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1e3)};window.mDashOpen=n=>{DQ.open=DQ.open===n?"":n;mDashRender()};
@@ -2020,7 +2035,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
  <div class="dash-head"><div><p class="eyebrow">TEAMS CHANNEL MONITOR</p><h2>Engineer คนไหนมีส่วนร่วมกับงานไหน</h2><p class="dash-sub">นับจากการตอบใน Teams Channel ของโครงการ — 1 Channel = 1 งาน</p></div>
  <button class="dash-x" onclick="mDashClose()" aria-label="ปิด">✕</button></div>
  <div class="dash-bar"><select onchange="mDashDays(this.value)" aria-label="ช่วงเวลา">${[[0,"ทั้งหมด"],[7,"7 วันล่าสุด"],[30,"30 วันล่าสุด"],[90,"90 วันล่าสุด"]].map(([v,t])=>`<option value="${v}"${DQ.days==v?" selected":""}>${t}</option>`).join("")}</select>
- <span class="dash-sync">${busy?'<i class="dash-spin"></i> กำลังซิงค์ Teams…'+(TS.progress?` อ่านแล้ว ${TS.progress.done}/${TS.progress.total} Channel`:""):TS.at?"ซิงค์ล่าสุด "+dt(TS.at)+` · ${TS.teamsCount} Team · ${TS.chanCount} Channel`:"ยังไม่ได้ซิงค์"}</span>
+ <span class="dash-sync">${busy?'<i class="dash-spin"></i> '+(TS.at&&TS.all?.length?"กำลังอัปเดต Teams (แสดงข้อมูลเมื่อ "+tsWhen(TS.at)+")":"กำลังซิงค์ Teams…")+(TS.progress?` อ่านแล้ว ${TS.progress.done}/${TS.progress.total} Channel`:""):TS.at?"ซิงค์ล่าสุด "+dt(TS.at)+` · ${TS.teamsCount} Team · ${TS.chanCount} Channel`:"ยังไม่ได้ซิงค์"}</span>
  <button class="secondary compact" onclick="mDashCsv()" ${ch.length?"":"disabled"}>⤓ CSV</button><button class="primary compact" ${busy?"disabled":""} onclick="mDashSync()">⟳ ซิงค์ Teams ตอนนี้</button></div>
  ${warn?`<div class="dash-warn"><b>อ่านข้อความใน Channel ไม่ได้:</b> ${mEsc(warn)}<br>ผู้ดูแล Entra ต้องเพิ่มสิทธิ์ Microsoft Graph (Delegated) <code>ChannelMessage.Read.All</code> และ <code>ChannelMessage.Send</code> ให้แอป “9D Integrated Operations” แล้วกด Grant admin consent — จากนั้นออกจากระบบและเข้าใหม่</div>`:""}
  <div class="dash-tiles"><div><b>${ch.length}</b><span>Channel ทั้งหมด · จับคู่กับโครงการ ${nMatch}</span></div><div><b>${withEng}</b><span>Channel ที่ Engineer ตอบแล้ว</span></div><div class="${noEng.length?"warn":""}"><b>${noEng.length}</b><span>Channel ยังไม่มี Engineer ตอบ</span></div><div class="${noChan.length?"warn":""}"><b>${noChan.length}</b><span>อนุมัติแล้ว แต่ยังไม่มี Channel</span></div></div>
@@ -2039,7 +2054,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.21";
+var M_VER="v16.22";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -2083,7 +2098,7 @@ async function boot(){
  if(!M.auth?.profile){gate("login");return}
  let pr=M.auth.profile,dom=pr.email.split("@")[1];
  if(!CFG.allowedDomains.includes(dom)){sessionStorage.removeItem("9d-auth");gate("denied","บัญชี "+pr.email+" ไม่ได้รับอนุญาต — ใช้บัญชีของบริษัทเท่านั้น");return}
- M.profile=pr;let ph=await mHash(pr.email);M.isApprover=(CFG.approverHashes||[]).includes(ph);M.isAdmin=(CFG.adminHashes||CFG.approverHashes||[]).includes(ph);gate("busy","กำลังโหลด All Projects List…");
+ M.profile=pr;await mTsLoad(pr.oid);let ph=await mHash(pr.email);M.isApprover=(CFG.approverHashes||[]).includes(ph);M.isAdmin=(CFG.adminHashes||CFG.approverHashes||[]).includes(ph);gate("busy","กำลังโหลด All Projects List…");
  try{await mToken("graph");await mInit();await mLoad(!0)}catch(e){console.error(e);gate("login","เชื่อมต่อ SharePoint ไม่สำเร็จ: "+e.message);return}
  PV_KEY="9d-ops-v13-"+pr.oid;PV=pvLoad();PV.session={userId:pr.oid,name:pr.name,email:pr.email,role:"sales"};pvSave();
  PV_PROFILE.name=pr.name;PV_PROFILE.email=pr.email;M.role=mRole(pr.email);
