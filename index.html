@@ -539,12 +539,14 @@ async function mLoad(force){if(!force&&M.cache&&Date.now()-M.cacheAt<6e3)return 
  let track={},pres={},settings={settings:{},accounts:{},members:[]};
  let ti=await tiP;
  if(ti){
-  let slog={},alog={};for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
+  let slog={},alog={},sublog={};for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
    else if(pid===M_PRES){let em=String(pl.email||"").toLowerCase();if(em&&(!pres[em]||mT(pl.at)>=mT(pres[em].at)))pres[em]={...pl,row:t.id}}
-   else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
+   else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.sub)(sublog[-pid]=sublog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
    for(let k in slog){slog[k].sort((a,b)=>mT(a.at)-mT(b.at));let last=slog[k][slog[k].length-1],t=track[k]||(track[k]={});let ps={s:last.s,at:last.at,by:last.by,via:last.via,msg:last.msg||"",prev:last.prev};t.pstat=mPsNewer(t.pstat,ps)}
-   M.slog=slog;M.alog=alog}
+   /* v16.16: ขั้นตอนย่อย (#รอราคา ฯลฯ) — แถวเพิ่มแบบเดียวกัน ใช้ตัวล่าสุด */
+   for(let k in sublog){sublog[k].sort((a,b)=>mT(a.at)-mT(b.at));let last=sublog[k][sublog[k].length-1];(track[k]||(track[k]={})).sub={sub:last.sub,at:last.at,by:last.by,via:last.via,msg:last.msg||"",row:last.row}}
+   M.slog=slog;M.alog=alog;M.sublog=sublog}
  M.cache={items,track,settings,presence:pres};M.cacheAt=Date.now();return M.cache}
 var mT=x=>Date.parse(x||0)||0;
 /* เลือกสถานะที่ใหม่กว่า (เวลาเท่ากัน = รวมกัน เก็บ remindAt ไว้) */
@@ -561,7 +563,7 @@ function mProject(it,track){let f=it.fields||{},u=it.createdBy?.user||{},email=(
   waitingOn:(stage==="pending"?"Engineer (พิจารณา)":t.waitingOn)||(stage==="pending"?"ผู้อนุมัติ":stage==="approved"?"Engineer":"—"),nextAction:(stage==="pending"?"รอ Engineer พิจารณา — กด อนุมัติ / ไม่อนุมัติ":t.nextAction)||(stage==="pending"?"":stage==="approved"?"มอบหมาย Engineer และสร้าง Private Channel":""),
   description:sr.notes,serviceRequest:sr,outcome:out,channelUrl:t.channelUrl||"",channelId:t.channelId||"",teamId:t.teamId||"",syncStatus:t.sync?.lists==="success"?"synced":"local",summary:t.summary||"",salesSummary:t.salesSummary,salesUpdatedAt:t.salesUpdatedAt,closeRequestedAt:t.closeRequestedAt,closeRequestedBy:t.closeRequestedBy,deliveredAt:t.deliveredAt,closedAt:t.closedAt,
   listLatest:mF(f,"latest")||"",listReqStatus:String(mF(f,"approval")||"").trim(),listWinLoss:ws||"",approvalStatus:ap==="draft"?"pending":ap,approvalVerifiedAt:ap==="approved"||ap==="rejected"?it.lastModifiedDateTime:void 0,permissionsVerifiedAt:t.permissionsVerifiedAt,listApproval:ap,
-  createdAt:it.createdDateTime,pstat:t.pstat,updatedAt:t.updatedAt||it.lastModifiedDateTime,createdBy:(u.displayName||"")+(email?" · "+email:""),version:t.version||1,demo:!1,hasAttachments:!!(it.fields||{}).Attachments};
+  createdAt:it.createdDateTime,pstat:t.pstat,sub:t.sub,subRemind:t.subRemind,updatedAt:t.updatedAt||it.lastModifiedDateTime,createdBy:(u.displayName||"")+(email?" · "+email:""),version:t.version||1,demo:!1,hasAttachments:!!(it.fields||{}).Attachments};
  return p}
 function mRole(email){email=(email||"").toLowerCase();let s=M.cache?.settings,m=(s?.members||[]).find(x=>x.email.toLowerCase()===email);if(m)return m.role;if(email===(M.profile?.email||"").toLowerCase()&&M.isAdmin)return"admin";if(Object.values(CFG.engineers).map(x=>x.toLowerCase()).includes(email))return"engineer";return"sales"}
 async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(M.profile.email);
@@ -582,7 +584,7 @@ async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(
  return{syncJobs:jobs,session,accounts:[...Object.values(accMap),],projects:all,activities:acts.slice(0,400),members:own?members.filter(m=>m.role!=="sales"||m.email.toLowerCase()===M.profile.email.toLowerCase()):members,settings:{listUrl:M.listWebUrl,...s.settings},bridgeConfigured:!0,samplePreview:!1,microsoftObservations:obs}}
 /* --- Writes --- */
 async function mSaveTrack(p,acts,syncInfo){if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
- let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr"];
+ let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr","subRemind"];
  if(old.itemId){try{let cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${old.itemId}?$expand=fields($select=Payload)`),fp=JSON.parse(cur.fields?.Payload||"{}");old={...old,...fp,itemId:old.itemId}}catch(e){}}
  /* v16.1: อ่านค่าล่าสุดก่อนเขียน แล้วทับเฉพาะช่องที่ส่งมา — กันข้อมูลเก่าของอีกแท็บ/อีกคนลบสถานะที่เพิ่งบันทึก */
  let pl={};keep.forEach(k=>{if(old[k]!==void 0)pl[k]=old[k];if(p[k]!==void 0)pl[k]=p[k]});pl.pstat=mPsNewer(old.pstat,p.pstat);if(!pl.pstat)delete pl.pstat;pl.activities=[...acts,...(old.activities||[])].slice(0,120);pl.sync=syncInfo||old.sync;
@@ -832,12 +834,12 @@ async function mTeamsSync(force){if(TS.busy)return TS.busy;if(!force&&TS.at&&Dat
   for(let p of projects)if(p.channelId&&p.teamId&&!all.some(x=>x.c.id===p.channelId))all.push({c:{id:p.channelId,teamId:p.teamId,displayName:p.code,webUrl:p.channelUrl,teamName:""},p,score:9});
   let pairs=Object.values(prim);
   let out={},ext=[],list=[],done=0;TS.progress={done:0,total:all.length};
-  await mPool(all,6,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",lastMent:[],lastId:"",cmds:[],eng:{},recent:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
+  await mPool(all,6,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",lastMent:[],lastId:"",cmds:[],subs:[],eng:{},recent:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
    try{
    if(!M.teamsOK){r.error="ยังไม่ได้รับสิทธิ์อ่านข้อความ";return}
    let msgs=[],add=(x,root)=>{if(!x||x.messageType!=="message"||x.deletedDateTime)return;let u=x.from?.user;if(!u)return;let at=x.createdDateTime||"",by=u.displayName||"";r.msgs++;let dk=at?new Date(Date.parse(at)+252e5).toISOString().slice(0,10):"";if(dk)r.days[dk]=(r.days[dk]||0)+1;
     if(at>r.last){r.last=at;r.lastBy=by;r.lastId=x.id;r.lastMent=(x.mentions||[]).map(m=>m.mentioned?.user?.displayName||(m.mentioned?.conversation?"@"+(m.mentionText||"channel"):m.mentionText||"")).filter(Boolean)}let n=mEngName(by);if(n){let e=r.eng[n]=r.eng[n]||{n:0,last:"",first:at,days:{}};e.n++;if(at>e.last)e.last=at;if(at<e.first)e.first=at;if(dk)e.days[dk]=(e.days[dk]||0)+1}
-    let tx=mPlain(x.body?.content)||x.subject||"";msgs.push({id:x.id,at,by,text:(tx||"(ข้อความ)").slice(0,280)});let cm=mCmd(tx);if(cm&&mT(at)>=mT(CFG.statusSince||"2026-10-17T00:00:00+07:00"))r.cmds.push({id:x.id,root:root?root.id:x.id,at,by,cmd:cm})};
+    let tx=mPlain(x.body?.content)||x.subject||"";msgs.push({id:x.id,at,by,text:(tx||"(ข้อความ)").slice(0,280)});let cm=mCmd(tx),sb=cm?"":mSub(tx);if((cm||sb)&&mT(at)>=mT(CFG.statusSince||"2026-10-17T00:00:00+07:00")){let o={id:x.id,root:root?root.id:x.id,at,by};if(cm)r.cmds.push({...o,cmd:cm});else r.subs.push({...o,sub:sb})}};
    try{let u=`${M_GRAPH}/teams/${c.teamId}/channels/${c.id}/messages?$top=50&$expand=replies`,k=0;
     while(u&&k<4){let j=await mHttp(u,{},"teams");for(let m of j.value||[]){add(m);for(let y of m.replies||[])add(y,m)}u=j["@odata.nextLink"];k++}}catch(e){r.error=e.message}
    r.recent=msgs.sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8)}finally{TS.progress.done=++done;if(done%10===0)try{typeof mDashRender==="function"&&mDashRender()}catch{}}});
@@ -933,6 +935,26 @@ function mPStat(p){if(p.listApproval==="pending")return"pending";if(p.listApprov
 function mCmd(t){t=String(t||"");if(!t||t.includes("[9D]"))return"";let s=t.toLowerCase(),hit=new Set();
  for(let[re,c]of[[/#(ส่งงานแล้ว|ส่งงาน|delivered)/,"delivered"],[/#(เปิดงานใหม่|reopen)/,"active"],[/#(win|ได้งาน)(?![a-z])/,"won"],[/#(loss|lose|ไม่ได้งาน)(?![a-z])/,"lost"],[/#(ยกเลิก|cancel)/,"cancelled"]])if(re.test(s))hit.add(c);
  return hit.size===1?[...hit][0]:""}
+/* v16.16 ขั้นตอนย่อยระหว่าง "กำลังทำ" — บอกว่างานอยู่ในมือใคร (who) · z = ตึกในเมืองจำลอง · warn = เตือนเมื่อค้างเกินกี่วัน */
+var SUBST={recv:{t:"รับงานแล้ว",tag:"#รับงาน",who:"เรา",z:"E",warn:3},design:{t:"ทำ BOM / ออกแบบ",tag:"#ทำBOM",who:"เรา",z:"E",warn:3},sup:{t:"รอซัพพลายเออร์",tag:"#รอซัพ",who:"Supplier",z:"V",warn:7},buy:{t:"ประสานจัดซื้อ",tag:"#รอจัดซื้อ",who:"จัดซื้อ",z:"P",warn:7},price:{t:"รอราคา",tag:"#รอราคา",who:"Supplier / จัดซื้อ",z:"V",warn:7},cust:{t:"รอลูกค้า",tag:"#รอลูกค้า",who:"ลูกค้า",z:"C",warn:14},sales:{t:"รอเซลส์",tag:"#รอเซลส์",who:"Sales",z:"S",warn:7},quote:{t:"ส่งราคาแล้ว",tag:"#ส่งราคา",who:"ลูกค้า",z:"C",warn:14}};
+function mSub(t){t=String(t||"");if(!t||t.includes("[9D]"))return"";let s=t.toLowerCase(),hit=new Set();
+ for(let[re,c]of[[/#(รับงาน|เริ่มงาน)/,"recv"],[/#(ทำbom|bom|ออกแบบ|design)(?![a-z])/,"design"],[/#(รอซัพ|รอsupplier|รอvendor|รอเวนเดอร์)/,"sup"],[/#(รอจัดซื้อ|ประสานจัดซื้อ)/,"buy"],[/#รอราคา/,"price"],[/#รอลูกค้า/,"cust"],[/#(รอเซลส์|รอเซล|รอsales)/,"sales"],[/#(ส่งราคา|เสนอราคา)/,"quote"]])if(re.test(s))hit.add(c);
+ return hit.size===1?[...hit][0]:""}
+/* ขั้นตอนย่อยที่ยังใช้ได้: เฉพาะงานที่ "กำลังทำ" และตั้งหลังสถานะล่าสุด (ส่งงาน/เปิดใหม่แล้วถือว่าจบขั้นตอนเดิม) */
+function mSubOf(p){let x=p&&p.sub,m=x&&SUBST[x.sub];if(!m||mPStat(p)!=="active"||mT(x.at)<=mT(p.pstat?.at||0))return null;let days=Math.floor((Date.now()-mT(x.at))/864e5);return{...x,m,days,over:days>=m.warn}}
+async function mSetSub(pid,k,o={}){let m=SUBST[k];if(!m)throw new PvErr("ขั้นตอนไม่ถูกต้อง",400);await mLoad(!0);let st=await mState(),p=st.projects.find(x=>x.id===pid);if(!p)throw new PvErr("ไม่พบโครงการ หรือไม่มีสิทธิ์",404);
+ if(p.listApproval!=="approved"||mPStat(p)!=="active")throw new PvErr("ตั้งขั้นตอนได้เฉพาะงานที่กำลังทำ",409);
+ let staff=M.role!=="sales"&&M.role!=="viewer",me=String(M.profile.email||"").toLowerCase(),by=o.by||M.profile.name;
+ if(!o.via&&!staff&&p.accountId!=="acc-"+me)throw new PvErr("ตั้งขั้นตอนได้เฉพาะโครงการของตัวเอง",403);
+ let cur=mSubOf(p);if(cur&&cur.sub===k&&!o.via)return{p,same:!0,note:"อยู่ขั้นตอน "+m.t+" อยู่แล้ว"};
+ if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
+ let row={sub:k,at:o.at||pvNow(),by,via:o.via||"web",msg:o.msg||"",prev:cur?.sub||"",code:p.code};
+ await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:p.code+" · ขั้นตอน "+k,ProjectItemId:-Number(p.listItemId),TrackVersion:0,Payload:JSON.stringify(row)}}});
+ await mSaveTrack(p,[{id:"act-"+pvUid(),actor:by,action:"ขั้นตอน: "+m.t,note:(o.via==="teams"?"สั่งจาก Teams Channel":"ผ่านเว็บ")+" · งานอยู่ที่ "+m.who+(cur?" · เดิม: "+cur.m.t:""),createdAt:pvNow()}]);
+ let notes=[],ch=o.ch||(p.teamId&&p.channelId?{teamId:p.teamId,channelId:p.channelId}:null);
+ if(ch&&M.teamsOK!==!1){try{let h=`<p>✅ [9D] บันทึกขั้นตอน <b>${mEsc(m.t)}</b> ให้ ${mEsc(p.code)} แล้ว (งานอยู่ที่ ${mEsc(m.who)} · โดย ${mEsc(by)})</p><p><small>ถ้าเกิน ${m.warn} วันระบบจะเตือนในนี้</small></p>`;
+  if(o.msg)await mChanPost(ch.teamId,ch.channelId,h,o.root||o.msg);else await mChanPost(ch.teamId,ch.channelId,`<p><b>[9D] ${mEsc(p.code)} · ขั้นตอน: ${mEsc(m.t)}</b></p><p>งานอยู่ที่ ${mEsc(m.who)} · โดย ${mEsc(by)} ผ่าน 9D Integrated Operations</p>`);notes.push("แจ้งใน Channel แล้ว")}catch(e){notes.push("โพสต์ใน Channel ไม่สำเร็จ")}}
+ M.cacheAt=0;return{p,note:notes.join(" · ")}}
 /* v16.3: แก้รายการใน List ทำให้ "Approval status" เดิม (Lists Approvals) ถูกรีเซ็ตเป็น 0 → งานที่อนุมัติไปแล้วเด้งกลับมารออนุมัติ
    จึงใส่ Request Status = Approved ไปพร้อมกันทุกครั้งที่เขียนรายการที่อนุมัติแล้วแต่ Request Status ยังว่าง */
 var mKeepApproved=(p,f)=>{let c=M.cols.approval;if(c&&!c.readOnly&&p.listApproval==="approved"&&!/^approv/i.test(p.listReqStatus||""))f[c.name]=mReqChoice("approved");return f};
@@ -966,6 +988,15 @@ async function mStatusAuto(){if(M.role==="sales"||M.role==="viewer"||!TS.at||M.s
   let done=new Set((M.slog?.[Number(p.listItemId)]||[]).map(x=>x.msg).filter(Boolean)),c=r.cmds.filter(c=>mT(c.at)>mT(p.pstat?.at||p.createdAt)&&c.id!==p.pstat?.msg&&!done.has(c.id)).sort((a,b)=>mT(a.at)-mT(b.at)).pop();if(!c)continue;
   if(!mEngName(c.by)&&!(owner(p,c.by,r.teamName)&&["won","lost","cancelled","active"].includes(c.cmd)))continue;
   try{await mSetPStat(p.id,c.cmd,{via:"teams",by:c.by,msg:c.id,root:c.root,at:c.at,ch:{teamId:r.teamId,channelId:r.channelId}});await mLoad(!0);st=await mState();byId=Object.fromEntries(st.projects.map(p=>[p.id,p]))}catch(e){console.warn("[9D] status cmd",e)}if(++n>=10)break}
+ /* v16.16 ขั้นตอนย่อยจาก Teams (#รอราคา ฯลฯ) — Engineer หรือเซลส์เจ้าของงาน */
+ n=0;for(let r of TS.all||[]){let p=r.pid&&byId[r.pid];if(!p||p.listApproval!=="approved"||mPStat(p)!=="active"||!(r.subs||[]).length)continue;
+  let done=new Set((M.sublog?.[Number(p.listItemId)]||[]).map(x=>x.msg).filter(Boolean)),floor=Math.max(mT(p.pstat?.at||0),mT(p.sub?.at||0)),c=r.subs.filter(c=>mT(c.at)>floor&&!done.has(c.id)).sort((a,b)=>mT(a.at)-mT(b.at)).pop();if(!c)continue;
+  if(!mEngName(c.by)&&!owner(p,c.by,r.teamName))continue;
+  try{await mSetSub(p.id,c.sub,{via:"teams",by:c.by,msg:c.id,root:c.root,at:c.at,ch:{teamId:r.teamId,channelId:r.channelId}});await mLoad(!0);st=await mState();byId=Object.fromEntries(st.projects.map(p=>[p.id,p]))}catch(e){console.warn("[9D] sub cmd",e)}if(++n>=10)break}
+ /* เตือนครั้งเดียวต่อขั้นตอน เมื่อค้างเกินกำหนด */
+ n=0;for(let p of st.projects){let sb=mSubOf(p);if(!sb||!sb.over||!p.channelId||!p.teamId||p.subRemind===sb.at)continue;
+  try{await mChanPost(p.teamId,p.channelId,`<p><b>[9D] ${mEsc(p.code)} · ${mEsc(sb.m.t)} มา ${sb.days} วัน</b> (งานอยู่ที่ ${mEsc(sb.m.who)})</p><p>มีความคืบหน้าไหมครับ? อัปเดตในนี้ได้เลย เช่น <b>#รับงาน</b> · <b>#รอซัพ</b> · <b>#รอราคา</b> · <b>#ส่งราคา</b> · <b>#รอลูกค้า</b> · <b>#ส่งงานแล้ว</b></p>`);
+   p.subRemind=sb.at;await mSaveTrack(p,[{id:"act-"+pvUid(),actor:M.profile.name,action:"เตือนขั้นตอนค้าง",note:sb.m.t+" เกิน "+sb.m.warn+" วัน",createdAt:pvNow()}])}catch(e){console.warn("[9D] sub remind",e)}if(++n>=5)break}
  n=0;for(let p of st.projects){if(!p.pstat?.s||p.listApproval!=="approved")continue;let m=PSTAT[p.pstat.s];if(m&&(p.listLatest!==m.latest||p.listWinLoss!==m.wl)){try{await mPStatSP(p)}catch(e){}if(++n>=10)break}}
  n=0;for(let p of st.projects){if(p.pstat?.s!=="delivered"||!p.channelId||!p.teamId)continue;let r=TS.channels[p.id]||(TS.all||[]).find(x=>x.channelId===p.channelId),quiet=[p.pstat.at,p.pstat.remindAt,r?.last].filter(Boolean).sort().pop()||p.pstat.at;
   if(Date.now()-Date.parse(quiet)<60*864e5)continue;let a=acc[p.accountId],ments=[];
@@ -1372,7 +1403,7 @@ async function dvCitySnap(){let st=await dvState(),now=Date.now(),W=14*864e5,acc
  for(let p of st.projects){if(!String(p.id).startsWith("sp-"))continue;let s=mPStat(p);if(s==="rejected")continue;let at=p.pstat?.at||p.updatedAt||p.createdAt||"";
   if(["won","lost","cancelled"].includes(s)){closed[{won:"WON",lost:"LOST",cancelled:"CXL"}[s]]++;if(now-mT(at)>W)continue}
   let ix=dvCityEng(p),c=String(p.code).toUpperCase(),sr=p.serviceRequest||{};
-  jobs.push({id:p.id,code:p.code,name:p.name,client:p.client,sales:acc[p.accountId]?.name||"",stage:s,eng:ix,engName:ix>=0?Hd[ix]:"",since:at?dvTH2(dvDay(mT(at))):"",at:mT(at),channelUrl:olUrl(p.channelUrl),listUrl:olUrl(p.listItemUrl),
+  let sb=mSubOf(p);jobs.push({id:p.id,code:p.code,name:p.name,client:p.client,sales:acc[p.accountId]?.name||"",stage:s,zone:sb?sb.m.z:"",subT:sb?sb.m.t+" · "+sb.days+" วัน":"",eng:ix,engName:ix>=0?Hd[ix]:"",since:at?dvTH2(dvDay(mT(at))):"",at:mT(at),channelUrl:olUrl(p.channelUrl),listUrl:olUrl(p.listItemUrl),
    tags:[sr.source,...(sr.workTypes||[]),...(sr.brands||[])].filter(Boolean).slice(0,6),mails:(mb[c]||[]).slice(0,4).map(m=>({subject:m.subject,from:m.from,at:olWhen(m.t),url:m.url})),events:(eb[c]||[]).filter(e=>e.t1>now-864e5).slice(0,4).map(e=>({subject:e.subject,when:olWhen(e.t0),where:e.zone?OL_ZN[e.zone]:""}))})}
  jobs.sort((a,b)=>b.at-a.at);return{t:"9d-city",v:1,at:now,me:{email:M.profile.email,role:M.role},jobs:jobs.slice(0,360),closed,eng:olEngLocs()}}
 async function dvCitySend(){let fr=document.querySelector("#dashv .dv-cityf");if(!fr||!fr.contentWindow)return;try{fr.contentWindow.postMessage(await dvCitySnap(),location.origin)}catch(e){console.warn("[9D] city",e)}}
@@ -1398,29 +1429,32 @@ function dvApprovalLog(st,acc){let byL={};for(let p of st.projects)if(p.listItem
 /* เปลี่ยนสถานะล่าสุด (7 วัน) — ให้เห็นว่าคำสั่งจาก Teams / ปุ่มบนเว็บบันทึกแล้ว */
 var dvRecent=(ps,acc)=>{let wk=Date.now()-7*864e5,r=ps.filter(x=>x.p.pstat?.at&&Date.parse(x.p.pstat.at)>=wk).sort((a,b)=>Date.parse(b.p.pstat.at)-Date.parse(a.p.pstat.at)).slice(0,6);if(!r.length)return"";
  return`<div class="dv-card dv-recent"><h3>เปลี่ยนสถานะล่าสุด <small>7 วัน</small></h3><ul>${r.map(x=>`<li><span class="dv-code">${mEsc(x.p.code)}</span>${dvPChip(x.s)}<small>${dvAgo(x.p.pstat.at)}ที่แล้ว · ${mEsc(x.p.pstat.by||"")}${x.p.pstat.via==="teams"?" · Teams":" · เว็บ"}</small></li>`).join("")}</ul></div>`};
+var dvSubChip=sb=>`<span class="dv-st sub${sb.over?" over":""}">⏳ ${mEsc(sb.m.t)} · ${sb.days} วัน</span><small>งานอยู่ที่ <b>${mEsc(sb.m.who)}</b>${sb.by?" · "+mEsc(sb.by):""}</small>${sb.over?`<small class="dv-warn">${dvIcon.warn} ค้างเกิน ${sb.m.warn} วัน</small>`:""}`;
 var dvPChip=s=>{let m={active:["cur","กำลังทำ",dvIcon.wait],delivered:["dlv","ส่งงานแล้ว · รอลูกค้า",dvIcon.ok],won:["ok","ปิด · WIN",dvIcon.ok],lost:["no","ปิด · LOSS",dvIcon.no],cancelled:["gry","ปิด · ยกเลิก",dvIcon.no]}[s]||["gry",s,""];return`<span class="dv-st ${m[0]}">${m[2]} ${m[1]}</span>`};
 async function dvStatusPage(host){let st=await dvState(),eng=mIsEng(),me=String(M.profile.email||"").toLowerCase();DV.sig=dvSig();
  let acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a])),ps=st.projects.filter(p=>String(p.id).startsWith("sp-")&&p.listApproval==="approved").map(p=>({p,s:mPStat(p)}));
  let since=x=>x.p.pstat?.at||x.p.createdAt||"",days=iso=>iso?Math.floor((Date.now()-Date.parse(iso))/864e5):0,tsr=p=>TS.channels?.[p.id]||(TS.all||[]).find(r=>r.channelId===p.channelId);
- let cnt=k=>ps.filter(x=>x.s===k).length,stale=ps.filter(x=>x.s==="delivered"&&days([since(x),tsr(x.p)?.last].filter(Boolean).sort().pop())>=60).length,closed=ps.filter(x=>["won","lost","cancelled"].includes(x.s));
+ let subs=ps.filter(x=>x.s==="active").map(x=>mSubOf(x.p)),wOther=subs.filter(b=>b&&b.m.who!=="เรา").length,wOver=subs.filter(b=>b&&b.over).length,cnt=k=>ps.filter(x=>x.s===k).length,stale=ps.filter(x=>x.s==="delivered"&&days([since(x),tsr(x.p)?.last].filter(Boolean).sort().pop())>=60).length,closed=ps.filter(x=>["won","lost","cancelled"].includes(x.s));
  let grp={active:x=>x.s==="active",delivered:x=>x.s==="delivered",closed:x=>["won","lost","cancelled"].includes(x.s),all:()=>!0},list=ps.filter(grp[DV.sf]||grp.active).sort((a,b)=>since(a).localeCompare(since(b)));
  let btn=(x,s,label,cls)=>`<button type="button" class="dv-sb ${cls||""}" data-pid="${x.p.id}" data-s="${s}" data-code="${mEsc(x.p.code)}">${label}</button>`;
- let acts=x=>{let own=x.p.accountId==="acc-"+me,b=[];if(eng){if(x.s==="active")b.push(btn(x,"delivered",dvIcon.ok+" ส่งงานแล้ว","pri"));if(x.s==="delivered")b.push(btn(x,"won","WIN","ok"),btn(x,"lost","LOSS","no"),btn(x,"cancelled","ยกเลิก"),btn(x,"active","เปิดงานใหม่"));if(["won","lost","cancelled"].includes(x.s))b.push(btn(x,"active","เปิดงานใหม่"))}
+ let subSel=x=>{let sb=mSubOf(x.p);return`<select class="dv-subsel" data-pid="${x.p.id}" data-code="${mEsc(x.p.code)}" aria-label="ขั้นตอนของ ${mEsc(x.p.code)}"><option value="">${sb?"เปลี่ยนขั้นตอน…":"ตั้งขั้นตอน…"}</option>${Object.entries(SUBST).map(([k,m])=>`<option value="${k}"${sb?.sub===k?" disabled":""}>${mEsc(m.t)} (${mEsc(m.who)})</option>`).join("")}</select>`};
+ let acts=x=>{let own=x.p.accountId==="acc-"+me,b=[];if(x.s==="active"&&(eng||own))b.push(subSel(x));if(eng){if(x.s==="active")b.push(btn(x,"delivered",dvIcon.ok+" ส่งงานแล้ว","pri"));if(x.s==="delivered")b.push(btn(x,"won","WIN","ok"),btn(x,"lost","LOSS","no"),btn(x,"cancelled","ยกเลิก"),btn(x,"active","เปิดงานใหม่"));if(["won","lost","cancelled"].includes(x.s))b.push(btn(x,"active","เปิดงานใหม่"))}
   else if(own){if(["active","delivered"].includes(x.s))b.push(btn(x,"won","WIN","ok"),btn(x,"lost","LOSS","no"),btn(x,"cancelled","ยกเลิก"));if(x.s!=="active")b.push(btn(x,"active","เปิดงานใหม่"))}return b.join("")};
  let row=x=>{let r=tsr(x.p),d=days(since(x)),q=[x.p.code,x.p.name,x.p.client,acc[x.p.accountId]?.name].join(" ").toLowerCase();
   return`<li class="dv-prow" data-q="${mEsc(q)}"><div class="dv-pmain"><p class="dv-code">${mEsc(x.p.code)}</p><b>${mEsc(x.p.name!==x.p.code?x.p.name:"")||"&nbsp;"}</b><span>${mEsc(acc[x.p.accountId]?.name||"")}${x.p.client&&x.p.client!=="—"?" · "+mEsc(x.p.client):""}</span></div>
-   <div class="dv-pst">${dvPChip(x.s)}<small>${x.p.pstat?.at?"ตั้งแต่ "+dvTH2(dvDay(Date.parse(x.p.pstat.at)))+" · "+d+" วัน"+(x.p.pstat.by?" · "+mEsc(x.p.pstat.by)+(x.p.pstat.via==="teams"?" (Teams)":""):""):"อนุมัติเมื่อ "+dvTH2(dvDay(Date.parse(x.p.createdAt||0)))}</small>${x.s==="delivered"&&d>=60?`<small class="dv-warn">${dvIcon.warn} รอลูกค้าเกิน 60 วัน</small>`:""}</div>
+   <div class="dv-pst">${dvPChip(x.s)}${(sb=>sb?dvSubChip(sb):"")(mSubOf(x.p))}<small>${x.p.pstat?.at?"ตั้งแต่ "+dvTH2(dvDay(Date.parse(x.p.pstat.at)))+" · "+d+" วัน"+(x.p.pstat.by?" · "+mEsc(x.p.pstat.by)+(x.p.pstat.via==="teams"?" (Teams)":""):""):"อนุมัติเมื่อ "+dvTH2(dvDay(Date.parse(x.p.createdAt||0)))}</small>${x.s==="delivered"&&d>=60?`<small class="dv-warn">${dvIcon.warn} รอลูกค้าเกิน 60 วัน</small>`:""}</div>
    <div class="dv-pch">${r?`<a href="${mEsc(r.url||x.p.channelUrl||"#")}" target="_blank" rel="noreferrer">Teams ↗</a><small>${r.last?"ล่าสุด "+dvAgo(r.last)+"ที่แล้ว":"ยังไม่มีข้อความ"}</small>`:x.p.channelUrl?`<a href="${mEsc(x.p.channelUrl)}" target="_blank" rel="noreferrer">Teams ↗</a>`:`<small>ยังไม่มี Channel</small>`}</div>
    <div class="dv-pact">${acts(x)}</div></li>`};
  host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>สถานะโครงการ</h1><p class="dv-sub">${eng?"Engineer กด <b>ส่งงานแล้ว</b> เมื่อส่งงานครบ · ปิดโครงการเมื่อรู้ผล WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b>":"แจ้งผลโครงการของคุณ: WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b> (ปุ่มด้านขวา หรือพิมพ์ใน Teams Channel)"}</p></div></header>
-  <div class="dv-kpis">${dvKpi("กำลังทำ",dvNum(cnt("active")),"อนุมัติแล้ว ทีม Engineer กำลังทำ")}${dvKpi(dvIcon.ok+" ส่งงานแล้ว · รอลูกค้า",dvNum(cnt("delivered")),"ส่วนของ Engineer จบแล้ว")}${dvKpi(dvIcon.warn+" รอลูกค้าเกิน 60 วัน",dvNum(stale),"ระบบจะเตือนเซลส์ใน Channel",stale?"warn":"")}${dvKpi("ปิดแล้ว",dvNum(closed.length),"WIN "+closed.filter(x=>x.s==="won").length+" · LOSS "+closed.filter(x=>x.s==="lost").length+" · ยกเลิก "+closed.filter(x=>x.s==="cancelled").length)}</div>
-  <details class="dv-tip-box"${innerWidth>680?" open":""}><summary><b>สั่งจาก Teams ได้</b> — <code>#ส่งงานแล้ว</code> <code>#win</code> <code>#loss</code> …</summary>พิมพ์ในข้อความของ Channel โครงการ — <code>#ส่งงานแล้ว</code> · <code>#win</code> · <code>#loss</code> · <code>#ยกเลิก</code> · <code>#เปิดงานใหม่</code> ระบบจะบันทึกและตอบกลับใน Thread (เซลส์ใช้ได้เฉพาะ #win #loss #ยกเลิก #เปิดงานใหม่ ในโครงการของตัวเอง)</details>${dvRecent(ps,acc)}${dvApprovalLog(st,acc)}
+  <div class="dv-kpis">${dvKpi("กำลังทำ",dvNum(cnt("active")),"รอเรา "+(cnt("active")-wOther)+" · รอคนอื่น "+wOther+(wOver?" · "+dvIcon.warn+" ค้าง "+wOver:""),wOver?"warn":"")}${dvKpi(dvIcon.ok+" ส่งงานแล้ว · รอลูกค้า",dvNum(cnt("delivered")),"ส่วนของ Engineer จบแล้ว")}${dvKpi(dvIcon.warn+" รอลูกค้าเกิน 60 วัน",dvNum(stale),"ระบบจะเตือนเซลส์ใน Channel",stale?"warn":"")}${dvKpi("ปิดแล้ว",dvNum(closed.length),"WIN "+closed.filter(x=>x.s==="won").length+" · LOSS "+closed.filter(x=>x.s==="lost").length+" · ยกเลิก "+closed.filter(x=>x.s==="cancelled").length)}</div>
+  <details class="dv-tip-box"${innerWidth>680?" open":""}><summary><b>สั่งจาก Teams ได้</b> — <code>#ส่งงานแล้ว</code> <code>#win</code> <code>#loss</code> …</summary>พิมพ์ในข้อความของ Channel โครงการ — <code>#ส่งงานแล้ว</code> · <code>#win</code> · <code>#loss</code> · <code>#ยกเลิก</code> · <code>#เปิดงานใหม่</code> ระบบจะบันทึกและตอบกลับใน Thread (เซลส์ใช้ได้เฉพาะ #win #loss #ยกเลิก #เปิดงานใหม่ ในโครงการของตัวเอง)<br><b>ขั้นตอนระหว่างทำ</b> (บอกว่างานอยู่ในมือใคร): ${Object.values(SUBST).map(m=>`<code>${m.tag}</code>`).join(" · ")} — ค้างเกินกำหนด (ของเรา ${SUBST.recv.warn} วัน · ซัพ/จัดซื้อ/ราคา ${SUBST.price.warn} วัน · ลูกค้า ${SUBST.cust.warn} วัน) ระบบจะเตือนใน Channel</details>${dvRecent(ps,acc)}${dvApprovalLog(st,acc)}
   <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสถานะ">${[["active","กำลังทำ",cnt("active")],["delivered","รอลูกค้า",cnt("delivered")],["closed","ปิดแล้ว",closed.length],["all","ทั้งหมด",ps.length]].map(([k,l,n])=>`<button type="button" class="${DV.sf===k?"on":""}" aria-pressed="${DV.sf===k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
    <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="q" placeholder="ค้นหา Project Code / ชื่องาน / ลูกค้า / เซลส์" value="${mEsc(DV.q)}" oninput="dvQ('q','.dv-prow',this.value,'sf')" onkeydown="dvQKey(event,this)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
   ${list.length?`<ul class="dv-plist">${list.map(row).join("")}</ul>`:`<p class="dv-empty">ไม่มีโครงการในกลุ่มนี้</p>`}`;
  if(DV.q)dvQ("q",".dv-prow",DV.q,"sf");
  host.querySelectorAll(".dv-sb").forEach(b=>b.onclick=async()=>{let s=b.dataset.s,code=b.dataset.code;if(["won","lost","cancelled"].includes(s)&&!confirm("ปิดโครงการ "+code+" เป็น "+PSTAT[s].t+" ?"))return;if(s==="active"&&!confirm("เปิดงานใหม่ "+code+" ? สถานะจะกลับเป็น กำลังทำ"))return;
-  b.disabled=!0;try{let r=await dvPost({action:"pstatus",projectId:b.dataset.pid,status:s});mToast(code+" · "+PSTAT[s].t+(r.note?" — "+r.note:""))}catch(e){mToast("เปลี่ยนสถานะไม่สำเร็จ: "+e.message,!0)}DV.stAt=0;M.cacheAt=0;dvRender()})}
+  b.disabled=!0;try{let r=await dvPost({action:"pstatus",projectId:b.dataset.pid,status:s});mToast(code+" · "+PSTAT[s].t+(r.note?" — "+r.note:""))}catch(e){mToast("เปลี่ยนสถานะไม่สำเร็จ: "+e.message,!0)}DV.stAt=0;M.cacheAt=0;dvRender()});
+ host.querySelectorAll(".dv-subsel").forEach(b=>b.onchange=async()=>{let k=b.value,code=b.dataset.code;if(!SUBST[k])return;b.disabled=!0;try{let r=await dvPost({action:"psub",projectId:b.dataset.pid,sub:k});mToast(code+" · "+SUBST[k].t+(r.note?" — "+r.note:""))}catch(e){mToast("ตั้งขั้นตอนไม่สำเร็จ: "+e.message,!0)}DV.stAt=0;M.cacheAt=0;dvRender()})}
 window.dvFilterRows=(sel,q)=>{q=String(q||"").trim().toLowerCase();let ws=q.split(/\s+/).filter(Boolean),n=0;document.querySelectorAll("#dashv "+sel).forEach(li=>{let hit=!ws.length||ws.every(w=>(li.dataset.q||"").includes(w));li.hidden=!hit;if(hit)n++});return n};
 /* v16.9 ผลค้นหา: นับจำนวน / ไม่พบ → ปุ่มค้นหาในทุกสถานะ · Enter = ปิดคีย์บอร์ดแล้วเลื่อนไปผลแรก */
 var dvQNote=(v,n,tab)=>{let box=document.querySelector("#dashv .dv-qnote");if(!box)return;v=String(v||"").trim();box.hidden=!v;if(!v){box.innerHTML="";return}
@@ -1812,9 +1846,10 @@ window.fetch=async(e,a={})=>{let u=String(e),m=(a.method||"GET").toUpperCase(),J
   if(act==="sync"&&isLocal(b.projectId)&&!String(b.projectId).startsWith("demo-")){let d=PV.projects.find(x=>x.id===b.projectId);if(d&&!d.listItemId&&!d.demo)act=b.action="submit"}
   if(["account","member","settings"].includes(act))return J(await mAdmin(act,b));
   if(act==="create"||(isLocal(b.projectId)&&!(act==="submit"&&!String(b.projectId).startsWith("demo-")))){let f=PV_ACT[act];if(!f)throw new PvErr("ไม่รองรับคำสั่งนี้");let snap=JSON.stringify(PV);try{let r=f(b);pvSave();return J(r)}catch(x){PV=JSON.parse(snap);throw x}}
-  if(["submit","decide","channel","pstatus"].includes(act)){let nv=await mVerNew();if(nv)throw new PvErr("หน้าเว็บนี้เป็นเวอร์ชันเก่า ("+M_VER+") มีเวอร์ชันใหม่ "+nv+" แล้ว — กดรีเฟรช (Cmd+Shift+R) ก่อนทำรายการ",409)}
+  if(["submit","decide","channel","pstatus","psub"].includes(act)){let nv=await mVerNew();if(nv)throw new PvErr("หน้าเว็บนี้เป็นเวอร์ชันเก่า ("+M_VER+") มีเวอร์ชันใหม่ "+nv+" แล้ว — กดรีเฟรช (Cmd+Shift+R) ก่อนทำรายการ",409)}
   if(act==="submit")return J(await mSubmit(b));
   if(act==="pstatus")return J(await mSetPStat(b.projectId,b.status,{note:b.note}));
+  if(act==="psub")return J(await mSetSub(b.projectId,b.sub));
   if(act==="request_approval")return J(await mRequestApproval(b));if(act==="decide")return J(await mDecide(b));
   if(!PV_ACT[act]&&!["channel","sync"].includes(act))throw new PvErr("ไม่รองรับคำสั่งนี้");
   return J(await mRun(act,b))}
@@ -1872,7 +1907,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.15";
+var M_VER="v16.16";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -2065,7 +2100,7 @@ lucide-react/dist/esm/lucide-react.mjs:
 .dv-sp{flex:1}
 .dv-recent{margin:0 0 14px}.dv-recent h3 small{font-weight:500;color:var(--dv-muted);font-size:11px}.dv-recent ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
 .dv-recent li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;padding:6px 0;border-top:1px solid var(--dv-grid)}.dv-recent li:first-child{border-top:0}.dv-recent .dv-code{margin:0;font-weight:700}.dv-recent small{color:var(--dv-muted)}
-details.dv-tip-box summary{cursor:pointer;list-style:none}details.dv-tip-box summary::-webkit-details-marker{display:none}details.dv-tip-box summary::after{content:" ▾";color:var(--dv-muted)}details.dv-tip-box[open] summary{margin-bottom:4px}details.dv-tip-box[open] summary::after{content:" ▴"}
+.dv-st.sub{background:#eef1f6;color:#3d4a63;margin-left:4px}.dv-st.sub.over{background:#fdf1e4;color:#9a5a12}.dv-subsel{font:inherit;font-size:12px;padding:6px 8px;border:1px solid #d6dbe4;border-radius:3px;background:#fff;color:#2b3445;max-width:100%}details.dv-tip-box summary{cursor:pointer;list-style:none}details.dv-tip-box summary::-webkit-details-marker{display:none}details.dv-tip-box summary::after{content:" ▾";color:var(--dv-muted)}details.dv-tip-box[open] summary{margin-bottom:4px}details.dv-tip-box[open] summary::after{content:" ▴"}
 /* ฟอร์มใบยืม */
 .dv-lfd{width:min(920px,calc(100vw - 32px))}
 .dv-dhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
