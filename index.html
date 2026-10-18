@@ -539,11 +539,11 @@ async function mLoad(force){if(!force&&M.cache&&Date.now()-M.cacheAt<6e3)return 
  let track={},settings={settings:{},accounts:{},members:[]};
  let ti=await tiP;
  if(ti){
-  let slog={};for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
-   else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id})}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
+  let slog={},alog={};for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
+   else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
    for(let k in slog){slog[k].sort((a,b)=>mT(a.at)-mT(b.at));let last=slog[k][slog[k].length-1],t=track[k]||(track[k]={});let ps={s:last.s,at:last.at,by:last.by,via:last.via,msg:last.msg||"",prev:last.prev};t.pstat=mPsNewer(t.pstat,ps)}
-   M.slog=slog}
+   M.slog=slog;M.alog=alog}
  M.cache={items,track,settings};M.cacheAt=Date.now();return M.cache}
 var mT=x=>Date.parse(x||0)||0;
 /* เลือกสถานะที่ใหม่กว่า (เวลาเท่ากัน = รวมกัน เก็บ remindAt ไว้) */
@@ -790,6 +790,8 @@ async function mRequestApproval(b){throw new PvErr("ไม่ใช้ขั้�
 async function mDecide(b){if(!M.isApprover)throw new PvErr("เฉพาะผู้อนุมัติเท่านั้น",403);let p=await mVisible(b.projectId),d=b.decision==="rejected"?"rejected":"approved",cur=await mApprovalStatus(p.listItemId),cm=pvTxt(b.comment,1e3,"เหตุผล");
  if(cur!=="pending"){M.cacheAt=0;throw new PvErr("รายการนี้ตอบผลไปแล้ว ("+cur+")",409)}
  await mSetRequestStatus(p.listItemId,d);
+ /* v16.13: บันทึกประวัติการอนุมัติแบบเพิ่มแถว (ไม่มีใครเขียนทับได้) */
+ try{await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:p.code+" · "+(d==="approved"?"อนุมัติ":"ไม่อนุมัติ"),ProjectItemId:-Number(p.listItemId),TrackVersion:0,Payload:JSON.stringify({d,by:M.profile.name,email:M.profile.email,at:pvNow(),note:cm,code:p.code})}}})}catch(e){console.warn("[9D] approval log",e)}
  let np={...p,stage:d,listApproval:d,approvalStatus:d,waitingOn:d==="approved"?"Engineer":"—",nextAction:d==="approved"?"มอบหมาย Engineer และสร้าง Private Channel":("ไม่อนุมัติ"+(cm?": "+cm:"")),version:(p.version||1)+1,updatedAt:pvNow()};
  let acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:d==="approved"?"อนุมัติโครงการ":"ไม่อนุมัติโครงการ",note:"Request Status: "+mReqChoice(d)+" โดย "+M.profile.name+(cm?" · "+cm:""),createdAt:pvNow()}];
  let sync={lists:"success",teams:"blocked",listsNote:"",teamsNote:"",updatedAt:pvNow()};
@@ -921,7 +923,7 @@ async function mWaitDismiss(channelId,lastAt){await mLoad(!0);let s={...(M.cache
 async function mSetLoanForm(o){if(!mIsEng())throw new PvErr("เฉพาะ Engineer",403);await mLoad(!0);let s={...(M.cache?.settings||{})};s.loanForm={co:o.co||{},approver:o.approver||{},terms:String(o.terms||"").slice(0,6000),at:pvNow(),by:M.profile.name};await mSaveSettings(s);if(M.cache)M.cache.settings=s;return s.loanForm}
 async function mSetCodePrefix(map){await mLoad(!0);let s={...(M.cache?.settings||{})};s.codePrefix={...(s.codePrefix||{})};for(let[e,v]of Object.entries(map)){let k=e.toLowerCase(),x=String(v||"").trim().toUpperCase();if(!x)delete s.codePrefix[k];else if(/^[A-Z]{3}$/.test(x))s.codePrefix[k]=x;else throw new PvErr("ตัวย่อต้องเป็นตัวอักษรภาษาอังกฤษ 3 ตัว ("+e+")",400)}await mSaveSettings(s);if(M.cache)M.cache.settings=s;return s.codePrefix}
 /* ===== สถานะโครงการ (v16) =====
-   กำลังทำ → ส่งงานแล้ว·รอลูกค้า (Engineer) → ปิด WIN / LOSS / ยกเลิก (เซลส์ หรือ Engineer) · เปิดงานใหม่ได้เสมอ (Engineer)
+   กำลังทำ → ส่งงานแล้ว·รอลูกค้า (Engineer) → ปิด WIN / LOSS / ยกเลิก (เซลส์ หรือ Engineer) · เปิดงานใหม่ได้เสมอ (Engineer · เซลส์เฉพาะโครงการของตัวเอง ตั้งแต่ v16.13)
    เก็บใน 9D Project Tracking (pstat) และเขียนคอลัมน์ "สถานะล่าสุด" + "สถานะโครงการ แพ้/ชนะ" ใน All Projects List (บัญชีที่มีสิทธิ์แก้ = Engineer)
    สั่งจาก Teams ได้: #ส่งงานแล้ว #win #loss #ยกเลิก #เปิดงานใหม่ (ระบบอ่านตอนซิงค์ Teams แล้วตอบกลับใน Thread) */
 var PSTAT={active:{t:"กำลังทำ",latest:"In Progress",wl:"Process"},delivered:{t:"ส่งงานแล้ว · รอลูกค้า",latest:"Finish",wl:"Process"},won:{t:"ปิด · WIN",latest:"Finish",wl:"WIN"},lost:{t:"ปิด · LOSS",latest:"Loss",wl:"LOSS"},cancelled:{t:"ปิด · ยกเลิก",latest:"Loss",wl:"LOSS"}};
@@ -939,7 +941,7 @@ async function mChanPost(teamId,channelId,html,rootId,mentions){let u=`${M_GRAPH
 async function mSetPStat(pid,s,o={}){if(!PSTAT[s])throw new PvErr("สถานะไม่ถูกต้อง",400);await mLoad(!0);let st=await mState(),p=st.projects.find(x=>x.id===pid);if(!p)throw new PvErr("ไม่พบโครงการ หรือไม่มีสิทธิ์",404);
  if(p.listApproval!=="approved")throw new PvErr("โครงการต้องได้รับอนุมัติก่อนจึงเปลี่ยนสถานะได้",409);
  let staff=M.role!=="sales"&&M.role!=="viewer",me=String(M.profile.email||"").toLowerCase(),by=o.by||M.profile.name;
- if(!o.via&&!staff){if(p.accountId!=="acc-"+me)throw new PvErr("เปลี่ยนสถานะได้เฉพาะโครงการของตัวเอง",403);if(!["won","lost","cancelled"].includes(s))throw new PvErr("เซลส์ปิดโครงการได้ (WIN / LOSS / ยกเลิก) — ส่งงานแล้ว / เปิดงานใหม่ ให้ Engineer เป็นคนกด",403)}
+ if(!o.via&&!staff){if(p.accountId!=="acc-"+me)throw new PvErr("เปลี่ยนสถานะได้เฉพาะโครงการของตัวเอง",403);if(!["won","lost","cancelled","active"].includes(s))throw new PvErr("เซลส์ปิดโครงการ (WIN / LOSS / ยกเลิก) หรือเปิดงานใหม่ได้ — ส่งงานแล้ว ให้ Engineer เป็นคนกด",403)}
  let prev=mPStat(p);if(prev===s)return{p,same:!0,note:"สถานะเป็น "+PSTAT[s].t+" อยู่แล้ว"};
  p.pstat={s,at:o.at||pvNow(),by,via:o.via||"web",msg:o.msg||"",prev};
  if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
@@ -961,7 +963,7 @@ async function mStatusAuto(){if(M.role==="sales"||M.role==="viewer"||!TS.at||M.s
  let owner=(p,by,team)=>{let a=mNorm(String(by).split(/\s+/)[0]);if(a.length<3)return!1;let an=acc[p.accountId]?.name||"";return(!!an&&mNorm(an).startsWith(a))||mNorm(team||"").includes(a)};
  for(let r of TS.all||[]){let p=r.pid&&byId[r.pid];if(!p||p.listApproval!=="approved"||!(r.cmds||[]).length)continue;
   let done=new Set((M.slog?.[Number(p.listItemId)]||[]).map(x=>x.msg).filter(Boolean)),c=r.cmds.filter(c=>mT(c.at)>mT(p.pstat?.at||p.createdAt)&&c.id!==p.pstat?.msg&&!done.has(c.id)).sort((a,b)=>mT(a.at)-mT(b.at)).pop();if(!c)continue;
-  if(!mEngName(c.by)&&!(owner(p,c.by,r.teamName)&&["won","lost","cancelled"].includes(c.cmd)))continue;
+  if(!mEngName(c.by)&&!(owner(p,c.by,r.teamName)&&["won","lost","cancelled","active"].includes(c.cmd)))continue;
   try{await mSetPStat(p.id,c.cmd,{via:"teams",by:c.by,msg:c.id,root:c.root,at:c.at,ch:{teamId:r.teamId,channelId:r.channelId}});await mLoad(!0);st=await mState();byId=Object.fromEntries(st.projects.map(p=>[p.id,p]))}catch(e){console.warn("[9D] status cmd",e)}if(++n>=10)break}
  n=0;for(let p of st.projects){if(!p.pstat?.s||p.listApproval!=="approved")continue;let m=PSTAT[p.pstat.s];if(m&&(p.listLatest!==m.latest||p.listWinLoss!==m.wl)){try{await mPStatSP(p)}catch(e){}if(++n>=10)break}}
  n=0;for(let p of st.projects){if(p.pstat?.s!=="delivered"||!p.channelId||!p.teamId)continue;let r=TS.channels[p.id]||(TS.all||[]).find(x=>x.channelId===p.channelId),quiet=[p.pstat.at,p.pstat.remindAt,r?.last].filter(Boolean).sort().pop()||p.pstat.at;
@@ -1298,6 +1300,14 @@ document.addEventListener("click",e=>{let n=e.target.closest&&e.target.closest("
 var dvPost=async(body)=>{let r=await fetch("/api/operations",{method:"POST",body:JSON.stringify(body)}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"HTTP "+r.status);return j};
 
 /* ---- หน้า สถานะโครงการ ---- */
+/* v16.13 ประวัติการอนุมัติ (ซ่อนไว้ กดเปิดดู) — จากบันทึกการกดอนุมัติ / ไม่อนุมัติบนเว็บ · Engineer/Admin เห็นทั้งหมด เซลส์เห็นเฉพาะงานของตัวเอง */
+function dvApprovalLog(st,acc){let byL={};for(let p of st.projects)if(p.listItemId)byL[p.listItemId]=p;let rows=[],seen=[],dup=(lid,d,at)=>seen.some(x=>x[0]===lid&&x[1]===d&&Math.abs(x[2]-Date.parse(at))<12e4);
+ for(let[lid,arr]of Object.entries(M.alog||{}))for(let x of arr){let p=byL[lid];if(!p)continue;rows.push({p,d:x.d,by:x.by,at:x.at,note:x.note||""});seen.push([lid,x.d,Date.parse(x.at)])}
+ for(let[lid,t]of Object.entries(M.cache?.track||{})){let p=byL[lid];if(!p)continue;for(let a of t.activities||[]){let d=a.action==="อนุมัติโครงการ"?"approved":a.action==="ไม่อนุมัติโครงการ"?"rejected":"";if(!d||dup(lid,d,a.createdAt))continue;
+  rows.push({p,d,by:a.actor,at:a.createdAt,note:String(a.note||"").replace(/^Request Status: \S+ โดย [^·]*·?\s*/,"")})}}
+ rows.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));if(!rows.length)return"";
+ let tm=iso=>{let d=new Date(Date.parse(iso)+252e5);return dvTH2(d.toISOString().slice(0,10))+" "+d.toISOString().slice(11,16)};
+ return`<details class="dv-card dv-alog"><summary>ประวัติการอนุมัติ <small>${rows.length} รายการ · กดเพื่อดู</small></summary><div class="dv-alog-w"><table><thead><tr><th>เวลา</th><th>โครงการ</th><th>เซลส์</th><th>ผล</th><th>โดย</th><th>เหตุผล</th></tr></thead><tbody>${rows.slice(0,300).map(r=>`<tr><td>${tm(r.at)}</td><td><b>${mEsc(r.p.code)}</b>${r.p.name&&r.p.name!==r.p.code?"<br><small>"+mEsc(r.p.name)+"</small>":""}</td><td>${mEsc(acc[r.p.accountId]?.name||"")}</td><td>${r.d==="approved"?`<span class="dv-st ok">${dvIcon.ok} อนุมัติ</span>`:`<span class="dv-st no">${dvIcon.no} ไม่อนุมัติ</span>`}</td><td>${mEsc(r.by||"")}</td><td>${mEsc(r.note)}</td></tr>`).join("")}</tbody></table></div></details>`}
 /* เปลี่ยนสถานะล่าสุด (7 วัน) — ให้เห็นว่าคำสั่งจาก Teams / ปุ่มบนเว็บบันทึกแล้ว */
 var dvRecent=(ps,acc)=>{let wk=Date.now()-7*864e5,r=ps.filter(x=>x.p.pstat?.at&&Date.parse(x.p.pstat.at)>=wk).sort((a,b)=>Date.parse(b.p.pstat.at)-Date.parse(a.p.pstat.at)).slice(0,6);if(!r.length)return"";
  return`<div class="dv-card dv-recent"><h3>เปลี่ยนสถานะล่าสุด <small>7 วัน</small></h3><ul>${r.map(x=>`<li><span class="dv-code">${mEsc(x.p.code)}</span>${dvPChip(x.s)}<small>${dvAgo(x.p.pstat.at)}ที่แล้ว · ${mEsc(x.p.pstat.by||"")}${x.p.pstat.via==="teams"?" · Teams":" · เว็บ"}</small></li>`).join("")}</ul></div>`};
@@ -1309,15 +1319,15 @@ async function dvStatusPage(host){let st=await dvState(),eng=mIsEng(),me=String(
  let grp={active:x=>x.s==="active",delivered:x=>x.s==="delivered",closed:x=>["won","lost","cancelled"].includes(x.s),all:()=>!0},list=ps.filter(grp[DV.sf]||grp.active).sort((a,b)=>since(a).localeCompare(since(b)));
  let btn=(x,s,label,cls)=>`<button type="button" class="dv-sb ${cls||""}" data-pid="${x.p.id}" data-s="${s}" data-code="${mEsc(x.p.code)}">${label}</button>`;
  let acts=x=>{let own=x.p.accountId==="acc-"+me,b=[];if(eng){if(x.s==="active")b.push(btn(x,"delivered",dvIcon.ok+" ส่งงานแล้ว","pri"));if(x.s==="delivered")b.push(btn(x,"won","WIN","ok"),btn(x,"lost","LOSS","no"),btn(x,"cancelled","ยกเลิก"),btn(x,"active","เปิดงานใหม่"));if(["won","lost","cancelled"].includes(x.s))b.push(btn(x,"active","เปิดงานใหม่"))}
-  else if(own&&["active","delivered"].includes(x.s))b.push(btn(x,"won","WIN","ok"),btn(x,"lost","LOSS","no"),btn(x,"cancelled","ยกเลิก"));return b.join("")};
+  else if(own){if(["active","delivered"].includes(x.s))b.push(btn(x,"won","WIN","ok"),btn(x,"lost","LOSS","no"),btn(x,"cancelled","ยกเลิก"));if(x.s!=="active")b.push(btn(x,"active","เปิดงานใหม่"))}return b.join("")};
  let row=x=>{let r=tsr(x.p),d=days(since(x)),q=[x.p.code,x.p.name,x.p.client,acc[x.p.accountId]?.name].join(" ").toLowerCase();
   return`<li class="dv-prow" data-q="${mEsc(q)}"><div class="dv-pmain"><p class="dv-code">${mEsc(x.p.code)}</p><b>${mEsc(x.p.name!==x.p.code?x.p.name:"")||"&nbsp;"}</b><span>${mEsc(acc[x.p.accountId]?.name||"")}${x.p.client&&x.p.client!=="—"?" · "+mEsc(x.p.client):""}</span></div>
    <div class="dv-pst">${dvPChip(x.s)}<small>${x.p.pstat?.at?"ตั้งแต่ "+dvTH2(dvDay(Date.parse(x.p.pstat.at)))+" · "+d+" วัน"+(x.p.pstat.by?" · "+mEsc(x.p.pstat.by)+(x.p.pstat.via==="teams"?" (Teams)":""):""):"อนุมัติเมื่อ "+dvTH2(dvDay(Date.parse(x.p.createdAt||0)))}</small>${x.s==="delivered"&&d>=60?`<small class="dv-warn">${dvIcon.warn} รอลูกค้าเกิน 60 วัน</small>`:""}</div>
    <div class="dv-pch">${r?`<a href="${mEsc(r.url||x.p.channelUrl||"#")}" target="_blank" rel="noreferrer">Teams ↗</a><small>${r.last?"ล่าสุด "+dvAgo(r.last)+"ที่แล้ว":"ยังไม่มีข้อความ"}</small>`:x.p.channelUrl?`<a href="${mEsc(x.p.channelUrl)}" target="_blank" rel="noreferrer">Teams ↗</a>`:`<small>ยังไม่มี Channel</small>`}</div>
    <div class="dv-pact">${acts(x)}</div></li>`};
- host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>สถานะโครงการ</h1><p class="dv-sub">${eng?"Engineer กด <b>ส่งงานแล้ว</b> เมื่อส่งงานครบ · ปิดโครงการเมื่อรู้ผล WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b>":"แจ้งผลโครงการของคุณ: WIN / LOSS / ยกเลิก (ปุ่มด้านขวา หรือพิมพ์ใน Teams Channel)"}</p></div></header>
+ host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>สถานะโครงการ</h1><p class="dv-sub">${eng?"Engineer กด <b>ส่งงานแล้ว</b> เมื่อส่งงานครบ · ปิดโครงการเมื่อรู้ผล WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b>":"แจ้งผลโครงการของคุณ: WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b> (ปุ่มด้านขวา หรือพิมพ์ใน Teams Channel)"}</p></div></header>
   <div class="dv-kpis">${dvKpi("กำลังทำ",dvNum(cnt("active")),"อนุมัติแล้ว ทีม Engineer กำลังทำ")}${dvKpi(dvIcon.ok+" ส่งงานแล้ว · รอลูกค้า",dvNum(cnt("delivered")),"ส่วนของ Engineer จบแล้ว")}${dvKpi(dvIcon.warn+" รอลูกค้าเกิน 60 วัน",dvNum(stale),"ระบบจะเตือนเซลส์ใน Channel",stale?"warn":"")}${dvKpi("ปิดแล้ว",dvNum(closed.length),"WIN "+closed.filter(x=>x.s==="won").length+" · LOSS "+closed.filter(x=>x.s==="lost").length+" · ยกเลิก "+closed.filter(x=>x.s==="cancelled").length)}</div>
-  <details class="dv-tip-box"${innerWidth>680?" open":""}><summary><b>สั่งจาก Teams ได้</b> — <code>#ส่งงานแล้ว</code> <code>#win</code> <code>#loss</code> …</summary>พิมพ์ในข้อความของ Channel โครงการ — <code>#ส่งงานแล้ว</code> · <code>#win</code> · <code>#loss</code> · <code>#ยกเลิก</code> · <code>#เปิดงานใหม่</code> ระบบจะบันทึกและตอบกลับใน Thread (เซลส์ใช้ได้เฉพาะ #win #loss #ยกเลิก ในโครงการของตัวเอง)</details>${dvRecent(ps,acc)}
+  <details class="dv-tip-box"${innerWidth>680?" open":""}><summary><b>สั่งจาก Teams ได้</b> — <code>#ส่งงานแล้ว</code> <code>#win</code> <code>#loss</code> …</summary>พิมพ์ในข้อความของ Channel โครงการ — <code>#ส่งงานแล้ว</code> · <code>#win</code> · <code>#loss</code> · <code>#ยกเลิก</code> · <code>#เปิดงานใหม่</code> ระบบจะบันทึกและตอบกลับใน Thread (เซลส์ใช้ได้เฉพาะ #win #loss #ยกเลิก #เปิดงานใหม่ ในโครงการของตัวเอง)</details>${dvRecent(ps,acc)}${dvApprovalLog(st,acc)}
   <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสถานะ">${[["active","กำลังทำ",cnt("active")],["delivered","รอลูกค้า",cnt("delivered")],["closed","ปิดแล้ว",closed.length],["all","ทั้งหมด",ps.length]].map(([k,l,n])=>`<button type="button" class="${DV.sf===k?"on":""}" aria-pressed="${DV.sf===k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
    <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="q" placeholder="ค้นหา Project Code / ชื่องาน / ลูกค้า / เซลส์" value="${mEsc(DV.q)}" oninput="dvQ('q','.dv-prow',this.value,'sf')" onkeydown="dvQKey(event,this)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
   ${list.length?`<ul class="dv-plist">${list.map(row).join("")}</ul>`:`<p class="dv-empty">ไม่มีโครงการในกลุ่มนี้</p>`}`;
@@ -1775,7 +1785,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.12";
+var M_VER="v16.13";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -1963,7 +1973,8 @@ lucide-react/dist/esm/lucide-react.mjs:
    * See the LICENSE file in the root directory of this source tree.
    *)
 */
-</script><style id="v161">/* ===== v16.1 ===== */
+</script><style id="v161">.dv-alog summary{cursor:pointer;font-weight:600}.dv-alog summary small{font-weight:400;color:var(--muted);margin-left:6px}.dv-alog-w{overflow-x:auto;margin-top:10px}.dv-alog table{width:100%;border-collapse:collapse;font-size:12px}.dv-alog th,.dv-alog td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.dv-alog th{font-weight:600;color:var(--muted);white-space:nowrap}.dv-alog td:first-child{white-space:nowrap}
+/* ===== v16.1 ===== */
 .dv-sp{flex:1}
 .dv-recent{margin:0 0 14px}.dv-recent h3 small{font-weight:500;color:var(--dv-muted);font-size:11px}.dv-recent ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
 .dv-recent li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;padding:6px 0;border-top:1px solid var(--dv-grid)}.dv-recent li:first-child{border-top:0}.dv-recent .dv-code{margin:0;font-weight:700}.dv-recent small{color:var(--dv-muted)}
