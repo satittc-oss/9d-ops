@@ -1134,7 +1134,7 @@ function dvSync(){let items=[...document.querySelectorAll(".sidebar .nav-item")]
  let host=document.getElementById("dashv");
  if(on){if(!host){host=document.createElement("section");host.id="dashv";host.setAttribute("aria-label","แดชบอร์ด");main.prepend(host);dvRender()}else if(host.parentElement!==main||main.firstElementChild!==host){main.prepend(host)}
   if(!document.body.classList.contains("dv-on")){document.body.classList.add("dv-on");DV.stAt=0;dvRender()}}
- else if(document.body.classList.contains("dv-on"))document.body.classList.remove("dv-on")}
+ else if(document.body.classList.contains("dv-on")){document.body.classList.remove("dv-on");let f=document.querySelector("#dashv .dv-cityf");if(f)f.remove()}}
 window.dvSetDays=d=>{DV.days=d;DV.custom=null;DV.showCustom=!1;try{localStorage.setItem("9d-dv-days",String(d));localStorage.removeItem("9d-dv-range")}catch{}dvRender()};
 window.dvToggleCustom=()=>{DV.showCustom=!DV.showCustom;dvRender()};
 window.dvApplyRange=e=>{e.preventDefault();let f=e.target,a=f.elements.from.value,b=f.elements.to.value;if(!a||!b){mToast("เลือกวันที่เริ่มต้นและสิ้นสุด",!0);return}if(b<a)[a,b]=[b,a];DV.custom={from:a,to:b};DV.showCustom=!0;try{localStorage.setItem("9d-dv-range",JSON.stringify(DV.custom))}catch{}dvRender()};
@@ -1173,7 +1173,7 @@ function dvWire(host,pts){
 
 /* ---- วาดหน้า ---- */
 async function dvRender(){let host=document.getElementById("dashv");if(!host)return;if(DV.busy){DV.again=!0;return}DV.busy=!0;DV.again=!1;
- try{if(DV.page==="status"){await dvStatusPage(host);return}if(DV.page==="loans"){await dvLoansPage(host);return}if(DV.page==="service"){await dvServicePage(host);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
+ try{if(DV.page==="status"){await dvStatusPage(host);return}if(DV.page==="loans"){await dvLoansPage(host);return}if(DV.page==="service"){await dvServicePage(host);return}if(DV.page==="city"){await dvCityPage(host);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
   DV.sig=dvSig();
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
   let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>แดชบอร์ด</h1><p class="dv-sub">${staff?"ความเคลื่อนไหวใน Teams Channel และคำขอจากเซลส์ที่รอพิจารณา":"คำขอ Service Request ของคุณและสถานะการพิจารณา"}</p></div>
@@ -1275,9 +1275,10 @@ window.dvSavePrefix=async e=>{e.preventDefault();let map={};for(let el of e.targ
 
 /* ===== เมนูเพิ่ม: สถานะโครงการ (ทุกคน) · ยืมสินค้า (Engineer) ===== */
 var dvNavIcon={service:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>',status:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>',
- loans:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>'};
+ loans:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
+ city:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l6-3v15"/><path d="M9 21V4l8 3v14"/><path d="M17 21v-9l4 2v7"/><path d="M2 21h20M12 9h2M12 13h2M12 17h2"/></svg>'};
 function dvNav(items){let ref=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim()))||items[1];if(!ref)return;
- let want=[["status","สถานะโครงการ"],...(mIsEng()?[["loans","ยืมสินค้า"],["service","งานเซอร์วิส"]]:[])],prev=ref;
+ let want=[["status","สถานะโครงการ"],["city","เมืองจำลอง"],...(mIsEng()?[["loans","ยืมสินค้า"],["service","งานเซอร์วิส"]]:[])],prev=ref;
  for(let[k,label]of want){let b=document.getElementById("dvnav-"+k);if(!b){b=document.createElement("button");b.type="button";b.id="dvnav-"+k;b.className="nav-item dv-nav";b.innerHTML=dvNavIcon[k]+"<span>"+label+"</span>";
    b.onclick=()=>{DV.page=k;let sb=document.querySelector(".sidebar.show .mobile-close");if(sb)sb.click();dvSync();DV.stAt=0;dvRender();window.scrollTo(0,0)};}
   if(b.previousElementSibling!==prev)prev.after(b);prev=b;b.classList.toggle("active",DV.page===k);b.setAttribute("aria-current",DV.page===k?"page":"false")}}
@@ -1289,7 +1290,7 @@ var dvTabIcon={home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'};
 function dvTabbar(items){let tb=document.getElementById("dv-tabbar");if(!tb){tb=document.createElement("nav");tb.id="dv-tabbar";tb.setAttribute("aria-label","เมนูหลัก");document.body.appendChild(tb)}
  let appr=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim())),home=items[0],tabs=[["home","ภาพรวม"],["status","สถานะ"],["appr","รออนุมัติ"],...(mIsEng()?[["loans","ยืมสินค้า"]]:[]),["menu","เมนู"]];
- let cur=DV.page==="status"||DV.page==="loans"?DV.page:DV.page==="service"?"menu":appr?.classList.contains("active")?"appr":home?.classList.contains("active")?"home":"";
+ let cur=DV.page==="status"||DV.page==="loans"?DV.page:DV.page==="service"||DV.page==="city"?"menu":appr?.classList.contains("active")?"appr":home?.classList.contains("active")?"home":"";
  let pend=(M.cache?.items||[]).filter(i=>mReqStatus(i.fields||{})==="pending"&&(mIsEng()||String(i.createdBy?.user?.email||"").toLowerCase()===String(M.profile?.email||"").toLowerCase())).length,key=tabs.map(t=>t[0]).join()+"|"+cur+"|"+pend;
  if(tb.dataset.k===key)return;tb.dataset.k=key;
  tb.innerHTML=tabs.map(([k,l])=>`<button type="button" data-t="${k}" class="${k===cur?"on":""}"${k===cur?' aria-current="page"':""}>${dvTabIcon[k]}<span>${l}</span>${k==="appr"&&pend?`<em aria-label="${pend} รายการ">${pend>99?"99+":pend}</em>`:""}</button>`).join("");
@@ -1299,6 +1300,11 @@ window.dvTab=t=>{if(t==="status"||t==="loans"||t==="service"){dvGo(t);return}if(
 document.addEventListener("click",e=>{let n=e.target.closest&&e.target.closest(".sidebar .nav-item");if(n&&!n.classList.contains("dv-nav")&&DV.page){DV.page=null;setTimeout(()=>{dvSync();if(document.body.classList.contains("dv-on")){DV.stAt=0;dvRender()}},60)}},!0);
 var dvPost=async(body)=>{let r=await fetch("/api/operations",{method:"POST",body:JSON.stringify(body)}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"HTTP "+r.status);return j};
 
+/* ---- หน้า เมืองจำลอง (v16.14) — ฝัง city.html ในกรอบ (iframe) จึงไม่ปนกับสไตล์/สคริปต์ของแอป · ตอนนี้ยังเป็นข้อมูลจำลอง ---- */
+async function dvCityPage(host){DV.sig=dvSig();if(host.querySelector(".dv-cityf"))return;
+ host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>เมืองจำลองการทำงาน</h1><p class="dv-sub">ดูว่างานเดินทางระหว่างลูกค้า · เซลส์ · Engineering · Supplier · จัดซื้อ · Marketing อย่างไร — รถคือ 1 งาน พนักงาน Engineering เดินไปตึกตามกิจกรรมที่กำลังทำ · <b>ตอนนี้เป็นข้อมูลจำลอง ยังไม่ผูกกับโครงการจริง</b></p></div></header>
+  <div class="dv-cityw"><iframe class="dv-cityf" src="city.html?embed=1&amp;v=${encodeURIComponent(M_VER)}" title="เมืองจำลอง 3 มิติ: อาคารแต่ละแผนก งานเป็นรถที่วิ่งตามถนน พนักงานเดินไปตึกตามกิจกรรม ลากเพื่อหมุนมุมมอง" allow="fullscreen" allowfullscreen></iframe></div>
+  <p class="dv-citynote">ลากเพื่อหมุน · ล้อเมาส์หรือถ่างนิ้วเพื่อซูม · คลิกอาคาร พนักงาน หรือรถ (งาน) เพื่อดูรายละเอียด · <a href="city.html" target="_blank" rel="noopener">เปิดเต็มหน้าในแท็บใหม่ ↗</a></p>`}
 /* ---- หน้า สถานะโครงการ ---- */
 /* v16.13 ประวัติการอนุมัติ (ซ่อนไว้ กดเปิดดู) — จากบันทึกการกดอนุมัติ / ไม่อนุมัติบนเว็บ · Engineer/Admin เห็นทั้งหมด เซลส์เห็นเฉพาะงานของตัวเอง */
 function dvApprovalLog(st,acc){let byL={};for(let p of st.projects)if(p.listItemId)byL[p.listItemId]=p;let rows=[],seen=[],dup=(lid,d,at)=>seen.some(x=>x[0]===lid&&x[1]===d&&Math.abs(x[2]-Date.parse(at))<12e4);
@@ -1785,7 +1791,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.13";
+var M_VER="v16.14";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -2235,4 +2241,10 @@ h1,h2,h3{font-weight:500;letter-spacing:0;color:var(--ink)}
 .g-pwa{margin:12px 0 0!important;text-align:center}.g-pwa:empty{display:none}
 .g-card{box-shadow:0 20px 60px #0009!important}
 @media screen{#dv-print{background:#3b3b3e}.dv-ptool{background:var(--nine-black);position:relative}.dv-ptool::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--nine-grad)}}
+/* v16.14 หน้า เมืองจำลอง */
+.dv-cityw{border-radius:6px;overflow:hidden;background:#0f1319;border:1px solid #ffffff1a;box-shadow:0 10px 30px #0006}
+.dv-cityf{display:block;width:100%;height:max(480px,calc(100vh - 230px));border:0}
+@supports(height:100dvh){.dv-cityf{height:max(480px,calc(100dvh - 230px))}}
+.dv-citynote{margin:10px 2px 0;font-size:12px;color:var(--muted)}.dv-citynote a{color:var(--dv-blue)}
+@media(max-width:680px){.dv-cityf{height:max(460px,calc(100vh - 310px))}@supports(height:100dvh){.dv-cityf{height:max(460px,calc(100dvh - 310px))}}}
 </style></body></html>
