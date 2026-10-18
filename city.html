@@ -66,6 +66,9 @@ h1{margin:2px 0 0;font-weight:700;font-size:clamp(19px,2.5vw,26px);text-wrap:bal
 .tb:focus-visible,.mp .hd:focus-visible,.card .x:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
 .sep{width:1px;background:var(--line);margin:4px 3px}
 .card{left:12px;bottom:84px;width:min(430px,calc(100% - 24px));padding:12px 38px 12px 14px}
+.card{max-height:min(48%,340px);overflow:auto}.card h4{margin:8px 0 2px;font-size:12px;color:var(--muted)}.card .mx{margin:0 0 3px;font-size:12.5px}.card a{color:#9ec9ff}.card small{color:var(--muted)}.card .tg{font-size:12px;color:var(--muted)}
+/* simulated / live badge sits in the stats card (visible on phones too) */
+.stats .t{display:flex;align-items:center;gap:7px}.stats .t::before{content:"";width:8px;height:8px;border-radius:50%;background:#e0b04a;flex:none}html.live .stats .t::before{background:#5fd08a}html.live #bNorm,html.live #bPeak{display:none}
 .card h3{margin:0 0 4px;font-size:16px;color:var(--gold)}
 .card p{margin:0 0 4px;font-size:13px}.card .lk{font-size:12.5px;color:var(--muted)}
 .card .x{position:absolute;right:8px;top:6px;background:none;border:0;color:var(--muted);font-size:17px;cursor:pointer;padding:2px 6px}
@@ -74,7 +77,7 @@ h1{margin:2px 0 0;font-weight:700;font-size:clamp(19px,2.5vw,26px);text-wrap:bal
 @keyframes fade2{0%{opacity:0}6%,85%{opacity:1}100%{opacity:0}}
 [hidden]{display:none!important}
 .note{margin:10px 0 0;font-size:12px;color:#9aa9c6}
-@media(max-width:760px){.head{padding:10px 14px 16px}.tag{display:none}.stats{padding:8px 10px}.stats .t,.stats .sub{display:none}.row{margin:3px 0;gap:6px}.row .k{font-size:11.5px}.row b{font-size:11.5px;min-width:34px}.bar{padding:4px}.tb .lb{display:none}.tb{min-width:30px;padding:6px 3px}.tb .ic{font-size:18px}.ticker{display:none}.card{bottom:70px}.toast{bottom:76px;white-space:normal;width:calc(100% - 24px);text-align:center}.mp{top:auto;bottom:70px;right:12px;width:min(236px,calc(100% - 24px))}.stats{width:min(214px,calc(100% - 24px))}}
+@media(max-width:760px){.head{padding:10px 14px 16px}.tag{display:none}.stats{padding:8px 10px}.stats .sub{display:none}.stats .t{margin-bottom:3px;font-size:10.5px}.row{margin:3px 0;gap:6px}.row .k{font-size:11.5px}.row b{font-size:11.5px;min-width:34px}.bar{padding:4px}.tb .lb{display:none}.tb{min-width:30px;padding:6px 3px}.tb .ic{font-size:18px}.ticker{display:none}.card{bottom:70px}.toast{bottom:76px;white-space:normal;width:calc(100% - 24px);text-align:center}.mp{top:auto;bottom:70px;right:12px;width:min(236px,calc(100% - 24px))}.stats{width:min(214px,calc(100% - 24px))}}
 @media(max-width:400px){.tb{min-width:27px;padding:6px 2px}.tb .ic{font-size:17px}.sep{margin:4px 1px}.bar{padding:4px 3px}}
 @media(prefers-reduced-motion:reduce){.ticker.on,.toast.on{animation:none;opacity:1}}
 /* embedded in the 9D Ops app: the app supplies its own header */
@@ -94,7 +97,7 @@ html.embed body{padding:0;background:#0f1319}html.embed .head,html.embed .note{d
   <div class="lbls" id="lbls" aria-hidden="true"></div>
 
   <div class="hud stats" id="stats">
-    <p class="t">ENGINEERING · LIVE</p>
+    <p class="t" id="modeT" role="status">ข้อมูลจำลอง</p>
     <div class="row"><span class="k">⚡ งานในมือวิศวกร</span><div class="meter"><i id="b1"></i></div><b id="t1">0/40</b></div>
     <div class="row"><span class="k">🗂️ งานทั้งระบบ</span><div class="meter b"><i id="b2"></i></div><b id="t2">0</b></div>
     <p class="sub" id="sub">เสร็จ 0 · 0/นาที</p>
@@ -106,7 +109,7 @@ html.embed body{padding:0;background:#0f1319}html.embed .head,html.embed .note{d
     <div class="body" id="mpb"></div>
   </div>
 
-  <div class="hud card" id="card" hidden><button class="x" id="cx" aria-label="ปิด">✕</button><h3 id="ct"></h3><p id="cp"></p><p class="lk" id="cl"></p></div>
+  <div class="hud card" id="card" hidden><button class="x" id="cx" aria-label="ปิด">✕</button><h3 id="ct"></h3><p id="cp"></p><p class="lk" id="cl"></p><div id="cx2"></div></div>
   <div class="hud toast" id="toast">ลากเพื่อหมุน · ซูมด้วยล้อเมาส์หรือถ่างนิ้ว · แตะตึกหรือพนักงานเพื่อดูรายละเอียด</div>
 
   <div class="hud bar" id="bar" role="toolbar" aria-label="ควบคุมเมือง">
@@ -142,15 +145,16 @@ function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);
 const Z={
  S:{t:"Sales",em:"💼",col:"#4f7fb8",who:"ทีมเซลส์",s:"ผู้รับงานหลักจากลูกค้า",w:13,dp:11,d:"ผู้รับงานหลักจากลูกค้า ส่งโจทย์และงานให้ Engineering แล้วรับผลงานกลับไปนำเสนอและติดตาม"},
  C:{t:"กลุ่มลูกค้า",em:"👥",col:"#c98b4a",who:"ลูกค้า",s:"Designer · SI · Installer · End User",w:15,dp:11,d:"ต้นทางของงาน คุยรับงาน นำเสนอ และติดตามกับ Sales และประสานงานเทคนิคกับ Engineering โดยตรง"},
- QUOTE:{t:"เสนอราคาลูกค้าโดยตรง",em:"🧮",col:"#3f9c86",who:"ฝ่ายเสนอราคา",s:"เฉพาะบางโครงการ",w:12,dp:11,d:"Engineering ติดต่อและเสนอราคาลูกค้าเองได้ในบางโครงการ"},
+ QUOTE:{t:"เสนอราคาลูกค้าโดยตรง",em:"🧮",col:"#3f9c86",who:"ฝ่ายเสนอราคา",s:"เฉพาะบางโครงการ",w:12,dp:11,d:"จัดทำและเสนอราคาให้ลูกค้าโดยตรงในบางโครงการ"},
  ST:{t:"ติดตามสถานะโครงการ",em:"📋",col:"#7c8699",who:"ผู้ติดตามสถานะ",s:"เช็กกับ Sales หรือ Project Owner",w:11,dp:11,d:"ขั้นตอนสุดท้าย Engineering เป็นผู้เช็กสถานะกับ Sales หรือ Project Owner แล้วปิดงานเป็น WON / LOST / CANCELLED"},
  V:{t:"Supplier / Vendor",em:"🚚",col:"#4a9bb3",who:"Supplier",s:"ประสานข้อมูลด้านเทคนิค",w:11,dp:11,d:"Engineering ประสานข้อมูลด้านเทคนิคกับ Supplier / Vendor"},
  E:{t:"ENGINEERING",em:"🛠️",col:"#35508f",s:"Senior Engineer / ทีมวิศวกรรม",kind:"lab",w:26,dp:10,d:"ศูนย์กลางของงานทั้งหมด Senior Engineer กับทีม SUTEE · NUTSARUN · THIRAPHONG รับโจทย์จาก Sales ประสานเทคนิคกับลูกค้าโดยตรง ประสานงาน Supplier / Vendor และทีมจัดซื้อ ร่วมงาน Marketing ดูแลงานอื่นของฝ่าย และเป็นผู้เช็กสถานะโครงการจนปิดงาน"},
  ONLINE:{t:"ตอบคำถามเทคนิคออนไลน์",em:"💬",col:"#5faa6a",who:"ฝ่ายตอบออนไลน์",s:"ให้ข้อมูลลูกค้าที่ติดต่อเข้ามา",w:11,dp:11,d:"ให้ข้อมูลเทคนิคกับลูกค้าที่ติดต่อเข้ามาทางออนไลน์"},
  P:{t:"ทีมจัดซื้อ",em:"🛒",col:"#3f9f97",who:"ทีมจัดซื้อ",s:"ประสานงานระหว่างทำโครงการ",w:13,dp:11,d:"ประสานงานระหว่างทำโครงการกับ Engineering"},
- CONTENT:{t:"สื่อและคอนเทนต์ออนไลน์",em:"🌐",col:"#8b6bb3",who:"ทีมคอนเทนต์",s:"ร่วมจัดทำข้อมูลและเนื้อหา",w:12,dp:11,d:"Engineering ร่วมจัดทำข้อมูลและเนื้อหาให้ Marketing"},
- EVENT:{t:"Event",em:"🎤",col:"#c46a8f",who:"ทีมอีเวนต์",s:"ร่วมจัดกิจกรรม",w:12,dp:11,d:"Engineering ร่วมจัดกิจกรรม Event"},
- TRAIN:{t:"Training",em:"🎓",col:"#c29a3a",who:"ทีมอบรม",s:"อบรมลูกค้าและมหาวิทยาลัย",w:13,dp:11,d:"อบรมลูกค้าและมหาวิทยาลัย Engineering ร่วมจัดหลักสูตรและสอน"},
+ CONTENT:{t:"สื่อและคอนเทนต์ออนไลน์",em:"🌐",col:"#8b6bb3",who:"ทีมคอนเทนต์",s:"ร่วมจัดทำข้อมูลและเนื้อหา",w:12,dp:11,d:"ทำสื่อและคอนเทนต์ออนไลน์ โดย Engineering ร่วมจัดทำข้อมูลและเนื้อหา"},
+ M:{t:"ทีม Marketing",em:"📣",col:"#c0705a",who:"ทีม Marketing",s:"วางแผนและสั่งงานสื่อ · Event · อบรม",w:12,dp:11,d:"ทีม Marketing วางแผนแคมเปญและสั่งงานให้ทีมทำสื่อ / จัด Event / จัดอบรม โดย Engineering ร่วมวางแผนและให้ข้อมูลเทคนิค"},
+ EVENT:{t:"Event",em:"🎤",col:"#c46a8f",who:"ทีมอีเวนต์",s:"ร่วมจัดกิจกรรม",w:12,dp:11,d:"จัด Event โดย Engineering ร่วมดำเนินงาน"},
+ TRAIN:{t:"Training",em:"🎓",col:"#c29a3a",who:"ทีมอบรม",s:"อบรมลูกค้าและมหาวิทยาลัย",w:13,dp:11,d:"จัดอบรมลูกค้าและมหาวิทยาลัย โดย Engineering ร่วมจัดหลักสูตรและสอน"},
  SKU:{t:"นำรหัสสินค้าเข้าระบบ",em:"🏷️",col:"#8aa73e",who:"ฝ่ายรหัสสินค้า",s:"ดูแลข้อมูลรหัสสินค้า",w:12,dp:11,d:"นำรหัสสินค้าใหม่เข้าระบบและดูแลข้อมูลรหัสสินค้า"},
  WON:{t:"WON · ชนะงาน",em:"🏆",col:"#c79a2c",s:"เหรียญทองหล่นลงคลัง",kind:"win",w:7,dp:8,d:"โครงการที่ชนะงาน ได้เงินเข้าคลัง เหรียญทองหล่นลงคลังเรื่อยๆ"},
  LOST:{t:"LOST · แพ้งาน",em:"⏰",col:"#c4574f",s:"เวลาที่เสียไปเปล่า",kind:"lost",w:7,dp:8,d:"โครงการที่แพ้งาน เวลาที่ใช้ไปเสียเปล่า เป็นนาฬิกาที่หล่นลงมา"},
@@ -159,6 +163,7 @@ const Z={
 const DIRS={S:[0,1],N:[0,-1],E:[1,0],W:[-1,0]};
 /* place(id, side, along): row A north of H1, row C south of H2, V west of Vw, ONLINE east of Ve, results east of the boulevard V3 */
 function put(id,side,v){const z=Z[id],dp=z.dp;
+ if(side==="C"){z.sc=.86;z.cols=7}
  if(side==="A"){z.pos=[v,-19-dp/2];z.f=DIRS.S;z.fr=[v,-19];z.door=[v,-11];z.AD=5.5}
  else if(side==="C"){z.pos=[v,23+dp/2];z.f=DIRS.N;z.fr=[v,23];z.door=[v,15];z.AD=5.5}
  else if(side==="W"){z.pos=[-28.5-dp/2,v];z.f=DIRS.E;z.fr=[-28.5,v];z.door=[-21,v];z.AD=5}
@@ -167,18 +172,18 @@ function put(id,side,v){const z=Z[id],dp=z.dp;
  z.cx=z.pos[0];z.cz=z.pos[1]}
 put("S","A",-30);put("C","A",-10);put("QUOTE","A",10);put("ST","A",30);
 put("V","W",2);put("ONLINE","O",2);
-put("P","C",-34);put("CONTENT","C",-17);put("EVENT","C",0);put("TRAIN","C",17);put("SKU","C",34);
+put("P","C",-36.25);put("CONTENT","C",-21.75);put("M","C",-7.25);put("EVENT","C",7.25);put("TRAIN","C",21.75);put("SKU","C",36.25);
 put("WON","R",-5.5);put("LOST","R",2);put("CXL","R",9.5);
 Object.assign(Z.E,{pos:[0,-2],f:DIRS.S,fr:[0,3],door:[0,15],AD:9.5,cx:0,cz:-2});
 const PODX=[-11.25,-3.75,3.75,11.25],POD_Z=5.6,ENG=["Senior Engineer","SUTEE","NUTSARUN","THIRAPHONG"];
 Object.values(Z).forEach(z=>z.acc=mix(z.col,"#98a2b0",.3));
-const LINKS=[["C","S","คุย / รับงาน / นำเสนอ / ติดตาม",1],["S","E","ส่งโจทย์ / ส่งงาน · ส่งผลงานกลับ",1],["E","C","ประสานงานเทคนิคโดยตรง",1],["E","V","ประสานงาน / ส่งข้อมูลกลับ",1],["E","P","ประสานงาน / ส่งข้อมูลกลับ",1],["E","CONTENT","ร่วมจัดทำเนื้อหา",1],["E","EVENT","ร่วมดำเนินงาน",1],["E","TRAIN","ร่วมจัดหลักสูตรและอบรม",1],["E","ONLINE","ตอบคำถามเทคนิค",1],["ONLINE","C","ให้ข้อมูลลูกค้า",0],["E","SKU","ดูแลรหัสสินค้า",1],["E","QUOTE","จัดทำราคา",0],["QUOTE","C","ส่งใบเสนอราคาให้ลูกค้า",0],["E","ST","ติดตามสถานะโครงการ",0],["ST","WON","ปิดงาน · ชนะ",0],["ST","LOST","ปิดงาน · แพ้",0],["ST","CXL","ปิดงาน · ยกเลิก",0]];
+const LINKS=[["C","S","คุย / รับงาน / นำเสนอ / ติดตาม",1],["S","E","ส่งโจทย์ / ส่งงาน · ส่งผลงานกลับ",1],["E","C","ประสานงานเทคนิคโดยตรง",1],["E","V","ประสานงาน / ส่งข้อมูลกลับ",1],["E","P","ประสานงาน / ส่งข้อมูลกลับ",1],["E","M","ร่วมวางแผนและให้ข้อมูลเทคนิค",1],["M","CONTENT","สั่งงานทำสื่อและคอนเทนต์",0],["M","EVENT","สั่งงานจัด Event",0],["M","TRAIN","สั่งงานจัดอบรม",0],["E","CONTENT","ร่วมจัดทำเนื้อหา",1],["E","EVENT","ร่วมดำเนินงาน",1],["E","TRAIN","ร่วมจัดหลักสูตรและอบรม",1],["E","ONLINE","ตอบคำถามเทคนิค",1],["ONLINE","C","ให้ข้อมูลลูกค้า",0],["E","SKU","ดูแลรหัสสินค้า",1],["E","QUOTE","จัดทำราคา",0],["QUOTE","C","ส่งใบเสนอราคาให้ลูกค้า",0],["E","ST","ติดตามสถานะโครงการ",0],["ST","WON","ปิดงาน · ชนะ",0],["ST","LOST","ปิดงาน · แพ้",0],["ST","CXL","ปิดงาน · ยกเลิก",0]];
 const LABEL={};LINKS.forEach(([a,b,l])=>{LABEL[a+">"+b]=l;LABEL[b+">"+a]=l});
 const TYPES=[
  {k:"proj",t:"โครงการ",c:"#5f86b3",w:10,pre:["PEA","CHW","YUW","HRT","PPT"],path:()=>["C","S","E",...(Math.random()<.5?[Math.random()<.5?"V":"P","E"]:[]),"S","E","ST",Math.random()<.55?"WON":Math.random()<.6?"LOST":"CXL"]},
  {k:"tech",t:"ประสานเทคนิคกับลูกค้า",c:"#7480b8",w:4,pre:["TEC"],path:()=>["C","E","C"]},
  {k:"coord",t:"Supplier / จัดซื้อ",c:"#c48d58",w:4,pre:["SUP"],path:()=>["E",Math.random()<.5?"V":"P","E"]},
- {k:"mkt",t:"งานร่วม Marketing",c:"#b9788f",w:3,pre:["MKT"],path:()=>{const x=["CONTENT","EVENT","TRAIN"][Math.floor(Math.random()*3)];return["E",x,"E",x]}},
+ {k:"mkt",t:"งานร่วม Marketing",c:"#b9788f",w:3,pre:["MKT"],path:()=>{const x=["CONTENT","EVENT","TRAIN"][Math.floor(Math.random()*3)];return["M","E",x,"M"]}},
  {k:"qa",t:"ตอบคำถามออนไลน์",c:"#6fa883",w:4,pre:["QA"],path:()=>["E","ONLINE","C"]},
  {k:"sku",t:"รหัสสินค้า",c:"#9279ae",w:2,pre:["SKU"],path:()=>["E","SKU","E"]},
  {k:"quote",t:"เสนอราคาโดยตรง",c:"#58a595",w:2,pre:["QT"],path:()=>["E","QUOTE","C"]}
@@ -214,7 +219,7 @@ function makeRoute(pts){const seg=[];let len=0;for(let i=0;i<pts.length-1;i++){c
  return{pts,seg,len:Math.max(len,.01),at(u){let d=Math.min(1,u)*this.len;for(let i=0;i<seg.length;i++){if(d<=seg[i]||i===seg.length-1){const t=seg[i]?Math.min(1,d/seg[i]):1;return[pts[i][0]+(pts[i+1][0]-pts[i][0])*t,pts[i][1]+(pts[i+1][1]-pts[i][1])*t,pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]]}d-=seg[i]}return[pts[0][0],pts[0][1],0,0]}}}
 
 /* ---------- parking slots in front of every building ---------- */
-const SLOT_COLS=z=>z.kind==="win"||z.kind==="lost"||z.kind==="cxl"?4:9,SLOT_CAP=z=>SLOT_COLS(z)*2;
+const SLOT_COLS=z=>z.cols||(z.kind==="win"||z.kind==="lost"||z.kind==="cxl"?4:9),SLOT_CAP=z=>SLOT_COLS(z)*2;
 function slotPos(id,th,k){const z=Z[id];
  if(id==="E"){const col=k%3,row=Math.floor(k/3);return[PODX[th]+(col-1)*1.6,8.3+row*2.3]}
  const n=SLOT_COLS(z),col=k%n,row=Math.floor(k/n),f=z.f,lat=[Math.abs(f[1]),Math.abs(f[0])],o=(col-(n-1)/2)*1.7,d=1.7+row*2.4;
@@ -352,6 +357,11 @@ function buildZone(id){const z=Z[id],c=z.acc;let r;
  else if(id==="ONLINE"){r=tower(z,{w:7.6,d:7.2,h:11,P:3,wp:11,dp:10.6});const dish=new THREE.Mesh(new THREE.SphereGeometry(2,20,10,0,Math.PI*2,0,Math.PI/2),pm(0xf2f5f9,{side:THREE.DoubleSide}));sh(dish);dish.position.set(0,r.top+1.1,-.6);dish.rotation.x=-.95;r.g.add(dish);r.g.add(cyl(.12,.12,2.2,8,pm(0xc4cad4),0,r.top+.7,-.6));r.top+=3.8}
  else if(id==="P"){const g=new THREE.Group(),fm=facade(c),roof=pm(NEU.roof);g.add(box(13.4,2.6,10.4,pm(NEU.wall),0,1.3,0));[[11,5.4,8,2.6],[8.4,4.2,6.4,8],[5.6,3.2,4.6,12.2]].forEach(([w,h,d,y])=>{const t=tbox(w,h,d,fm,roof);t.position.set(0,y+h/2,-.4);g.add(t);g.add(box(w+.5,.4,d+.5,pm(c),0,y+h+.2-.2,-.4)) });
   acUnits(g,5,4,15.4,1);entrance(g,13.4,10.4,c);r={g,top:16.4}}
+ else if(id==="M"){r=tower(z,{w:9,d:7.2,h:11,P:3,wp:12.2,dp:10.6});const g2=r.g,acc=pm(0xc0705a),mg=new THREE.Group();
+  const horn=sh(new THREE.Mesh(new THREE.ConeGeometry(1.5,2.8,20,1,true),new THREE.MeshPhongMaterial({color:0xf1e6df,side:THREE.DoubleSide,shininess:60})));horn.rotation.x=-Math.PI/2;horn.position.set(0,0,1.4);mg.add(horn);mg.add(cyl(.55,.55,1.4,16,acc,0,0,-.2)).rotation.x=Math.PI/2;mg.add(box(.5,1.2,.5,pm(0x5d6877),0,-.9,-.3));
+  mg.position.set(0,r.top+1.4,-.6);mg.rotation.y=.5;mg.rotation.x=-.25;g2.add(mg);r.top+=3.2;
+  const bn=(()=>{const cv=mk(512,200),x=cv.getContext("2d"),gr=x.createLinearGradient(0,0,512,0);gr.addColorStop(0,"#c0705a");gr.addColorStop(1,"#d9a066");x.fillStyle=gr;x.fillRect(0,0,512,200);x.font="96px "+EF;x.textAlign="center";x.textBaseline="middle";x.fillText("📣",110,104);x.fillText("✨",400,104);x.fillStyle="rgba(255,255,255,.9)";x.fillRect(190,70,130,16);x.fillRect(170,104,170,12);x.fillRect(200,130,110,12);return canvasMat(cv,{emissive:0xffffff,emissiveIntensity:.18})})();
+  g2.add(box(7,2.8,.25,bn,0,8.6,-.6+3.7))}
  else if(id==="CONTENT"){r=tower(z,{w:9.4,d:7.4,h:13,P:3,wp:12.4,dp:10.6});const sc=(()=>{const cv=mk(512,300),x=cv.getContext("2d"),gr=x.createLinearGradient(0,0,512,300);gr.addColorStop(0,"#c987b0");gr.addColorStop(.5,"#8c6fb8");gr.addColorStop(1,"#6a7fc0");x.fillStyle=gr;x.fillRect(0,0,512,300);x.fillStyle="rgba(255,255,255,.92)";x.beginPath();x.moveTo(215,95);x.lineTo(215,205);x.lineTo(310,150);x.closePath();x.fill();x.font="64px "+EF;x.textAlign="center";x.fillText("🌐",90,160);x.fillText("✨",430,160);return canvasMat(cv,{emissive:0xffffff,emissiveIntensity:.22})})();
   const s=box(8,4.6,.3,sc,0,10.4,-.6+3.8);r.g.add(s);r.g.add(box(8.4,5,.2,pm(0x2b2f3a),0,10.4,-.6+3.65))}
  else if(id==="EVENT"){const g=new THREE.Group(),st=(()=>{const cv=mk(256,128),x=cv.getContext("2d");for(let i=0;i<8;i++){x.fillStyle=i%2?"#ffffff":c;x.fillRect(i*32,0,32,128)}const t=new THREE.CanvasTexture(cv);t.wrapS=THREE.RepeatWrapping;t.anisotropy=4;return new THREE.MeshPhongMaterial({map:t,shininess:30,specular:0x222222})})();
@@ -389,7 +399,7 @@ function buildZone(id){const z=Z[id],c=z.acc;let r;
   const fb=(x,z,w,ry)=>{const m=box(w,.9,.15,stripe,x,1.2,z);m.rotation.y=ry||0;g.add(m)};fb(0,-3.4,6.6);fb(-3.4,-1.3,3.4,Math.PI/2);fb(3.4,-1.3,3.4,Math.PI/2);fb(-3.4,2.4,1.8,Math.PI/2);
   [[-1.6,.7,-1.4],[0,.7,-1.4],[-.8,1.9,-1.4]].forEach(([x,y,z])=>g.add(box(1.4,1.2,1.2,pm(0xb0b7c4),x,y,z)));
   g.add(cyl(.12,.12,3.4,8,pm(0xdfe3ea),2.4,1.7,.8));const sg=sh(new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,.14,24),pm(0xb85650)));sg.rotation.x=Math.PI/2;sg.position.set(2.4,3.6,.9);g.add(sg);const bar=box(1.5,.28,.2,pm(0xffffff),2.4,3.6,1.02);bar.rotation.z=.8;g.add(bar);r={g,top:6.4}}
- const grp=r.g;grp.position.set(z.pos[0],0,z.pos[1]);grp.rotation.y=Math.atan2(z.f[0],z.f[1]);scene.add(grp);zoneGroups[id]=grp;grp.traverse(o=>{if(o.isMesh){o.userData.sel={type:"zone",id};pickMeshes.push(o)}});z.top=r.top;
+ const grp=r.g;grp.position.set(z.pos[0],0,z.pos[1]);grp.rotation.y=Math.atan2(z.f[0],z.f[1]);if(z.sc){grp.scale.setScalar(z.sc);const kk=z.dp/2*(1-z.sc);grp.position.x+=z.f[0]*kk;grp.position.z+=z.f[1]*kk;r.top*=z.sc}scene.add(grp);zoneGroups[id]=grp;grp.traverse(o=>{if(o.isMesh){o.userData.sel={type:"zone",id};pickMeshes.push(o)}});z.top=r.top;
  const sp=emojiPlate(z.em,z.col,id==="E"?8.4:5.2);sp.position.set(z.cx,r.top+(id==="E"?1.2:.9),z.cz);sp.userData.sel={type:"zone",id};sp.userData.base=sp.position.y;scene.add(sp);pickMeshes.push(sp);z.sprite=sp;
  if(grp.userData.pile)z.pile=grp.userData.pile;if(grp.userData.hands)z.hands=grp.userData.hands}
 Object.keys(Z).forEach(buildZone);
@@ -434,7 +444,7 @@ function pose(p,mode,t,ph){const L=p.legs,A=p.arms;let l=0,a0=0,a1=0,bob=0,ht=0;
 const SK=["#f1c9a5","#e2b48b","#c68e63","#a56d46","#f6d9c0"];
 const STAFF={S:{shirt:"#eef1f5",tie:"#2f4a7d",hair:"#2a211c",skin:SK[0],hs:"short"},C:{shirt:"#c9b89a",hair:"#5a3d2b",skin:SK[1],hs:"pony"},QUOTE:{shirt:"#b9cbe0",hair:"#1d1a18",skin:SK[2],hs:"short",glasses:1},
  ST:{shirt:"#cfd4da",hair:"#6e5a48",skin:SK[4],hs:"bob"},V:{shirt:"#4a6b8f",vest:"#c98a4b",hair:"#3b2a20",skin:SK[3],hs:"short",hat:"cap",hatCol:"#3b5a86"},ONLINE:{shirt:"#d7e4d6",hair:"#1d1a18",skin:SK[0],hs:"long",hat:"headset"},
- P:{shirt:"#c5dcd8",hair:"#2a211c",skin:SK[1],hs:"pony"},CONTENT:{shirt:"#d9d0e6",hair:"#8a6b4a",skin:SK[4],hs:"bob"},EVENT:{shirt:"#ecd5de",hair:"#1d1a18",skin:SK[2],hs:"long"},
+ P:{shirt:"#c5dcd8",hair:"#2a211c",skin:SK[1],hs:"pony"},CONTENT:{shirt:"#d9d0e6",hair:"#8a6b4a",skin:SK[4],hs:"bob"},M:{shirt:"#efd9d2",hair:"#6e5a48",skin:SK[2],hs:"bob"},EVENT:{shirt:"#ecd5de",hair:"#1d1a18",skin:SK[2],hs:"long"},
  TRAIN:{shirt:"#e8e0cd",tie:"#7a5a3a",hair:"#6e5a48",skin:SK[3],hs:"short",glasses:1},SKU:{shirt:"#dfe6c8",vest:"#7d8f4a",hair:"#3b2a20",skin:SK[1],hs:"short"}};
 const staff=Object.entries(STAFF).map(([id,o])=>{const z=Z[id],f=z.f,lat=[Math.abs(f[1]),Math.abs(f[0])],x=z.fr[0]+f[0]*.55-lat[0]*.85,zz=z.fr[1]+f[1]*.55-lat[1]*.85,p=person(o);p.g.position.set(x,0,zz);p.g.rotation.y=Math.atan2(f[0],f[1]);scene.add(p.g);
  p.g.traverse(m=>{if(m.isMesh){m.userData.sel={type:"zone",id};m.userData.person=1;pickMeshes.push(m)}});return{id,p,ph:RR()*6}});
@@ -462,12 +472,12 @@ const WALK=()=>peak?4.6:3.1;
  const P=[];const add=(x,z)=>{if(!blocked(x,z)&&x>X0+3&&x<X1-3&&z>Z0+3&&z<Z1-3)P.push([x+(RR()-.5)*1.4,z+(RR()-.5)*1.4,.8+RR()*.6])};
  for(let x=X0+4;x<X1-3;x+=5.2){add(x,Z0+3.4);add(x,Z0+6.2);add(x,Z1-3.4);if(x%2<1)add(x,Z1-6.4)}
  for(let z=Z0+8;z<Z1-6;z+=5.2){add(X0+3.6,z);add(X1-3.4,z);if(z%3<1.6){add(X0+6.4,z);add(X1-6.2,z)}}
- [[-20,-24.5],[0,-24.5],[20,-24.5],[-25.5,28.5],[-8.5,28.5],[8.5,28.5],[25.5,28.5],[-17,-5],[17,-5],[-17,9],[17,9],[44.2,-16],[44.2,20],[63,-15],[63,17]].forEach(([x,z])=>{if(!inRoad(x,z))P.push([x,z,.8+RR()*.5])});
+ [[-20,-24.5],[0,-24.5],[20,-24.5],[-29,28.5],[-14.5,28.5],[0,28.5],[14.5,28.5],[29,28.5],[43,28.5],[-17,-5],[17,-5],[-17,9],[17,9],[44.2,-16],[44.2,20],[63,-15],[63,17]].forEach(([x,z])=>{if(!inRoad(x,z))P.push([x,z,.8+RR()*.5])});
  const tg=new THREE.CylinderGeometry(.22,.3,1.6,6),cg=new THREE.IcosahedronGeometry(1.6,1),tr=new THREE.InstancedMesh(tg,pm(0x7a5a42),P.length),cr=new THREE.InstancedMesh(cg,new THREE.MeshPhongMaterial({color:0xffffff,shininess:12,specular:0x1a3a1a}),P.length);
  const d=new THREE.Object3D(),cols=["#5f9a62","#6aa66a","#4f8a58","#78ad70"];
  P.forEach(([x,z,s],i)=>{d.position.set(x,.8*s,z);d.scale.set(s,s,s);d.rotation.set(0,0,0);d.updateMatrix();tr.setMatrixAt(i,d.matrix);d.position.set(x,2.9*s,z);d.scale.set(s,s*1.1,s);d.rotation.y=RR()*6;d.updateMatrix();cr.setMatrixAt(i,d.matrix);cr.setColorAt(i,new THREE.Color(cols[i%4]))});
  tr.castShadow=cr.castShadow=true;tr.receiveShadow=true;tr.frustumCulled=cr.frustumCulled=false;scene.add(tr,cr);
- const LP=[];[-40,-20,0,20,40].forEach(x=>LP.push([x,-13.9]));[-30,-10,10,30].forEach(x=>LP.push([x,-8.1],[x,12.1]));[-25.5,-8.5,8.5,25.5,42].forEach(x=>LP.push([x,17.9]));
+ const LP=[];[-40,-20,0,20,40].forEach(x=>LP.push([x,-13.9]));[-30,-10,10,30].forEach(x=>LP.push([x,-8.1],[x,12.1]));[-29,-14.5,0,14.5,29,43].forEach(x=>LP.push([x,17.9]));
  const pg=new THREE.CylinderGeometry(.1,.14,4.4,6),bg=new THREE.SphereGeometry(.34,10,8),pl=new THREE.InstancedMesh(pg,pm(0x394258),LP.length),bl=new THREE.InstancedMesh(bg,new THREE.MeshBasicMaterial({color:0xfff2c0}),LP.length);
  LP.forEach(([x,z],i)=>{d.rotation.set(0,0,0);d.scale.set(1,1,1);d.position.set(x,2.2,z);d.updateMatrix();pl.setMatrixAt(i,d.matrix);d.position.set(x,4.5,z);d.updateMatrix();bl.setMatrixAt(i,d.matrix);
   const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(),color:0xffd88a,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));gl.scale.set(8,8,1);gl.position.set(x,4.5,z);scene.add(gl);glows.push(gl)});
@@ -503,11 +513,45 @@ const jobs=[],closed={WON:8,LOST:3,CXL:2},thLoad=[0,0,0,0],doneT=[];let jobN=1,d
 const pickType=()=>{let s=TYPES.reduce((a,t)=>a+t.w,0),r=Math.random()*s;for(const t of TYPES)if((r-=t.w)<0)return t;return TYPES[0]};
 function spawn(){if(jobs.length>=MAXJ)return;const ty=pickType(),path=ty.path(),pre=ty.pre[Math.floor(Math.random()*ty.pre.length)],j={id:jobN++,ty,col:new THREE.Color(ty.c),code:pre+"26"+String(codeN++).padStart(3,"0"),path,leg:0,state:"wait",node:path[0],wait:.3+Math.random()*1.4,pos:null,yaw:0,seed:Math.random()*6};
  if(j.node==="E"){j.th=thLoad.indexOf(Math.min(...thLoad));thLoad[j.th]++}jobs.push(j);return j}
+/* ---------- live mode: real projects from the 9D Ops app (postMessage) ---------- */
+let live=false,liveAt=0;
+const STAGE_COL={pending:"#c9a24a",active:"#5f86b3",delivered:"#4fa39a",won:"#c79a2c",lost:"#b85650",cancelled:"#8a94a8"},STAGE_ZONE={pending:"S",active:"E",delivered:"C",won:"WON",lost:"LOST",cancelled:"CXL"},
+ STAGE_T={pending:"รออนุมัติ · รอ Engineer พิจารณา",active:"กำลังทำ",delivered:"ส่งงานแล้ว · รอลูกค้า",won:"ปิด · WIN",lost:"ปิด · LOSS",cancelled:"ปิด · ยกเลิก"};
+const mEsc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hashS=t=>{let h=0;for(const c of String(t))h=(h*31+c.charCodeAt(0))>>>0;return h};
+function recalcLoad(){thLoad.fill(0);for(const j of jobs)if(j.state==="wait"&&j.node==="E")thLoad[j.th||0]++}
+function moveLive(j,zone,th){j.path=[j.node,zone];j.leg=0;j.thNext=th;j.end=false;depart(j)}
+function liveWait(j){if(j.pendingZone){const q=j.pendingZone;j.pendingZone=null;moveLive(j,q.zone,q.th)}}
+function liveArrived(j){recalcLoad();if(j.node==="WON")drop("W",9);else if(j.node==="LOST")drop("L",4)}
+function applyLive(d){
+ if(!live){live=true;jobs.length=0;fx.length=0;thLoad.fill(0);document.documentElement.classList.add("live");if(sel&&sel.type==="job")closeCard()}
+ liveAt=Date.now();
+ if(d.closed){for(const k of["WON","LOST","CXL"])closed[k]=Math.max(0,Number(d.closed[k])||0)}
+ const seen=new Set();
+ for(const r of(d.jobs||[]).slice(0,MAXJ)){const zone=STAGE_ZONE[r.stage];if(!zone||!r.id)continue;const id=String(r.id);seen.add(id);
+  const th=zone==="E"?(r.eng>=0&&r.eng<4?r.eng:hashS(id)%4):0;let j=jobs.find(x=>x.id===id);
+  if(!j){j={id,live:true,ty:{k:"proj",t:"โครงการ",c:STAGE_COL[r.stage]},col:new THREE.Color(STAGE_COL[r.stage]),code:String(r.code||id),path:[zone],leg:0,state:"wait",node:zone,th,wait:1e9,pos:null,yaw:0,seed:Math.random()*6,d:r,rev:1};jobs.push(j)}
+  else{j.d=r;j.rev=(j.rev||0)+1;j.code=String(r.code||id);j.ty.c=STAGE_COL[r.stage];j.col.set(STAGE_COL[r.stage]);
+   if(j.state==="wait"){if(j.node!==zone||(zone==="E"&&j.th!==th))moveLive(j,zone,th)}else if(j.path[j.path.length-1]!==zone||(zone==="E"&&j.thNext!==th))j.pendingZone={zone,th}}}
+ for(let i=jobs.length-1;i>=0;i--)if(!seen.has(jobs[i].id)){if(sel&&sel.type==="job"&&sel.id===jobs[i].id)closeCard();if(follow===jobs[i].id)follow=null;jobs.splice(i,1)}
+ recalcLoad();
+ for(const r of d.eng||[]){const e=engs[r.idx];if(!e)continue;if(r.name){ENG[r.idx]=String(r.name);e.name=ENG[r.idx];const c=chips["p"+r.idx];if(c)c.el.firstChild.textContent=ENG[r.idx]}
+  e.connected=!!r.connected;e.hidden=!!r.hidden;e.locInfo=r.loc&&Z[r.loc.zone]?r.loc:null;e.want=e.locInfo&&e.locInfo.zone!=="E"?e.locInfo.zone:null}
+}
+function liveCard(j){const d=j.d||{};ct.textContent="🚗 "+(d.code||j.code)+(d.name&&d.name!==d.code?" · "+d.name:"");
+ cp.textContent=[d.client&&d.client!=="—"?d.client:"",d.sales?"Sales: "+d.sales:"",d.engName?"Engineer: "+d.engName:"ยังไม่ได้มอบหมาย Engineer"].filter(Boolean).join(" · ");
+ cl.textContent=(STAGE_T[d.stage]||d.stage)+" · อยู่ที่ "+Z[j.node].em+" "+Z[j.node].t+(d.since?" · ตั้งแต่ "+d.since:"");
+ const x=$("cx2"),key=j.id+"|"+(j.rev||0);if(x.dataset.key===key)return;x.dataset.key=key;x.textContent="";
+ const add=(tag,txt,cls)=>{const n=document.createElement(tag);if(cls)n.className=cls;n.textContent=txt;x.appendChild(n);return n},ok=u=>/^https:\/\//.test(u||"");
+ if(d.tags&&d.tags.length)add("p",d.tags.join(" · "),"tg");
+ const lk=document.createElement("p");lk.className="lk";for(const[h,t]of[[d.channelUrl,"Teams ↗"],[d.listUrl,"รายการใน SharePoint ↗"]])if(ok(h)){const a=document.createElement("a");a.href=h;a.target="_blank";a.rel="noopener noreferrer";a.textContent=t;lk.appendChild(a);lk.appendChild(document.createTextNode("   "))}if(lk.childNodes.length)x.appendChild(lk);
+ const list=(title,arr,fn)=>{if(!arr||!arr.length)return;add("h4",title);arr.slice(0,4).forEach(m=>{const row=document.createElement("p");row.className="mx";const a=document.createElement(ok(m.url)?"a":"span");if(ok(m.url)){a.href=m.url;a.target="_blank";a.rel="noopener noreferrer"}a.textContent=m.subject||"(ไม่มีหัวข้อ)";row.appendChild(a);const sm=document.createElement("small");sm.textContent=" · "+fn(m);row.appendChild(sm);x.appendChild(row)})};
+ list("📧 อีเมลของคุณที่เกี่ยวข้อง",d.mails,m=>[m.from,m.at].filter(Boolean).join(" · "));list("📅 นัดหมายของคุณที่เกี่ยวข้อง",d.events,m=>[m.when,m.where].filter(Boolean).join(" · "))}
 const nodeCount=id=>{let n=0;for(const j of jobs)if(j.state==="wait"&&j.node===id)n++;return n};
 function arrive(j,id){j.node=id;j.state="wait";const z=Z[id];
  if(id==="E"){j.th=j.thNext!==undefined?j.thNext:thLoad.indexOf(Math.min(...thLoad));thLoad[j.th]++;j.wait=(peak?5:2.8)+Math.random()*(peak?6:4.5)}else j.wait=z.kind?.5:.7+Math.random()*1.3;
  if(j.leg>=j.path.length-1){j.end=true;j.wait=z.kind?.8:.5}}
-function depart(j){const a=j.path[j.leg],b=j.path[j.leg+1];if(j.node==="E"){thLoad[j.th]--;if(b!=="E"){const e=engs[j.th];if(e&&e.state==="home"&&!paused)startTrip(e,b)}}
+function depart(j){const a=j.path[j.leg],b=j.path[j.leg+1];if(j.node==="E"){thLoad[j.th]--;if(b!=="E"&&!live){const e=engs[j.th];if(e&&e.state==="home"&&!paused)startTrip(e,b)}}
  let th=0,k=0;if(b==="E"){th=thLoad.indexOf(Math.min(...thLoad));j.thNext=th;k=jobs.filter(x=>x!==j&&x.state==="wait"&&x.node==="E"&&x.th===th).length}else k=nodeCount(b);
  const s0=j.pos?[j.pos[0],j.pos[2]]:slotPos(a,0,0),s1=slotPos(b,th,Math.min(k,SLOT_CAP(Z[b])-1)),e0=edgePt(a,s0),e1=edgePt(b,s1),lane=lanePts(a,b);
  const pts=[s0,e0,...lane,e1,s1].filter((p,i,arr)=>!i||Math.hypot(p[0]-arr[i-1][0],p[1]-arr[i-1][1])>.05);
@@ -576,12 +620,12 @@ const rel=[];for(let i=0;i<8;i++){const m=new THREE.Mesh(new THREE.RingGeometry(
 const jmark=new THREE.Mesh(new THREE.ConeGeometry(.6,1.3,4),new THREE.MeshBasicMaterial({color:0xffd24a}));jmark.rotation.x=Math.PI;jmark.visible=false;scene.add(jmark);
 function ringFor(m,id){const z=Z[id],r=Math.max(z.w,z.dp)*.62+2;m.scale.set(r,r,1);m.position.x=z.cx;m.position.z=z.cz;m.visible=true}
 function select(s,keep){sel=s;rel.forEach(m=>m.visible=false);
- if(s.type==="zone"){const z=Z[s.id],rl=[],ids=[];LINKS.forEach(([a,b,l,two])=>{if(a===s.id){rl.push((two?"↔ ":"→ ")+Z[b].em+" "+Z[b].t);ids.push(b)}if(b===s.id){rl.push((two?"↔ ":"← ")+Z[a].em+" "+Z[a].t);ids.push(a)}});
+ if(s.type==="zone"){$("cx2").textContent="";$("cx2").dataset.key="";const z=Z[s.id],rl=[],ids=[];LINKS.forEach(([a,b,l,two])=>{if(a===s.id){rl.push((two?"↔ ":"→ ")+Z[b].em+" "+Z[b].t);ids.push(b)}if(b===s.id){rl.push((two?"↔ ":"← ")+Z[a].em+" "+Z[a].t);ids.push(a)}});
   const n=nodeCount(s.id);ct.textContent=`${z.em} ${z.t}`;cp.textContent=`${z.s} · ${z.d}`;cl.textContent=(z.kind==="win"||z.kind==="lost"||z.kind==="cxl"?`ปิดงานที่นี่แล้ว ${closed[s.id]} งาน`:(n?`ตอนนี้มีงานรออยู่ ${n} งาน`:"ตอนนี้ไม่มีงานค้าง"))+(rl.length?" · เชื่อมกับ: "+rl.join("  "):"");
   if(!keep){ringFor(hi,s.id);ids.slice(0,8).forEach((id,i)=>ringFor(rel[i],id))}hi.visible=true;jmark.visible=false}
- else if(s.type==="eng"){const e=engs[s.idx],i=s.idx,n=thLoad[i];ct.textContent=`👷 ${ENG[i]}`;cp.textContent=i?"วิศวกร · รับโจทย์จาก Sales ประสานเทคนิคกับลูกค้า Supplier และงานร่วม Marketing":"Senior Engineer · ดูภาพรวมงานทั้งหมดของทีม Engineering และตัดสินใจเรื่องสำคัญ";
-  const st=e.state==="out"?`กำลังเดินไป ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="there"?`กำลังทำงานที่ ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="back"?"กำลังเดินกลับ Engineering":(n?"กำลังทำงานที่โต๊ะ":"ว่างอยู่ — กำลังพัก 💤");cl.textContent=st+(n?` · งานในมือ ${n} งาน`:"");hi.visible=true;jmark.visible=false}
- else{const j=jobs.find(x=>x.id===s.id);if(!j)return;const a=j.state==="move"?Z[j.path[j.leg]]:Z[j.node],b=j.state==="move"?Z[j.path[j.leg+1]]:null;ct.textContent=`🚗 ${j.ty.t} · ${j.code}`;cp.textContent=j.state==="move"?`กำลังเดินทางจาก ${a.t} ไป ${b.t}${LABEL[j.path[j.leg]+">"+j.path[j.leg+1]]?" ("+LABEL[j.path[j.leg]+">"+j.path[j.leg+1]]+")":""}`:`รออยู่ที่ ${a.t}`;cl.textContent="เส้นทางงาน: "+j.path.map(n=>Z[n].em).join(" → ");hi.visible=false}
+ else if(s.type==="eng"){$("cx2").textContent="";$("cx2").dataset.key="";const e=engs[s.idx],i=s.idx,n=thLoad[i];ct.textContent=`👷 ${ENG[i]}`;cp.textContent=i?"วิศวกร · รับโจทย์จาก Sales ประสานเทคนิคกับลูกค้า Supplier และงานร่วม Marketing":"Senior Engineer · ดูภาพรวมงานทั้งหมดของทีม Engineering และตัดสินใจเรื่องสำคัญ";
+  const st=e.state==="out"?`กำลังเดินไป ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="there"?`กำลังทำงานที่ ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="back"?"กำลังเดินกลับ Engineering":(n?"กำลังทำงานที่โต๊ะ":"ว่างอยู่ — กำลังพัก 💤");const cal=live&&!e.hidden?(e.locInfo?` · ตามปฏิทิน: ${Z[e.locInfo.zone].em} ${Z[e.locInfo.zone].t}${e.locInfo.label?" ("+e.locInfo.label+")":""}`:e.connected?" · ปฏิทิน: ไม่มีนัดนอกสถานที่ตอนนี้":" · ยังไม่ได้เชื่อมปฏิทิน Outlook"):"";cl.textContent=st+(n?` · งานในมือ ${n} งาน`:"")+cal;hi.visible=true;jmark.visible=false}
+ else{const j=jobs.find(x=>x.id===s.id);if(!j)return;if(j.live){liveCard(j);hi.visible=false;card.hidden=false;if(!keep&&stage.clientWidth<760)setMp(true);return}$("cx2").textContent="";$("cx2").dataset.key="";const a=j.state==="move"?Z[j.path[j.leg]]:Z[j.node],b=j.state==="move"?Z[j.path[j.leg+1]]:null;ct.textContent=`🚗 ${j.ty.t} · ${j.code}`;cp.textContent=j.state==="move"?`กำลังเดินทางจาก ${a.t} ไป ${b.t}${LABEL[j.path[j.leg]+">"+j.path[j.leg+1]]?" ("+LABEL[j.path[j.leg]+">"+j.path[j.leg+1]]+")":""}`:`รออยู่ที่ ${a.t}`;cl.textContent="เส้นทางงาน: "+j.path.map(n=>Z[n].em).join(" → ");hi.visible=false}
  card.hidden=false;if(!keep&&stage.clientWidth<760)setMp(true)}
 function closeCard(){card.hidden=true;sel=null;hi.visible=false;jmark.visible=false;rel.forEach(m=>m.visible=false)}
 $("cx").onclick=closeCard;
@@ -591,9 +635,9 @@ const mp=$("mp"),mpb=$("mpb"),tM=$("tM"),tR=$("tR");let mtab=0;
 function setMp(shut){mp.classList.toggle("shut",shut);$("mpT").setAttribute("aria-expanded",String(!shut));$("mpC").textContent=shut?"แสดง":"ซ่อน"}
 $("mpT").onclick=()=>setMp(!mp.classList.contains("shut"));setMp(true);
 tM.onclick=()=>{mtab=0;tM.classList.add("on");tR.classList.remove("on")};tR.onclick=()=>{mtab=1;tR.classList.add("on");tM.classList.remove("on")};
-function renderMission(){let h="";if(mtab===0){const list=jobs.filter(j=>j.ty.k==="proj").slice(-4).reverse();(list.length?list:jobs.slice(-4)).forEach((j,i)=>{const a=j.state==="move"?Z[j.path[j.leg+1]]:Z[j.node];h+=`<button class="it${i===0?" hot":""}" data-j="${j.id}"><i style="background:${j.ty.c}"></i><span><b>${j.code}</b><small>${j.state==="move"?"กำลังไป ":"รออยู่ที่ "}${a.em} ${a.t}</small></span><span></span></button>`})}
+function renderMission(){let h="";if(mtab===0){const list=live?jobs.slice(0,4):jobs.filter(j=>j.ty.k==="proj").slice(-4).reverse();(list.length?list:jobs.slice(-4)).forEach((j,i)=>{const a=j.state==="move"?Z[j.path[j.leg+1]]:Z[j.node];h+=`<button class="it${i===0?" hot":""}" data-j="${mEsc(j.id)}"><i style="background:${j.ty.c}"></i><span><b>${mEsc(j.code)}</b><small>${j.live?mEsc(STAGE_T[j.d.stage]||"")+" · ":j.state==="move"?"กำลังไป ":"รออยู่ที่ "}${a.em} ${a.t}</small></span><span></span></button>`})}
  else h=[["WON","#e0a800","🪙"],["LOST","#e5534b","⏰"],["CXL","#8a94a8","🚫"]].map(([k,c,e])=>`<button class="it" data-z="${k}"><i style="background:${c}"></i><span><b>${Z[k].t}</b><small>${Z[k].s}</small></span><em>${e} ${closed[k]}</em></button>`).join("");mpb.innerHTML=h}
-mpb.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;stopAuto();if(b.dataset.j){const j=jobs.find(x=>x.id===+b.dataset.j);if(j){select({type:"job",id:j.id});follow=j.id}}else if(b.dataset.z){const z=Z[b.dataset.z];follow=null;select({type:"zone",id:b.dataset.z});goTo(z.cx,z.cz,Math.min(view.dist,58))}});
+mpb.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;stopAuto();if(b.dataset.j){const j=jobs.find(x=>String(x.id)===b.dataset.j);if(j){select({type:"job",id:j.id});follow=j.id}}else if(b.dataset.z){const z=Z[b.dataset.z];follow=null;select({type:"zone",id:b.dataset.z});goTo(z.cx,z.cz,Math.min(view.dist,58))}});
 const bN=$("bNorm"),bP=$("bPeak"),bS=$("bPause"),bNi=$("bNight"),bSp=$("bSpin");
 const setPeak=v=>{peak=v;bN.classList.toggle("on",!v);bP.classList.toggle("on",v);bN.setAttribute("aria-pressed",!v);bP.setAttribute("aria-pressed",v)};
 bN.onclick=()=>setPeak(false);bP.onclick=()=>{setPeak(true);if(paused)setPause(false)};
@@ -609,18 +653,19 @@ $("bOut").onclick=()=>{stopAuto();follow=null;const a=SW/SH<1.1;goTo(a?0:10,a?4:
 function applyLight(){const T=night?NITE:DAY;skyU.top.value.copy(T.top);skyU.bot.value.copy(T.bot);scene.fog.color.copy(T.bot);waterMat.color.set(T.water);groundMat.color.set(T.grass);hemi.color.set(T.hs);hemi.groundColor.set(T.hg);hemi.intensity=T.hi;sun.intensity=T.si;sun.color.set(T.sc);
  NM.forEach(m=>m.emissiveIntensity=night?(m===plaqueMat?.8:1):(m===plaqueMat?.0:0));glows.forEach(g=>g.material.opacity=night?.85:0)}
 function ui(now){const eng=thLoad.reduce((a,b)=>a+b,0);$("b1").style.width=Math.min(100,eng/40*100)+"%";$("t1").textContent=eng+"/40";$("b2").style.width=Math.min(100,jobs.length/200*100)+"%";$("t2").textContent=jobs.length;
- while(doneT.length&&now-doneT[0]>60000)doneT.shift();$("sub").textContent=`เสร็จ ${done} · ${doneT.length}/นาที · 🪙 ${closed.WON} · ⏰ ${closed.LOST} · 🚫 ${closed.CXL}`;renderMission();if(!card.hidden&&sel)select(sel,1)}
+ while(doneT.length&&now-doneT[0]>60000)doneT.shift();$("sub").textContent=(live?"":`เสร็จ ${done} · ${doneT.length}/นาที · `)+`🪙 ${closed.WON} · ⏰ ${closed.LOST} · 🚫 ${closed.CXL}`;
+ $("modeT").textContent=live?"ข้อมูลจริง · อัปเดต "+new Date(liveAt).toTimeString().slice(0,5):"ข้อมูลจำลอง · ยังไม่ผูกกับโครงการจริง";renderMission();if(!card.hidden&&sel)select(sel,1)}
 
 /* ---------- per-frame simulation ---------- */
 const visJobs=[],dm=new THREE.Object3D(),cm=new THREE.Matrix4(),tmpC=new THREE.Color();
 let simT=0;
 function frame(now,dt){const t=now/1000;
- if(!paused){simT+=dt;spawnAcc+=dt*(peak?7:1.6);while(spawnAcc>1){spawnAcc--;if(jobs.length<(peak?400:140))spawn()}
+ if(!paused){simT+=dt;if(!live){spawnAcc+=dt*(peak?7:1.6);while(spawnAcc>1){spawnAcc--;if(jobs.length<(peak?400:140))spawn()}}
   for(let i=jobs.length-1;i>=0;i--){const j=jobs[i];
-   if(j.state==="wait"){j.wait-=dt*(peak?1.3:1);if(j.wait<=0){if(j.end){if(j.node==="E")thLoad[j.th]--;if(closed[j.node]!==undefined){closed[j.node]++;if(j.node==="WON"){drop("W",9);say(`🪙 ${j.code} ชนะงาน! เหรียญทองเข้าคลัง`)}else if(j.node==="LOST"){drop("L",4);say(`⏰ ${j.code} แพ้งาน — เวลาที่เสียไป`)}else say(`🚫 ${j.code} ยกเลิกโครงการ`)}done++;doneT.push(now);jobs.splice(i,1);if(sel&&sel.type==="job"&&sel.id===j.id)closeCard();if(follow===j.id)follow=null;continue}
+   if(j.state==="wait"){if(j.live){liveWait(j);continue}j.wait-=dt*(peak?1.3:1);if(j.wait<=0){if(j.end){if(j.node==="E")thLoad[j.th]--;if(closed[j.node]!==undefined){closed[j.node]++;if(j.node==="WON"){drop("W",9);say(`🪙 ${j.code} ชนะงาน! เหรียญทองเข้าคลัง`)}else if(j.node==="LOST"){drop("L",4);say(`⏰ ${j.code} แพ้งาน — เวลาที่เสียไป`)}else say(`🚫 ${j.code} ยกเลิกโครงการ`)}done++;doneT.push(now);jobs.splice(i,1);if(sel&&sel.type==="job"&&sel.id===j.id)closeCard();if(follow===j.id)follow=null;continue}
      const a=j.path[j.leg],b=j.path[j.leg+1];depart(j);if(now-lastLog>1500){lastLog=now;const l=LABEL[a+">"+b];say(`${j.code}: ${Z[a].em} ${Z[a].t} → ${Z[b].em} ${Z[b].t}${l?" · "+l:""}`)}}}
-   else{j.u+=dt*(peak?10:6.5)/Math.max(3,j.route.len);if(j.u>=1){j.leg++;arrive(j,j.path[j.leg])}}}
-  coinAcc+=dt*(peak?5:3);while(coinAcc>1){coinAcc--;drop("W",1)}clockAcc+=dt*(peak?1.3:.7);while(clockAcc>1){clockAcc--;drop("L",1)}}
+   else{j.u+=dt*(peak?10:6.5)/Math.max(3,j.route.len);if(j.u>=1){j.leg++;arrive(j,j.path[j.leg]);if(j.live)liveArrived(j)}}}
+  if(!live){coinAcc+=dt*(peak?5:3);while(coinAcc>1){coinAcc--;drop("W",1)}clockAcc+=dt*(peak?1.3:.7);while(clockAcc>1){clockAcc--;drop("L",1)}}}
  /* cars */
  const cnt={};let n=0;visJobs.length=0;
  for(const j of jobs){let tx,tz,yawT,hide=false;
@@ -646,7 +691,8 @@ function frame(now,dt){const t=now/1000;
   if(!paused){
    if(e.state==="out"||e.state==="back"){e.u=Math.min(1,e.u+dt*wk/e.route.len);const q=e.route.at(e.u);e.pos[0]=q[0];e.pos[1]=q[1];if(q[2]||q[3])hd=Math.atan2(q[2],q[3]);mode="walk";e.ph+=dt*9;bem=Z[e.dest].em;
     if(e.u>=1){if(e.state==="out"){e.state="there";e.hold=(peak?3.5:6)+Math.random()*3}else e.state="home"}}
-   else if(e.state==="there"){mode="work";bem=Z[e.dest].em;hd=Math.atan2(-Z[e.dest].f[0],-Z[e.dest].f[1]);e.hold-=dt;if(e.hold<=0){e.route=makeRoute(dd(walkPts(e.dest,"E",e.pos.slice(),e.home)));e.u=0;e.state="back"}}
+   else if(e.state==="there"){mode="work";bem=Z[e.dest].em;hd=Math.atan2(-Z[e.dest].f[0],-Z[e.dest].f[1]);if(live)e.hold=e.want===e.dest?9e9:0;e.hold-=dt;if(e.hold<=0){e.route=makeRoute(dd(walkPts(e.dest,"E",e.pos.slice(),e.home)));e.u=0;e.state="back"}}
+   else if(live&&e.want){startTrip(e,e.want)}
    else{e.pos[0]+=(e.home[0]-e.pos[0])*.2;e.pos[1]+=(e.home[1]-e.pos[1])*.2;hd=0;mode=thLoad[e.i]>0?"work":"idle";bem=thLoad[e.i]>0?null:"💤"}}
   else{mode=e.state==="there"?"work":"idle";bem=e.state!=="home"?Z[e.dest].em:null}
   if(hd!==null){let dy=hd-e.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));e.yaw+=dy*Math.min(1,dt*10)}
@@ -673,6 +719,8 @@ function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;
  if(spin&&!reduce)view.az+=dt*.07;else if(Math.abs(vaz)>1e-4&&!pts.size){view.az+=vaz;vaz*=.92}
  placeCam();frame(now,dt);renderer.render(scene,cam);labels();uiT-=dt;if(uiT<=0){uiT=.5;ui(now)}
  requestAnimationFrame(loop)}
+addEventListener("message",e=>{if(parent===window||e.origin!==location.origin||e.source!==parent)return;const d=e.data;if(!d||d.t!=="9d-city"||d.v!==1)return;try{applyLive(d)}catch(x){console.warn("[city]",x)}});
+if(parent!==window)parent.postMessage({t:"9d-city-ready"},location.origin);
 requestAnimationFrame(loop);
 })();
 </script>

@@ -496,7 +496,7 @@ function mLogout(){try{sessionStorage.removeItem("9d-auth")}catch{}location.assi
 async function mTokenReq(p){let r=await fetch(M_AUTH+"/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:CFG.clientId,...p})}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error_description||j.error||"เข้าสู่ระบบไม่สำเร็จ");return j}
 function mStore(kind,j){M.auth.rt=j.refresh_token||M.auth.rt;M.auth.tok[kind]={t:j.access_token,exp:Date.now()+(j.expires_in||3600)*1e3};mSaveAuth()}
 async function mToken(kind="graph"){let c=M.auth?.tok?.[kind];if(c&&c.exp-9e4>Date.now())return c.t;if(!M.auth?.rt)throw new PvErr("หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่",401);
- try{let j=await mTokenReq({grant_type:"refresh_token",refresh_token:M.auth.rt,scope:kind==="sp"?M_SP_SCOPE:kind==="teams"?M_TEAMS_SCOPE:kind==="tadmin"?M_TADMIN_SCOPE:M_SCOPES});mStore(kind,j);return j.access_token}catch(e){if(kind==="graph"){sessionStorage.removeItem("9d-auth");setTimeout(mLogin,1500)}throw new PvErr((kind==="sp"?"SharePoint: ":kind==="teams"?"Teams: ":kind==="tadmin"?"สิทธิ์สร้าง Team (Team.Create / TeamMember.ReadWrite.All): ":"")+e.message,kind==="graph"?401:403)}}
+ try{let j=await mTokenReq({grant_type:"refresh_token",refresh_token:M.auth.rt,scope:kind==="sp"?M_SP_SCOPE:kind==="teams"?M_TEAMS_SCOPE:kind==="tadmin"?M_TADMIN_SCOPE:kind==="outlook"?M_OL_SCOPE:M_SCOPES});mStore(kind,j);return j.access_token}catch(e){if(kind==="graph"){sessionStorage.removeItem("9d-auth");setTimeout(mLogin,1500)}throw new PvErr((kind==="sp"?"SharePoint: ":kind==="outlook"?"Outlook: ":kind==="teams"?"Teams: ":kind==="tadmin"?"สิทธิ์สร้าง Team (Team.Create / TeamMember.ReadWrite.All): ":"")+e.message,kind==="graph"?401:403)}}
 /* --- Graph / SharePoint REST --- */
 async function mHttp(url,o={},kind="graph",tries=0){let t=await mToken(kind),h={Authorization:"Bearer "+t,...(kind==="sp"?{Accept:"application/json;odata=nometadata"}:{}),...(o.headers||{})};
  if(o.json!==void 0){h["Content-Type"]=kind==="sp"?"application/json;odata=nometadata":"application/json";o.body=JSON.stringify(o.json)}
@@ -536,15 +536,16 @@ async function mLoad(force){if(!force&&M.cache&&Date.now()-M.cacheAt<6e3)return 
  /* v16.12: อ่านรายการโครงการกับ tracking พร้อมกัน */
  let tiP=(async()=>{if(!M.tl&&!M.trackErr)await mTracking();return M.tl?await gAll(`/sites/${M.sid}/lists/${M.tl}/items?$expand=fields($select=Title,ProjectItemId,Payload,TrackVersion)&$top=500`):null})();tiP.catch(()=>{});
  let items=await gAll(`/sites/${M.sid}/lists/${M.lid}/items?$expand=fields($select=${sel})&$select=id,webUrl,createdBy,createdDateTime,lastModifiedDateTime&$top=500`);
- let track={},settings={settings:{},accounts:{},members:[]};
+ let track={},pres={},settings={settings:{},accounts:{},members:[]};
  let ti=await tiP;
  if(ti){
   let slog={},alog={};for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
+   else if(pid===M_PRES){let em=String(pl.email||"").toLowerCase();if(em&&(!pres[em]||mT(pl.at)>=mT(pres[em].at)))pres[em]={...pl,row:t.id}}
    else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
    for(let k in slog){slog[k].sort((a,b)=>mT(a.at)-mT(b.at));let last=slog[k][slog[k].length-1],t=track[k]||(track[k]={});let ps={s:last.s,at:last.at,by:last.by,via:last.via,msg:last.msg||"",prev:last.prev};t.pstat=mPsNewer(t.pstat,ps)}
    M.slog=slog;M.alog=alog}
- M.cache={items,track,settings};M.cacheAt=Date.now();return M.cache}
+ M.cache={items,track,settings,presence:pres};M.cacheAt=Date.now();return M.cache}
 var mT=x=>Date.parse(x||0)||0;
 /* เลือกสถานะที่ใหม่กว่า (เวลาเท่ากัน = รวมกัน เก็บ remindAt ไว้) */
 var mPsNewer=(a,b)=>!a?b:!b?a:mT(b.at)>mT(a.at)?b:mT(a.at)>mT(b.at)?a:{...a,...b,remindAt:[a.remindAt,b.remindAt].filter(Boolean).sort((x,y)=>mT(x)-mT(y)).pop()};
@@ -1134,7 +1135,7 @@ function dvSync(){let items=[...document.querySelectorAll(".sidebar .nav-item")]
  let host=document.getElementById("dashv");
  if(on){if(!host){host=document.createElement("section");host.id="dashv";host.setAttribute("aria-label","แดชบอร์ด");main.prepend(host);dvRender()}else if(host.parentElement!==main||main.firstElementChild!==host){main.prepend(host)}
   if(!document.body.classList.contains("dv-on")){document.body.classList.add("dv-on");DV.stAt=0;dvRender()}}
- else if(document.body.classList.contains("dv-on")){document.body.classList.remove("dv-on");let f=document.querySelector("#dashv .dv-cityf");if(f)f.remove()}}
+ else if(document.body.classList.contains("dv-on")){document.body.classList.remove("dv-on");let f=document.querySelector("#dashv .dv-cityf");if(f)f.remove();dvCityStop()}}
 window.dvSetDays=d=>{DV.days=d;DV.custom=null;DV.showCustom=!1;try{localStorage.setItem("9d-dv-days",String(d));localStorage.removeItem("9d-dv-range")}catch{}dvRender()};
 window.dvToggleCustom=()=>{DV.showCustom=!DV.showCustom;dvRender()};
 window.dvApplyRange=e=>{e.preventDefault();let f=e.target,a=f.elements.from.value,b=f.elements.to.value;if(!a||!b){mToast("เลือกวันที่เริ่มต้นและสิ้นสุด",!0);return}if(b<a)[a,b]=[b,a];DV.custom={from:a,to:b};DV.showCustom=!0;try{localStorage.setItem("9d-dv-range",JSON.stringify(DV.custom))}catch{}dvRender()};
@@ -1172,7 +1173,7 @@ function dvWire(host,pts){
   hit.onmouseleave=()=>{cr.style.display="none";dt.style.display="none";dvTip(null,"")}}}
 
 /* ---- วาดหน้า ---- */
-async function dvRender(){let host=document.getElementById("dashv");if(!host)return;if(DV.busy){DV.again=!0;return}DV.busy=!0;DV.again=!1;
+async function dvRender(){let host=document.getElementById("dashv");if(!host)return;if(DV.page!=="city")dvCityStop();if(DV.busy){DV.again=!0;return}DV.busy=!0;DV.again=!1;
  try{if(DV.page==="status"){await dvStatusPage(host);return}if(DV.page==="loans"){await dvLoansPage(host);return}if(DV.page==="service"){await dvServicePage(host);return}if(DV.page==="city"){await dvCityPage(host);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
   DV.sig=dvSig();
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
@@ -1300,11 +1301,91 @@ window.dvTab=t=>{if(t==="status"||t==="loans"||t==="service"){dvGo(t);return}if(
 document.addEventListener("click",e=>{let n=e.target.closest&&e.target.closest(".sidebar .nav-item");if(n&&!n.classList.contains("dv-nav")&&DV.page){DV.page=null;setTimeout(()=>{dvSync();if(document.body.classList.contains("dv-on")){DV.stAt=0;dvRender()}},60)}},!0);
 var dvPost=async(body)=>{let r=await fetch("/api/operations",{method:"POST",body:JSON.stringify(body)}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"HTTP "+r.status);return j};
 
+/* ===== Outlook: อีเมล + ปฏิทินของบัญชีตัวเอง (v16.15) =====
+   อ่านเฉพาะ /me (ของคนที่ล็อกอินเอง) ด้วยสิทธิ์ Mail.Read + Calendars.Read — ขอสิทธิ์เพิ่มตอนกดเชื่อมต่อ ไม่แตะการล็อกอินปกติ
+   เนื้อหาเมล/ปฏิทินอยู่ในหน่วยความจำของหน้านี้เท่านั้น ไม่เขียนลง SharePoint
+   Engineer: ตำแหน่งงานจากปฏิทิน (ช่วงเวลา + ตึก ไม่มีหัวข้อ/เนื้อหา) แชร์ให้ทีมเห็นบนเมืองจำลองได้ ปิดได้ที่ช่องติ๊กในหน้าเมืองจำลอง */
+var M_OL_SCOPE="https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read offline_access",M_PRES=-9e9;
+var OL={state:"off",err:"",mails:[],events:[],codes:[],at:0,busy:!1,pubAt:0,pubSig:""};
+var olKey=k=>k+":"+(M.profile?.oid||""),olOn=()=>{try{return localStorage.getItem(olKey("9d-ol"))==="1"}catch{return!1}},olSetOn=v=>{try{v?localStorage.setItem(olKey("9d-ol"),"1"):localStorage.removeItem(olKey("9d-ol"))}catch{}},olShare=()=>{try{return localStorage.getItem(olKey("9d-ol-share"))!=="0"}catch{return!0}};
+var OL_ZN={S:"Sales",C:"ลูกค้า / หน้างาน",QUOTE:"เสนอราคา",ST:"ติดตามสถานะ",V:"Supplier / Vendor",ONLINE:"ตอบเทคนิคออนไลน์",P:"จัดซื้อ",M:"Marketing",CONTENT:"สื่อและคอนเทนต์",EVENT:"Event",TRAIN:"Training",SKU:"รหัสสินค้า",E:"Engineering"},
+ OL_ZE={S:"💼",C:"👥",QUOTE:"🧮",ST:"📋",V:"🚚",ONLINE:"💬",P:"🛒",M:"📣",CONTENT:"🌐",EVENT:"🎤",TRAIN:"🎓",SKU:"🏷️",E:"🛠️"};
+/* คำในหัวข้อ/สถานที่ของนัดหมาย → ตึกในเมืองจำลอง (ลำดับสำคัญ: เฉพาะเจาะจงก่อน) */
+var OL_RULES=[["TRAIN",/training|อบรม|สัมมนา|workshop|มหาวิทยาลัย|university|หลักสูตร/i],["EVENT",/event|อีเวนต์|งานแสดง|exhibition|expo|booth|บูธ|roadshow|โรดโชว์/i],["CONTENT",/content|คอนเทนต์|ถ่ายทำ|ถ่ายรูป|shoot|ทำสื่อ|สื่อออนไลน์|video|วิดีโอ/i],["M",/marketing|มาร์เก็ตติ้ง|การตลาด|แคมเปญ|campaign/i],
+ ["V",/supplier|vendor|ซัพพลาย|ผู้ผลิต|ผู้จำหน่าย|distributor|ดิสทริบิวเตอร์|โรงงาน/i],["P",/จัดซื้อ|purchas|procure|\bPO\b|สั่งซื้อ/i],["QUOTE",/quote|quotation|เสนอราคา|ใบเสนอราคา/i],["SKU",/\bSKU\b|รหัสสินค้า|part number|master data|ข้อมูลสินค้า/i],["ONLINE",/webinar|เว็บบินาร์|ตอบคำถาม|online support/i],["S",/\bsales\b|เซลส์|ฝ่ายขาย|ทีมขาย/i],
+ ["C",/ลูกค้า|customer|client|site visit|survey|สำรวจ|หน้างาน|ติดตั้ง|install|demo|poc|presentation|นำเสนอ|kick.?off|ส่งมอบ|handover|commission/i]];
+function olZone(ev){if(ev.cancelled||ev.free||ev.oof)return"";let T=[ev.subject,ev.where,...(ev.cats||[])].join(" ");for(let[z,re]of OL_RULES)if(re.test(T))return z;return ev.codes?.length||ev.ext?"C":""}
+var olHM=ms=>new Date(ms+252e5).toISOString().slice(11,16),olWhen=ms=>{let d=dvDay(ms);return(d===dvDay(Date.now())?"วันนี้":d===dvDay(Date.now()+864e5)?"พรุ่งนี้":dvTH(d))+" "+olHM(ms)};
+function olCodes(txt){let T=String(txt||"").toUpperCase();return OL.codes.filter(c=>T.includes(c))}
+var olUrl=u=>/^https:\/\//.test(u||"")?u:"";
+function olMail(m,sent){let a=m.from?.emailAddress||{};return{id:m.id,sent,subject:String(m.subject||""),from:sent?"ฉัน":a.name||a.address||"",t:Date.parse(sent?m.sentDateTime:m.receivedDateTime)||0,preview:String(m.bodyPreview||"").slice(0,200),url:olUrl(m.webLink),unread:!sent&&m.isRead===!1,codes:olCodes((m.subject||"")+" "+(m.bodyPreview||""))}}
+function olEvent(e){let a=e.start?.dateTime,b=e.end?.dateTime;if(!a||!b)return null;let ev={id:e.id,subject:String(e.subject||""),t0:Date.parse(a.slice(0,19)+"+07:00"),t1:Date.parse(b.slice(0,19)+"+07:00"),allDay:!!e.isAllDay,where:String(e.location?.displayName||""),free:e.showAs==="free",oof:e.showAs==="oof",cancelled:!!e.isCancelled,url:olUrl(e.webLink),cats:e.categories||[],
+  ext:(e.attendees||[]).some(x=>{let d=String(x.emailAddress?.address||"").split("@")[1];return d&&!CFG.allowedDomains.includes(d.toLowerCase())})};if(!(ev.t0>0&&ev.t1>0))return null;ev.codes=olCodes(ev.subject+" "+ev.where);ev.zone=olZone(ev);return ev}
+function olNow(evs,now=Date.now()){let c=(evs||[]).filter(e=>e.zone&&e.t0-3e5<=now&&now<e.t1).sort((a,b)=>a.t0-b.t0)[0];return c?{zone:c.zone,label:olHM(c.t0)+"–"+olHM(c.t1),from:c.t0,to:c.t1}:null}
+async function olSync(force){if(OL.busy||!olOn()||!M.profile)return;if(!force&&Date.now()-OL.at<4*60e3)return;OL.busy=!0;olPanel();
+ try{try{OL.codes=(await dvState()).projects.filter(p=>String(p.id).startsWith("sp-")).map(p=>String(p.code).toUpperCase()).filter(c=>c.length>=5)}catch{}
+  let H={headers:{Prefer:'outlook.timezone="SE Asia Standard Time"'}},since=new Date(Date.now()-14*864e5).toISOString(),a=encodeURIComponent(new Date(Date.now()-864e5).toISOString()),b=encodeURIComponent(new Date(Date.now()+14*864e5).toISOString()),sel="id,subject,from,receivedDateTime,sentDateTime,bodyPreview,webLink,isRead";
+  let[inb,snt,cal]=await Promise.all([mHttp(`${M_GRAPH}/me/mailFolders/inbox/messages?$top=50&$orderby=receivedDateTime desc&$filter=receivedDateTime ge ${since}&$select=${sel}`,H,"outlook"),
+   mHttp(`${M_GRAPH}/me/mailFolders/sentitems/messages?$top=30&$orderby=sentDateTime desc&$filter=sentDateTime ge ${since}&$select=${sel}`,H,"outlook"),
+   mHttp(`${M_GRAPH}/me/calendarView?startDateTime=${a}&endDateTime=${b}&$orderby=start/dateTime&$top=120&$select=id,subject,start,end,location,isAllDay,showAs,isCancelled,webLink,categories,attendees`,H,"outlook")]);
+  OL.mails=[...(inb.value||[]).map(m=>olMail(m,!1)),...(snt.value||[]).map(m=>olMail(m,!0))].sort((x,y)=>y.t-x.t);OL.events=(cal.value||[]).map(olEvent).filter(Boolean).sort((x,y)=>x.t0-y.t0);OL.state="ready";OL.err="";OL.at=Date.now()}
+ catch(e){OL.err=e.message||String(e);OL.state=/consent|AADSTS65001|AADSTS70000|AADSTS50013|interaction_required|invalid_grant|unauthorized|denied|forbidden|401|403/i.test(OL.err+" "+(e.status||""))?"need-consent":"error"}
+ finally{OL.busy=!1}olPanel();dvCitySend()}
+/* ตำแหน่งงานที่จะแชร์ให้ทีม: เฉพาะช่วงเวลา + รหัสตึก (ไม่มีหัวข้อ สถานที่ หรือผู้เข้าร่วม) */
+async function olPublish(force,empty){if(!mIsEng()||!M.tl||!M.cache)return;let share=olShare()&&!empty&&OL.state==="ready",now=Date.now(),segs=share?OL.events.filter(e=>e.zone&&e.t1>now&&e.t0<now+36*36e5).slice(0,12).map(e=>({a:e.t0,b:e.t1,z:e.zone})):[],sig=JSON.stringify(segs);
+ if(!force&&sig===OL.pubSig&&now-OL.pubAt<30*6e4)return;let em=String(M.profile.email).toLowerCase(),cur=(M.cache.presence||{})[em];if(!segs.length&&!cur&&!force)return;
+ let body={Title:"presence:"+em,ProjectItemId:M_PRES,Payload:JSON.stringify({email:em,name:M.profile.name,at:new Date().toISOString(),seg:segs})};
+ if(cur?.row)await G(`/sites/${M.sid}/lists/${M.tl}/items/${cur.row}/fields`,{method:"PATCH",json:body});else{let r=await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:body}});(M.cache.presence=M.cache.presence||{})[em]={row:r?.id}}
+ (M.cache.presence[em]=M.cache.presence[em]||{}).seg=segs;M.cache.presence[em].at=new Date().toISOString();OL.pubSig=sig;OL.pubAt=now}
+function olEngLocs(){let now=Date.now(),me=String(M.profile?.email||"").toLowerCase(),hide=M.role==="sales"||M.role==="viewer";return Hd.map((n,i)=>{let em=String(CFG.engineers[n]||"").toLowerCase(),loc=null,connected=!1;if(hide)return{idx:i,name:n,email:"",connected:!1,loc:null,hidden:!0};
+ if(em&&em===me&&OL.state==="ready"){connected=!0;loc=olNow(OL.events,now)}
+ else{let pr=(M.cache?.presence||{})[em];if(pr&&now-mT(pr.at)<36*36e5){connected=!0;let c=(pr.seg||[]).filter(x=>x.a-3e5<=now&&now<x.b).sort((a,b)=>a.a-b.a)[0];if(c)loc={zone:c.z,label:olHM(c.a)+"–"+olHM(c.b),from:c.a,to:c.b}}}
+ if(loc&&!OL_ZN[loc.zone])loc=null;return{idx:i,name:n,email:em,connected,loc}})}
+async function olConnect(){let ok=!1;try{await mToken("outlook");ok=!0}catch(e){OL.err=e.message}
+ if(ok){olSetOn(!0);OL.at=0;await olSync(!0);await olPublish(!0);return}
+ if(!/consent|AADSTS65001|AADSTS70000|AADSTS50013|interaction_required|invalid_grant|unauthorized|scope/i.test(OL.err))throw new Error(OL.err);
+ /* ยังไม่เคยให้สิทธิ์ → ไปหน้า Microsoft เพื่อขอสิทธิ์เพิ่ม แล้วกลับมาหน้าเมืองจำลองเอง */
+ olSetOn(!0);sessionStorage.setItem("9d-go","city");let v=rnd(48),s=rnd(16),ch=b64u(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)));sessionStorage.setItem("9d-pkce",JSON.stringify({v,s,add:"outlook"}));
+ location.assign(M_AUTH+"/authorize?"+new URLSearchParams({client_id:CFG.clientId,response_type:"code",redirect_uri:M_REDIRECT,response_mode:"query",scope:M_SCOPES+" Mail.Read Calendars.Read",code_challenge:ch,code_challenge_method:"S256",state:s,login_hint:M.profile.email,domain_hint:CFG.allowedDomains[0]||""}))}
+window.olConnect=async()=>{try{await olConnect()}catch(e){OL.err=e.message;OL.state="error";olPanel();mToast("เชื่อมต่อ Outlook ไม่สำเร็จ: "+e.message,!0)}};
+window.olRefresh=()=>olSync(!0).then(()=>olPublish(!1)).catch(e=>console.warn("[9D] outlook",e));
+window.olDisconnect=async()=>{olSetOn(!1);OL.state="off";OL.mails=[];OL.events=[];OL.at=0;try{delete M.auth.tok.outlook;mSaveAuth()}catch{}try{await olPublish(!0,!0)}catch{}olPanel();dvCitySend();mToast("ตัดการเชื่อมต่อ Outlook แล้ว — ถอนสิทธิ์ถาวรได้ที่ myapps.microsoft.com")};
+window.olToggleShare=async v=>{try{localStorage.setItem(olKey("9d-ol-share"),v?"1":"0")}catch{}try{await olPublish(!0)}catch(e){mToast("บันทึกการแชร์ไม่สำเร็จ: "+e.message,!0)}dvCitySend()};
+async function olAuto(){if(!olOn()||!M.profile)return;try{await olSync();await olPublish()}catch(e){console.warn("[9D] outlook",e)}}
+function olBoot(){setTimeout(olAuto,9e3);setInterval(olAuto,10*60e3);if(sessionStorage.getItem("9d-go")==="city"){sessionStorage.removeItem("9d-go");setTimeout(()=>{try{DV.page="city";dvSync();DV.stAt=0;dvRender()}catch(e){}},1500)}}
+function olPanelHtml(){let on=olOn(),st=OL.state,eng=mIsEng(),note=`<p class="dv-olnote">อ่านเฉพาะอีเมลและปฏิทินของ <b>บัญชีคุณเอง</b> (${mEsc(M.profile?.email||"")}) · ข้อมูลอยู่ในหน้านี้เท่านั้น ไม่ถูกบันทึกลง SharePoint หรือส่งต่อที่ใด${eng?" · ตำแหน่งงานจากปฏิทิน (ช่วงเวลา + ตึก ไม่มีหัวข้อ/เนื้อหา) แชร์ให้ทีมเห็นบนเมืองได้":""}</p>`;
+ let head=(extra)=>`<div class="dv-olh"><h3>📧 อีเมล &amp; 📅 ปฏิทินของฉัน</h3><span class="dv-olbtns">${extra||""}</span></div>`;
+ if(!on)return head(`<button type="button" class="dv-save" onclick="olConnect()">เชื่อมต่อ Outlook</button>`)+`<p class="dv-olp">ดูอีเมลและนัดหมายของคุณ จับคู่กับรหัสโครงการ และให้เมืองจำลองเห็นว่าวิศวกรไปทำงานที่ไหนจากปฏิทิน · ครั้งแรก Microsoft จะขอสิทธิ์ <code>Mail.Read</code> และ <code>Calendars.Read</code> (อ่านอย่างเดียว)</p>`+note;
+ if(st==="need-consent")return head(`<button type="button" class="dv-save" onclick="olConnect()">ขอสิทธิ์ / เชื่อมต่อใหม่</button><button type="button" class="dv-sb" onclick="olDisconnect()">ยกเลิก</button>`)+`<p class="dv-olp dv-olw">ยังไม่ได้รับสิทธิ์อ่าน Outlook — กด "ขอสิทธิ์" เพื่อไปยืนยันกับ Microsoft ถ้าองค์กรปิดการยินยอมของผู้ใช้ ต้องให้ผู้ดูแล Microsoft 365 อนุมัติสิทธิ์ Mail.Read และ Calendars.Read ให้แอปนี้ก่อน<br><small>${mEsc(OL.err)}</small></p>`+note;
+ if(st==="error")return head(`<button type="button" class="dv-sb" onclick="olRefresh()">ลองใหม่</button><button type="button" class="dv-sb" onclick="olDisconnect()">ตัดการเชื่อมต่อ</button>`)+`<p class="dv-olp dv-olw">อ่าน Outlook ไม่สำเร็จ: ${mEsc(OL.err)}</p>`+note;
+ if(st!=="ready")return head()+`<p class="dv-olp">กำลังอ่านอีเมลและปฏิทิน…</p>`+note;
+ let now=Date.now(),evs=OL.events.filter(e=>e.t1>now&&!e.cancelled).slice(0,8),ms=OL.mails.slice(0,8),chips=c=>c.map(x=>`<span class="dv-olb">${mEsc(x)}</span>`).join("");
+ let cal=evs.length?evs.map(e=>`<li><span class="dv-olt">${olWhen(e.t0)}–${olHM(e.t1)}</span><b>${e.url?`<a href="${mEsc(e.url)}" target="_blank" rel="noopener noreferrer">${mEsc(e.subject||"(ไม่มีหัวข้อ)")}</a>`:mEsc(e.subject||"(ไม่มีหัวข้อ)")}</b>${e.zone?`<span class="dv-olz" title="ระบบอ่านว่านัดนี้อยู่ที่">${OL_ZE[e.zone]} ${OL_ZN[e.zone]}</span>`:""}${chips(e.codes)}</li>`).join(""):`<li class="dv-olm">ไม่มีนัดหมายใน 14 วันข้างหน้า</li>`;
+ let ml=ms.length?ms.map(m=>`<li class="${m.unread?"unr":""}"><span class="dv-olt">${olWhen(m.t)}</span><b>${m.url?`<a href="${mEsc(m.url)}" target="_blank" rel="noopener noreferrer">${mEsc(m.subject||"(ไม่มีหัวข้อ)")}</a>`:mEsc(m.subject||"(ไม่มีหัวข้อ)")}</b><small>${m.sent?"ส่งโดยฉัน":mEsc(m.from)}</small>${chips(m.codes)}</li>`).join(""):`<li class="dv-olm">ไม่มีอีเมลใน 14 วันที่ผ่านมา</li>`;
+ let me=olNow(OL.events),shr=eng?`<label class="dv-olshare"><input type="checkbox" ${olShare()?"checked":""} onchange="olToggleShare(this.checked)"> แชร์ตำแหน่งงานของฉันให้ทีมเห็นบนเมืองจำลอง (ช่วงเวลา + ตึกเท่านั้น)</label>`:"";
+ return head(`<small>อัปเดต ${olHM(OL.at)}</small><button type="button" class="dv-sb" onclick="olRefresh()">รีเฟรช</button><button type="button" class="dv-sb" onclick="olDisconnect()">ตัดการเชื่อมต่อ</button>`)+(me?`<p class="dv-olp">ตอนนี้ปฏิทินบอกว่าคุณอยู่ที่ <b>${OL_ZE[me.zone]} ${OL_ZN[me.zone]}</b> (${me.label})</p>`:"")+`<div class="dv-olc"><div><h4>📅 นัดหมายถัดไป</h4><ul class="dv-oll">${cal}</ul></div><div><h4>📧 อีเมลล่าสุด</h4><ul class="dv-oll">${ml}</ul></div></div>${shr}`+note}
+function olPanel(){let el=document.getElementById("dv-ol");if(el)el.innerHTML=olPanelHtml()}
+/* ---- ข้อมูลจริงส่งเข้าเมืองจำลอง: 1 โครงการ = 1 คัน ---- */
+function dvCityEng(p){let n=mEngName(p.engineer);if(!n){let a=(M.alog?.[p.listItemId]||[]).filter(x=>x.d==="approved").sort((x,y)=>mT(x.at)-mT(y.at)).pop();n=mEngName(a?.by)||mEngName(p.pstat?.by)}if(!n)for(let k of p.teamsActivity?.engineers||[]){n=mEngName(k);if(n)break}return Hd.indexOf(n)}
+async function dvCitySnap(){let st=await dvState(),now=Date.now(),W=14*864e5,acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a])),closed={WON:0,LOST:0,CXL:0},jobs=[],mb={},eb={},ready=OL.state==="ready";
+ if(ready){for(let m of OL.mails)for(let c of m.codes)(mb[c]=mb[c]||[]).push(m);for(let e of OL.events)for(let c of e.codes)(eb[c]=eb[c]||[]).push(e)}
+ for(let p of st.projects){if(!String(p.id).startsWith("sp-"))continue;let s=mPStat(p);if(s==="rejected")continue;let at=p.pstat?.at||p.updatedAt||p.createdAt||"";
+  if(["won","lost","cancelled"].includes(s)){closed[{won:"WON",lost:"LOST",cancelled:"CXL"}[s]]++;if(now-mT(at)>W)continue}
+  let ix=dvCityEng(p),c=String(p.code).toUpperCase(),sr=p.serviceRequest||{};
+  jobs.push({id:p.id,code:p.code,name:p.name,client:p.client,sales:acc[p.accountId]?.name||"",stage:s,eng:ix,engName:ix>=0?Hd[ix]:"",since:at?dvTH2(dvDay(mT(at))):"",at:mT(at),channelUrl:olUrl(p.channelUrl),listUrl:olUrl(p.listItemUrl),
+   tags:[sr.source,...(sr.workTypes||[]),...(sr.brands||[])].filter(Boolean).slice(0,6),mails:(mb[c]||[]).slice(0,4).map(m=>({subject:m.subject,from:m.from,at:olWhen(m.t),url:m.url})),events:(eb[c]||[]).filter(e=>e.t1>now-864e5).slice(0,4).map(e=>({subject:e.subject,when:olWhen(e.t0),where:e.zone?OL_ZN[e.zone]:""}))})}
+ jobs.sort((a,b)=>b.at-a.at);return{t:"9d-city",v:1,at:now,me:{email:M.profile.email,role:M.role},jobs:jobs.slice(0,360),closed,eng:olEngLocs()}}
+async function dvCitySend(){let fr=document.querySelector("#dashv .dv-cityf");if(!fr||!fr.contentWindow)return;try{fr.contentWindow.postMessage(await dvCitySnap(),location.origin)}catch(e){console.warn("[9D] city",e)}}
+function dvCityStop(){if(DV.cityTm){clearInterval(DV.cityTm);DV.cityTm=0}}
+window.addEventListener("message",e=>{if(e.origin!==location.origin||!e.data||e.data.t!=="9d-city-ready")return;let fr=document.querySelector("#dashv .dv-cityf");if(fr&&e.source===fr.contentWindow)dvCitySend()});
 /* ---- หน้า เมืองจำลอง (v16.14) — ฝัง city.html ในกรอบ (iframe) จึงไม่ปนกับสไตล์/สคริปต์ของแอป · ตอนนี้ยังเป็นข้อมูลจำลอง ---- */
 async function dvCityPage(host){DV.sig=dvSig();if(host.querySelector(".dv-cityf"))return;
- host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>เมืองจำลองการทำงาน</h1><p class="dv-sub">ดูว่างานเดินทางระหว่างลูกค้า · เซลส์ · Engineering · Supplier · จัดซื้อ · Marketing อย่างไร — รถคือ 1 งาน พนักงาน Engineering เดินไปตึกตามกิจกรรมที่กำลังทำ · <b>ตอนนี้เป็นข้อมูลจำลอง ยังไม่ผูกกับโครงการจริง</b></p></div></header>
-  <div class="dv-cityw"><iframe class="dv-cityf" src="city.html?embed=1&amp;v=${encodeURIComponent(M_VER)}" title="เมืองจำลอง 3 มิติ: อาคารแต่ละแผนก งานเป็นรถที่วิ่งตามถนน พนักงานเดินไปตึกตามกิจกรรม ลากเพื่อหมุนมุมมอง" allow="fullscreen" allowfullscreen></iframe></div>
-  <p class="dv-citynote">ลากเพื่อหมุน · ล้อเมาส์หรือถ่างนิ้วเพื่อซูม · คลิกอาคาร พนักงาน หรือรถ (งาน) เพื่อดูรายละเอียด · <a href="city.html" target="_blank" rel="noopener">เปิดเต็มหน้าในแท็บใหม่ ↗</a></p>`}
+ host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>เมืองจำลองการทำงาน</h1><p class="dv-sub">รถ 1 คัน = 1 โครงการจริงจาก All Projects List (เห็นเท่าที่คุณมีสิทธิ์) · รออนุมัติอยู่ที่ Sales → กำลังทำที่ Engineering → ส่งงานแล้วรอลูกค้า → WIN / LOSS / ยกเลิก · พนักงาน Engineering เดินไปตามนัดหมายในปฏิทิน Outlook ที่เชื่อมไว้ (เห็นเฉพาะทีม Engineer / Admin)</p></div></header>
+  <div class="dv-cityw"><iframe class="dv-cityf" src="city.html?embed=1&amp;v=${encodeURIComponent(M_VER)}" title="เมืองจำลอง 3 มิติ: อาคารแต่ละแผนก รถคือโครงการ พนักงานเดินไปตึกตามนัดหมายในปฏิทิน ลากเพื่อหมุนมุมมอง" allow="fullscreen" allowfullscreen></iframe></div>
+  <p class="dv-citynote">ลากเพื่อหมุน · ล้อเมาส์หรือถ่างนิ้วเพื่อซูม · คลิกอาคาร พนักงาน หรือรถเพื่อดูรายละเอียด · ถ้ามุมซ้ายบนของภาพเขียนว่า "ข้อมูลจำลอง" แปลว่ายังโหลดข้อมูลจริงไม่ได้ · <a href="city.html" target="_blank" rel="noopener">เปิดเต็มหน้าในแท็บใหม่ (แบบจำลองอย่างเดียว) ↗</a></p>
+  <section class="dv-card dv-ol" id="dv-ol" aria-label="อีเมลและปฏิทินของฉัน"></section>`;
+ olPanel();if(olOn()&&Date.now()-OL.at>4*60e3)olSync().then(()=>olPublish()).catch(()=>{});
+ dvCityStop();DV.cityTm=setInterval(()=>{DV.cityN=(DV.cityN||0)+1;if(DV.cityN%2===0)DV.stAt=0;dvCitySend()},3e4)}
 /* ---- หน้า สถานะโครงการ ---- */
 /* v16.13 ประวัติการอนุมัติ (ซ่อนไว้ กดเปิดดู) — จากบันทึกการกดอนุมัติ / ไม่อนุมัติบนเว็บ · Engineer/Admin เห็นทั้งหมด เซลส์เห็นเฉพาะงานของตัวเอง */
 function dvApprovalLog(st,acc){let byL={};for(let p of st.projects)if(p.listItemId)byL[p.listItemId]=p;let rows=[],seen=[],dup=(lid,d,at)=>seen.some(x=>x[0]===lid&&x[1]===d&&Math.abs(x[2]-Date.parse(at))<12e4);
@@ -1791,7 +1872,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.14";
+var M_VER="v16.15";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -1830,7 +1911,7 @@ async function boot(){
  try{M.auth=JSON.parse(sessionStorage.getItem("9d-auth")||"null")}catch{}
  if(q.get("code")){gate("busy","กำลังยืนยันตัวตน…");let pk=JSON.parse(sessionStorage.getItem("9d-pkce")||"{}");history.replaceState(null,"",M_REDIRECT);sessionStorage.removeItem("9d-pkce");
   if(!pk.v||pk.s!==q.get("state")){gate("login","คำขอเข้าสู่ระบบหมดอายุ กรุณาลองใหม่");return}
-  try{let j=await mTokenReq({grant_type:"authorization_code",code:q.get("code"),redirect_uri:M_REDIRECT,code_verifier:pk.v,scope:M_SCOPES});let c=jwt(j.id_token);
+  try{let j=await mTokenReq({grant_type:"authorization_code",code:q.get("code"),redirect_uri:M_REDIRECT,code_verifier:pk.v,scope:pk.add==="outlook"?M_SCOPES+" Mail.Read Calendars.Read":M_SCOPES});let c=jwt(j.id_token);
    M.auth={rt:j.refresh_token,tok:{},profile:{oid:c.oid,tid:c.tid,name:c.name||c.preferred_username,email:(c.preferred_username||c.email||"").toLowerCase()}};mStore("graph",j)}catch(e){gate("login",e.message);return}}
  if(!M.auth?.profile){gate("login");return}
  let pr=M.auth.profile,dom=pr.email.split("@")[1];
@@ -1842,7 +1923,7 @@ async function boot(){
  document.getElementById("gate").style.display="none";
  let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">💬 Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync();mCodeAuto()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(()=>{mNavInject();dvSync();mCodeAuto()}).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 /* ---- PWA: ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ / คอมพิวเตอร์ (v16.4) ---- */
@@ -2247,4 +2328,10 @@ h1,h2,h3{font-weight:500;letter-spacing:0;color:var(--ink)}
 @supports(height:100dvh){.dv-cityf{height:max(480px,calc(100dvh - 230px))}}
 .dv-citynote{margin:10px 2px 0;font-size:12px;color:var(--muted)}.dv-citynote a{color:var(--dv-blue)}
 @media(max-width:680px){.dv-cityf{height:max(460px,calc(100vh - 310px))}@supports(height:100dvh){.dv-cityf{height:max(460px,calc(100dvh - 310px))}}}
+.dv-ol{margin-top:14px;padding:16px 18px}.dv-olh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}.dv-olh h3{margin:0;font-size:15px}.dv-olbtns{display:flex;gap:8px;align-items:center}.dv-olbtns small{color:var(--muted)}
+.dv-olp{margin:10px 0 0;font-size:13px}.dv-olw{color:#e3b15a}.dv-olnote{margin:12px 0 0;font-size:11.5px;color:var(--muted)}.dv-olc{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:12px}.dv-olc h4{margin:0 0 6px;font-size:12px;color:var(--muted)}
+.dv-oll{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}.dv-oll li{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;padding:6px 8px;border:1px solid #ffffff14;border-radius:4px;font-size:12.5px}.dv-oll li.unr b{font-weight:700}.dv-oll li.dv-olm{color:var(--muted);border-style:dashed}
+.dv-olt{font-size:11px;color:var(--muted);white-space:nowrap}.dv-oll b{font-weight:500;min-width:0;overflow-wrap:anywhere}.dv-oll small{color:var(--muted)}.dv-oll a{color:inherit}.dv-olz{font-size:11px;padding:1px 7px;border-radius:99px;background:#ffffff14}.dv-olb{font-size:10.5px;padding:1px 7px;border-radius:99px;background:var(--dv-blue);color:#fff}
+.dv-card .dv-olshare{display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-start;margin-top:12px;font-size:12.5px;text-align:left}.dv-olshare input{width:auto;margin:0;flex:none}
+@media(max-width:760px){.dv-olc{grid-template-columns:1fr}}
 </style></body></html>
