@@ -437,7 +437,7 @@ create(b){if(b.creationRequestId&&PV.requests[b.creationRequestId])return{projec
  let code=pvTxt(b.code,100,"Project Code",!0);if(PV.projects.some(p=>!p.demo&&p.code.toLowerCase()===code.toLowerCase()))throw new PvErr("Project Code นี้มีอยู่แล้ว",409);
  let acc=b.accountSource==="microsoft"?pvAccountFor(PV_PROFILE):PV.accounts.find(a=>a.id===b.accountId);if(!acc)throw new PvErr("ไม่พบ Sales Account");
  let sr=Jh(b.serviceRequest||{}),u=sr.urgency||"",t=Bl();
- let p={id:"p-"+pvUid(),code,name:pvTxt(b.name,200,"Project Name")||code,client:pvTxt(b.client,200,"Partner Name")||"—",accountId:acc.id,engineer:"",stage:"pending",priority:u.includes("มาก")?"urgent":u.includes("ด่วน")?"high":"normal",due:typeof b.due=="string"?b.due:"",followup:t,waitingOn:"SATIT",nextAction:"ตรวจขอบเขตงานและอนุมัติโครงการ",description:sr.notes,serviceRequest:sr,outcome:"open",channelUrl:"",channelId:"",syncStatus:"local",summary:"",createdAt:pvNow(),updatedAt:pvNow(),createdBy:PV_PROFILE.name+" \xB7 "+PV_PROFILE.email,version:1,demo:!1};
+ let p={id:"p-"+pvUid(),code,name:pvTxt(b.name,200,"Project Name")||code,client:pvTxt(b.client,200,"Partner Name")||"—",accountId:acc.id,engineer:"",stage:"pending",priority:u.includes("มาก")?"urgent":u.includes("ด่วน")?"high":"normal",due:typeof b.due=="string"?b.due:"",followup:t,waitingOn:"SATIT",nextAction:"ตรวจขอบเขตงานและอนุมัติโครงการ",description:sr.notes,serviceRequest:sr,outcome:"open",channelUrl:"",channelId:"",syncStatus:"local",summary:"",createdAt:pvNow(),updatedAt:pvNow(),createdBy:PV_PROFILE.name+" \xB7 "+PV_PROFILE.email,version:1,demo:!1,onBehalf:typeof M!=="undefined"&&M.onBehalf?{...M.onBehalf,by:PV_PROFILE.name,byEmail:PV_PROFILE.email}:void 0};
  PV.projects.unshift(p);if(b.creationRequestId)PV.requests[b.creationRequestId]=p.id;pvLog(p,"สร้าง Service Request (ร่าง)",sr.notes);return{project:p}},
 submit(b){let p=pvFind(b.projectId);pvVer(p,b.version);if(p.listItemId)return{project:p};p.listItemId=String(PV.nextListId++);p.listItemUrl=(PV.settings.listUrl||Uu).replace(/AllItems\.aspx.*$/,"DispForm.aspx?ID="+p.listItemId);p.approvalStatus="pending";p.stage="pending";pvTouch(p);pvLog(p,"ส่งเข้า Microsoft Lists","List Item #"+p.listItemId+" \xB7 รออนุมัติ");let s=pvSync(p);return{project:p,sync:s}},
 update(b){let p=pvFind(b.projectId);pvVer(p,b.version);let st=b.stage||p.stage;if(!ll[st])throw new PvErr("สถานะไม่ถูกต้อง");
@@ -544,6 +544,8 @@ async function mLoad(force){if(!force&&M.cache&&Date.now()-M.cacheAt<6e3)return 
    else if(pid===M_FLOWIX)M.flowIx={...pl,row:t.id};else if(pid===M_INBOX){if(pl.pid)inbox.push({...pl,row:t.id})}
    else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.sub)(sublog[-pid]=sublog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
+   /* v16.25 งานที่ Engineer คีย์แทนเซลส์: นับเป็นของเซลส์ทุกส่วน (Created By ใน SharePoint ยังเป็นชื่อผู้คีย์) */
+   for(let it of items){let ob=track[Number(it.id)]?.onBehalf;if(ob?.email&&!it.createdByReal){it.createdByReal=it.createdBy;it.createdBy={user:{email:String(ob.email).toLowerCase(),displayName:ob.name||ob.email}}}}
    mInboxMerge(inbox,items,slog,sublog);
    for(let k in slog){slog[k].sort((a,b)=>mT(a.at)-mT(b.at));let last=slog[k][slog[k].length-1],t=track[k]||(track[k]={});let ps={s:last.s,at:last.at,by:last.by,via:last.via,msg:last.msg||"",prev:last.prev,...(last.inbox?{inbox:1,root:last.root}:{})};t.pstat=mPsNewer(t.pstat,ps)}
    /* v16.16: ขั้นตอนย่อย (#รอราคา ฯลฯ) — แถวเพิ่มแบบเดียวกัน ใช้ตัวล่าสุด */
@@ -586,7 +588,7 @@ async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(
  return{syncJobs:jobs,session,accounts:[...Object.values(accMap),],projects:all,activities:acts.slice(0,400),members:own?members.filter(m=>m.role!=="sales"||m.email.toLowerCase()===M.profile.email.toLowerCase()):members,settings:{listUrl:M.listWebUrl,...s.settings},bridgeConfigured:!0,samplePreview:!1,microsoftObservations:obs}}
 /* --- Writes --- */
 async function mSaveTrack(p,acts,syncInfo){if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
- let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr","subRemind","chanGone"];
+ let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr","subRemind","chanGone","onBehalf"];
  if(old.itemId){try{let cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${old.itemId}?$expand=fields($select=Payload)`),fp=JSON.parse(cur.fields?.Payload||"{}");old={...old,...fp,itemId:old.itemId}}catch(e){}}
  /* v16.1: อ่านค่าล่าสุดก่อนเขียน แล้วทับเฉพาะช่องที่ส่งมา — กันข้อมูลเก่าของอีกแท็บ/อีกคนลบสถานะที่เพิ่งบันทึก */
  let pl={};keep.forEach(k=>{if(old[k]!==void 0)pl[k]=old[k];if(p[k]!==void 0)pl[k]=p[k]});pl.pstat=mPsNewer(old.pstat,p.pstat);if(!pl.pstat)delete pl.pstat;pl.activities=[...acts,...(old.activities||[])].slice(0,120);pl.sync=syncInfo||old.sync;
@@ -691,7 +693,7 @@ async function mFormSubmit(d,sr){let c=M.cols,vals=[],add=(k,v)=>{let col=c[k];i
  return null}
 async function mSubmit(b){let d=PV.projects.find(x=>x.id===b.projectId&&!x.demo);if(!d)throw new PvErr("ไม่พบร่างคำขอ",404);pvVer(d,b.version);
  let sr=d.serviceRequest||{},c=M.cols,f={},put=(k,v)=>{let col=c[k];if(!col||col.readOnly||v===void 0||v===null||v==="")return;if(col.type==="multi"){f[col.name+"@odata.type"]="Collection(Edm.String)";f[col.name]=v}else if(col.type==="date")f[col.name]=new Date(v+":00+07:00").toISOString();else f[col.name]=v};
- put("code",d.code);put("name",d.name||d.code);put("client",d.client==="—"?"":d.client);put("source",sr.source);put("brands",sr.brands);put("workTypes",sr.workTypes);put("notes",sr.notes);put("urgency",sr.urgency);put("closingChance",sr.closingChance);put("assignedAt",sr.assignedAt);put("estimatedValue",sr.estimatedValue);put("latest","In Progress");put("winLoss","Process");if(c.updatedAt)f[c.updatedAt.name]=new Date().toISOString();
+ put("code",d.code);put("name",d.name||d.code);put("client",d.client==="—"?"":d.client);put("source",sr.source);put("brands",sr.brands);put("workTypes",sr.workTypes);put("notes",(sr.notes||"")+(d.onBehalf?"\n(คีย์แทน "+d.onBehalf.name+" โดย "+(d.onBehalf.by||M.profile.name)+")":""));put("urgency",sr.urgency);put("closingChance",sr.closingChance);put("assignedAt",sr.assignedAt);put("estimatedValue",sr.estimatedValue);put("latest","In Progress");put("winLoss","Process");if(c.updatedAt)f[c.updatedAt.name]=new Date().toISOString();
  let miss=[["code",d.code,"Project Code"],["source",sr.source,"ช่องทางที่มาของงาน"],["brands",sr.brands,"Brand"],["notes",sr.notes,"หมายเหตุเพิ่มเติม"],["urgency",sr.urgency,"ความเร่งด่วน"],["closingChance",sr.closingChance,"โอกาสปิดงาน"]].filter(x=>M.cols[x[0]]&&(!x[1]||(Array.isArray(x[1])&&!x[1].length)||!String(x[1]).trim())).map(x=>x[2]);
  if(miss.length)throw new PvErr("กรอกให้ครบตามฟอร์ม Service Request: "+miss.join(", "),400);
  await mLoad(!0);let dup=(M.cache?.items||[]).find(i=>mCodeClean(i.fields?.ProjectCode)===mCodeClean(d.code));if(dup)throw new PvErr("Project Code "+mCodeClean(d.code)+" มีอยู่แล้ว (รายการ #"+dup.id+") — เปลี่ยนเลขแล้วกด Submit อีกครั้ง",409);{let tc=mTeamsCodeHit(d.code);if(tc)throw new PvErr("Project Code "+mCodeClean(d.code)+" ซ้ำกับ Teams Channel \""+tc.name+"\""+(tc.teamName?" ใน Team "+tc.teamName:"")+" — เปลี่ยนเลขแล้วกด Submit อีกครั้ง",409)}
@@ -709,7 +711,7 @@ async function mSubmit(b){let d=PV.projects.find(x=>x.id===b.projectId&&!x.demo)
  if(fails.length)try{mToast("ส่งคำขอแล้ว (#"+id+") แต่แนบไฟล์ไม่ได้ "+fails.length+" ไฟล์: "+fails.join(", ")+" — แนบไฟล์ใน Teams Channel ของงานหลังอนุมัติ",!0)}catch{}
  else if(reqFiles)try{mToast("ส่งคำขอแล้ว (#"+id+") · ไฟล์แนบ "+reqFiles.names.length+" ไฟล์เก็บไว้แล้ว — ระบบจะแนบเข้ารายการให้เมื่อ Engineer เปิดเว็บ")}catch{}
  let reqNote=" · Request Status: รอ Engineer พิจารณา",reqOk=!0;
- let p={...d,id:"sp-"+id,listItemId:String(id),version:1,updatedAt:pvNow(),reqFiles:reqFiles||void 0,autoReqDone:reqOk||void 0,autoReqAt:reqOk?void 0:pvNow(),autoReqErr:reqOk?void 0:reqNote},acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่ง Service Request เข้า All Projects List"+(via==="form"?" ผ่านฟอร์ม Service Request":""),note:"รายการ #"+id+reqNote+(reqFiles?" · ไฟล์แนบ "+reqFiles.names.length+" ไฟล์เก็บไว้ที่ Documents › "+reqFiles.folder+" (รอแนบเข้ารายการ)":"")+(fails.length?" · ไฟล์แนบไม่สำเร็จ: "+fails.join(", "):""),createdAt:pvNow()}];
+ let p={...d,id:"sp-"+id,listItemId:String(id),version:1,updatedAt:pvNow(),reqFiles:reqFiles||void 0,autoReqDone:reqOk||void 0,autoReqAt:reqOk?void 0:pvNow(),autoReqErr:reqOk?void 0:reqNote},acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่ง Service Request เข้า All Projects List"+(via==="form"?" ผ่านฟอร์ม Service Request":"")+(d.onBehalf?" · คีย์แทน "+d.onBehalf.name:""),note:"รายการ #"+id+reqNote+(reqFiles?" · ไฟล์แนบ "+reqFiles.names.length+" ไฟล์เก็บไว้ที่ Documents › "+reqFiles.folder+" (รอแนบเข้ารายการ)":"")+(fails.length?" · ไฟล์แนบไม่สำเร็จ: "+fails.join(", "):""),createdAt:pvNow()}];
  try{await mSaveTrack(p,acts,{lists:"success",teams:"blocked",listsNote:"สร้างรายการ #"+id+(sr.attachments?.length?" · ไฟล์แนบ "+(sr.attachments.length-fails.length)+"/"+sr.attachments.length:""),teamsNote:"รออนุมัติก่อนสร้าง Channel",updatedAt:pvNow()})}catch(e){}
  PV.projects=PV.projects.filter(x=>x.id!==d.id);pvSave();await mLoad(!0);let st=await mState();
  return{project:st.projects.find(x=>x.id==="sp-"+id)||p,sync:{lists:"success",teams:fails.length?"failed":"success"}}}
@@ -1560,6 +1562,15 @@ async function mChanRebind(){if(!mIsEng()||!M.tl||!Array.isArray(TS.live)||!TS.a
   if(st.projects.some(q=>q!==p&&String(q.id).startsWith("sp-")&&q.channelId===nx.channelId&&mCodeClean(q.code)===pc))continue;
   try{await mSaveTrack({...p,channelId:nx.channelId,channelUrl:nx.url||"",teamId:nx.teamId,chanGone:null},[{id:"act-"+pvUid(),actor:"ระบบ (ตรวจ Teams อัตโนมัติ)",action:"ย้าย Teams Channel ตาม Project Code",note:"Project Code "+pc+" · จาก \""+cur.name+"\" → \""+nx.name+"\""+(nx.teamName?" ใน Team "+nx.teamName:""),createdAt:pvNow()}]);out.push(pc)}catch(e){console.warn("[9D] rebind",p.code,e)}}
  if(out.length){M.cacheAt=0;try{await mTeamsSync(!0)}catch{}}return out}
+/* v16.25 Engineer คีย์งานแทนเซลส์ (กรณีพิเศษ) — เลือกเซลส์ → Project Code รันต่อจากเลขของเซลส์คนนั้น · งาน/Team/Channel นับเป็นของเซลส์ */
+function mOnBehalfUI(el){M.onBehalf=null;if(!mIsEng()||!M.profile)return;let me=String(M.profile.email).toLowerCase(),seen={};
+ for(let it of M.cache?.items||[]){let u=it.createdBy?.user||{},e=String(u.email||"").toLowerCase();if(!e||e===me||seen[e]||mEngName(u.displayName||""))continue;seen[e]={email:e,name:u.displayName||e}}
+ let list=Object.values(seen).sort((a,b)=>a.name.localeCompare(b.name,"th"));if(!list.length)return;
+ let box=document.createElement("label");box.className="ob-pick";box.innerHTML=`<span>คีย์แทนเซลส์ <em>(กรณีพิเศษ · เฉพาะ Engineer)</em></span><select><option value="">— ไม่ใช่ · คีย์ในนามตัวเอง —</option>${list.map(a=>`<option value="${mEsc(a.email)}">${mEsc(a.name)} · ${mEsc(a.email)}</option>`).join("")}</select><small>เลือกแล้ว Project Code จะรันต่อจากเลขของเซลส์คนนั้น · งานนับเป็นของเซลส์ เซลส์เห็นงานนี้ และสร้าง Channel ใน Team ของเซลส์ · ใน SharePoint ช่อง Created By ยังเป็นชื่อคุณ</small>`;
+ let host=el.closest("label")||el.parentNode;host.parentNode.insertBefore(box,host);let sel=box.querySelector("select");
+ sel.onchange=()=>{let a=list.find(x=>x.email===sel.value);M.onBehalf=a?{email:a.email,name:a.name}:null;box.classList.toggle("on",!!a);
+  try{let r=mNextCode(a?a.email:M.profile.email,a?a.name:M.profile.name);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,r.code);el.dispatchEvent(new Event("input",{bubbles:!0}));
+   let h=el.parentNode.querySelector(".code-auto");if(h)h.textContent="ออกเลขให้อัตโนมัติ"+(a?" (ของ "+a.name+")":"")+": "+r.fmt+" (ตัวย่อ "+r.pre+") · แก้ไขได้"}catch(e){console.warn("[9D] code",e)}}}
 /* Project Code ซ้ำ: SharePoint (รายการใน All Projects List) + Teams (ชื่อ Channel ที่ขึ้นต้นด้วยรหัสเดียวกัน) */
 function mDups(st){let sp={},tm={},seen=new Set();for(let p of st.projects){if(!String(p.id).startsWith("sp-")||seen.has(p.id))continue;seen.add(p.id);let c=mCodeClean(p.code);if(c.length>=4)(sp[c]=sp[c]||[]).push(p)}
  for(let r of TS.all||[]){if(r.ignored||!mChanOk(r.channelId,r.teamId))continue;let c=mCodeClean(r.name);if(c.length>=5&&/\d{2}/.test(c))(tm[c]=tm[c]||[]).push(r)}
@@ -2143,9 +2154,9 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.24";
+var M_VER="v16.25";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
-function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);if(el.value||!M.profile)return;
+function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,r.code);el.dispatchEvent(new Event("input",{bubbles:!0}));
  let h=document.createElement("small");h.className="code-auto";h.textContent="ออกเลขให้อัตโนมัติ: "+r.fmt+" (ตัวย่อ "+r.pre+(r.src==="set"?" ตั้งโดยผู้ดูแล":r.src==="learned"?" จากรหัสเดิมของคุณ":" จากชื่อบัญชี")+") · แก้ไขได้";el.insertAdjacentElement("afterend",h)}
@@ -2658,5 +2669,12 @@ h1,h2,h3{font-weight:500;letter-spacing:0;color:var(--ink)}
 .dv-deld .dv-dbtn{display:flex;justify-content:flex-end;gap:8px}
 .dv-deld .dv-danger{background:#b3261e!important;border-color:#b3261e!important}
 .code-dup{display:block;color:#b3261e;font-size:12px;margin-top:4px;line-height:1.5}
+</style>
+<style id="v1625">
+.ob-pick{display:flex;flex-direction:column;gap:4px;margin:0 0 12px;padding:10px 12px;border:1px dashed #b9c3d6;border-radius:6px;background:#f6f8fc;font-size:13px}
+.ob-pick span{font-weight:600}.ob-pick em{font-style:normal;font-weight:400;color:#686666}
+.ob-pick select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid #c9ced6;border-radius:6px;background:#fff}
+.ob-pick small{color:#686666;line-height:1.5}
+.ob-pick.on{border-style:solid;border-color:#284397;background:#eef2fb}
 </style>
 </body></html>
