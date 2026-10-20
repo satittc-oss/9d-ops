@@ -32,7 +32,7 @@
   - `> 0` = ข้อมูลติดตามของรายการนั้น (Payload JSON) — เขียนผ่าน `mSaveTrack` เท่านั้น และ**ฟิลด์ใหม่ต้องเพิ่มในอาร์เรย์ `keep` ใน `mSaveTrack`** ไม่งั้นจะหายตอนบันทึกครั้งถัดไป
   - `< 0` (= −เลขรายการ) = แถวบันทึกแบบเพิ่มอย่างเดียว: สถานะ `{s}`, ขั้นตอน `{sub}`, ประวัติอนุมัติ `{d}` (approved / rejected / reopened / cancelled)
   - `-9000000000` presence (ตำแหน่ง Engineer) · `-9100000000` flow-index · `-9200000000` inbox จาก Power Automate · `-9300000000` ประวัติการลบโครงการ
-- **9D Product Loans**, **9D Quotations**: List จำกัดสิทธิ์เฉพาะ Engineer (สร้างจากเว็บครั้งแรก)
+- **9D Product Loans**: List จำกัดสิทธิ์เฉพาะ Engineer · **9D Quotations** (v16.37): ทุกบทบาทรวม Viewer สร้าง/แก้ของตัวเอง; Admin จัดการทั้งหมด · ต้องให้ Admin กดตั้งค่าสิทธิ์ก่อน (ReadSecurity/WriteSecurity=2, กลุ่มผู้ใช้ Contribute, Owners/Admin Full Control เฉพาะ List) · เจ้าของอ้างอิง AuthorLookupId จาก SharePoint ไม่เชื่อข้อมูลเจ้าของใน DocJson
 - ไซต์ `/sites/9deng`: List งานเซอร์วิส AEM และ CommScope Certifications
 - Power Automate flow "9D Teams hashtag sync" (บัญชี Satit) อ่าน Teams ทุกชั่วโมงแล้วเขียนแถว inbox — เว็บแปลง #แฮชแท็กจาก inbox (`mInboxMerge`)
 
@@ -46,8 +46,16 @@
 7. CSS ใหม่ใส่เป็น `<style id="v16xx">` ก่อน `</body>` ตัวสุดท้าย และ scope ด้วย class ของฟีเจอร์นั้น
 8. Repo ต้องเป็น **public** และ GitHub Pages ต้องเปิด (Settings → Pages → main / root) — ถ้าเปลี่ยนเป็น private บนบัญชีฟรี เว็บจะหาย
 
+## ฟีเจอร์ v16.37
+- `settings.sidebarOrder` เก็บ key เมนูร่วมทั้งทีม; อย่าหาเมนูภาพรวมด้วย index เพราะ Admin ย้ายได้
+- `settings.quoteAccess` เป็นหลักฐานว่าตั้งค่า List ใบเสนอราคาจากปุ่มครบแล้ว; อย่าขยายสิทธิ์ระหว่างเปิดหน้า/บันทึกปกติ
+- ตั้งค่า ACL ใบเสนอราคาใช้ `mQtAdminSP` / token `spadmin` (SharePoint delegated AllSites.FullControl) หลังผู้ดูแลกดยืนยันเท่านั้น; อย่ารวม Graph กับ SharePoint scopes ใน authorize เดียว และ callback ต้องเก็บ token ไว้ตาม resource ให้ถูก
+- `channelArchive` อยู่ใน Tracking keep: ส่ง Archive เฉพาะกดยืนยันในโครงการปิด (WIN/LOSS/ยกเลิก) · 202 ยังไม่สำเร็จ ต้องอ่าน `channel.isArchived` · ห้าม retry POST เมื่อผลไม่แน่นอน
+- Archive ขอ delegated `ChannelSettings.ReadWrite.All` ผ่านปุ่ม consent เท่านั้น และส่ง `shouldSetSpoSiteReadOnlyForMembers:false`
+
 ## การทดสอบ (แนะนำ)
-- ไม่มี test ใน repo — ใช้ Playwright เปิด `index.html` ผ่าน `python3 -m http.server` แล้วดัก request ทั้งหมดไป `login.microsoftonline.com`, `graph.microsoft.com`, `*.sharepoint.com` ด้วย mock ที่ตอบข้อมูลปลอม
+- ชุดทดสอบจำลอง: `node --test tests/*.test.cjs` · ตัวอย่าง UI `node tests/serve-workspace.cjs` (localhost:8771, `?role=admin|engineer|sales|viewer`) ไม่มีการติดต่อ Microsoft จริง
+- การตรวจ UI เพิ่มเติม: ใช้ Playwright เปิด `index.html` ผ่าน `python3 -m http.server` แล้วดัก request ทั้งหมดไป `login.microsoftonline.com`, `graph.microsoft.com`, `*.sharepoint.com` ด้วย mock ที่ตอบข้อมูลปลอม
 - ใช้ clientId ปลอม `11111111-1111-1111-1111-111111111111` แทนตัวจริงในสำเนาทดสอบ → จะมี hook `window.__t` (sync, ts, render, od ฯลฯ) สำหรับเทสต์
 - ห้ามทดสอบกับ tenant จริง
 

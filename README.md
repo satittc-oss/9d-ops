@@ -1,6 +1,25 @@
 # 9d-ops
 9D Integrated Operations - Nine Distribution (Microsoft 365 sign-in required)
 
+## v16.37 · โลโก้โปร่งใส / Archive Channel / กราฟ / เมนู / ใบเสนอราคาทุกบทบาท
+- โลโก้ Sidebar และหน้า Microsoft 365 ใช้ `assets/nine-logo.png` โปร่งใสจากภาพต้นฉบับ เอากรอบขาวออก; ตัวหนังสือโลโก้ใน Sidebar สีเข้มแสดงเป็นขาวด้วย CSS ส่วนไฟล์ภาพ/PDF คงต้นฉบับ และเก็บ PNG ใน PWA cache รุ่น 4
+- ทะเบียนและหน้าสถานะโครงการ (รายการ/บอร์ด) มี **จัดเก็บ Channel** สำหรับงานปิด WIN/LOSS/ยกเลิกที่เชื่อม Teams แล้ว: Engineer/Admin ตรวจชื่อ Channel และกดยืนยันก่อนส่ง `POST /teams/{team-id}/channels/{channel-id}/archive` จริง
+  - ขอ delegated `ChannelSettings.ReadWrite.All` เพิ่มผ่านปุ่ม Microsoft เมื่อจำเป็น ผู้ใช้ยังต้องมีสิทธิ์จริงใน Teams; เว็บไม่อนุมัติสิทธิ์ Microsoft แทนผู้ดูแล
+  - บันทึก pending ก่อนส่ง, ไม่ retry POST อัตโนมัติ, กันกดซ้อนและอีกแท็บที่รองรับ Web Locks; HTTP 202 แปลว่ารอผล ต้องอ่าน `isArchived=true` ก่อนแสดงสำเร็จ หาก timeout ให้ตรวจผลเดิม/ตรวจใน Teams แล้วกดตรวจอีกครั้ง ไม่ส่งคำสั่งซ้ำ
+  - ส่ง `shouldSetSpoSiteReadOnlyForMembers:false` จึงข้ามการตั้ง SharePoint site เป็น read-only; การเปิดโครงการใหม่ไม่คืนค่า Channel เอง ให้ unarchive ใน Teams ก่อนใช้สนทนา
+- กราฟแดชบอร์ดมีพื้นที่ใต้เส้น จุด/ค่ากิจกรรมสูงสุด สรุปยอดรวมและค่าเฉลี่ย แถบอันดับหลายสี; อ่านรายละเอียดด้วยสัมผัส/เมาส์/คีย์บอร์ด และบอกว่าวันนี้ยังไม่สิ้นสุด ใช้ SVG ไม่เพิ่มไลบรารี
+- Admin: **ตั้งค่า Workspace → จัดลำดับเมนูด้านข้าง** เลื่อนขึ้น/ลงหรือคืนลำดับเดิม เก็บร่วมกันทั้งทีมใน `settings.sidebarOrder` เมนูที่เห็นยังขึ้นกับบทบาท และภาพรวม/แถบมือถือยังทำงานเมื่อย้ายภาพรวมไปท้ายเมนู
+- ปุ่ม **ดู/PDF · แชร์ · อีเมล · แก้ไข · ทำซ้ำ** ของใบเสนอราคาใช้รูปแบบเดียวกัน ปุ่มมือถือสูงอย่างน้อย 44px; เอกสารแชร์ยังมีเฉพาะข้อมูลลูกค้า ไม่รวมต้นทุน/กำไร
+- ทุกบทบาทรวม Viewer สร้างและแก้ไขใบเสนอราคาของตนเองได้; Admin เห็น/จัดการทั้งหมด ใช้ Author จาก SharePoint และตรวจเจ้าของซ้ำก่อนเขียน พร้อม eTag ป้องกันทับข้อมูลที่ผู้อื่นเพิ่งแก้
+  - **ต้องตั้งค่าครั้งแรกหลังอัปเดต:** ให้ Admin ที่มีสิทธิ์จัดการ SharePoint เปิด **ตั้งค่า Workspace → ตั้งค่าสิทธิ์ใบเสนอราคา** เลือกกลุ่มผู้ใช้รวมทุกบทบาท แล้วติ๊กยืนยัน
+  - ถ้ายังไม่ได้อนุมัติสิทธิ์จัดการ ให้กด **ขอสิทธิ์จัดการ SharePoint** และให้ผู้ดูแล Microsoft อนุมัติ delegated `AllSites.FullControl` ของ SharePoint (อาจต้องเพิ่มสิทธิ์นี้ใน App registration ก่อน) เป็นขอบเขตทุกไซต์ที่บัญชีมีสิทธิ์ตามที่ Microsoft กำหนด ฟังก์ชันนี้ส่งคำสั่งเฉพาะ List ใบเสนอราคา; token แยก audience จาก Graph และการอ่าน/บันทึกใบปกติไม่ร้องขอ FullControl
+  - ปุ่มนี้สร้าง List เมื่อยังไม่มี และตั้งเฉพาะ **9D Quotations**: `ReadSecurity=2`, `WriteSecurity=2`, index Author/Title, คง Owners และให้ Admin ที่กำหนดในสมาชิกแอปจัดการทั้งหมด แทนสิทธิ์ผู้ใช้เดิมด้วย **Contribute** ของกลุ่มที่เลือก (สิทธิ์ Edit/ManageLists ข้าม own-items ได้)
+  - เว็บยังไม่อ่าน/สร้างใบเสนอราคาจนขั้นตอนตั้งค่าครบ ผู้ดูแล SharePoint/ผู้มีสิทธิ์พิเศษจาก Microsoft ยังคงมีสิทธิ์ตามระบบเดิม หลังเพิ่ม Admin ใหม่ให้ผู้ดูแลรันการตั้งค่านี้อีกครั้งเพื่อให้สิทธิ์ List ตรงกัน
+  - เลขใบใหม่ `QXปปดด-SharePointID` (อย่างน้อย 6 หลัก) จึงไม่ชนกันเมื่อผู้ใช้แต่ละคนอ่านเฉพาะของตน; ใบเดิมคงเลขเดิม บันทึกใหม่ที่ไม่ทราบผลไม่สร้างซ้ำ และถ้าออกเลขไม่ผ่านจะบันทึกต่อในรายการ ID เดิม
+- ทดสอบจำลอง: `node --test tests/*.test.cjs` · เปิดตัวอย่าง `node tests/serve-workspace.cjs` แล้วเข้า `http://127.0.0.1:8771/?role=admin` (เปลี่ยนเป็น engineer/sales/viewer ได้) · ไม่เรียก Microsoft 365 จริง ระหว่างพัฒนาไม่เปลี่ยนข้อมูลหรือสิทธิ์องค์กร
+
+อ้างอิง: [Microsoft Graph: archive channel](https://learn.microsoft.com/en-us/graph/api/channel-archive?view=graph-rest-1.0), [SharePoint: ReadSecurity](https://learn.microsoft.com/en-us/openspecs/sharepoint_protocols/ms-primepf/f6862437-99b2-42ed-85c8-aa75314ad309), [SharePoint: authentication and authorization](https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/sharepoint-admin-apis-authentication-and-authorization)
+
 ## ออกเวอร์ชันใหม่
 เมื่อเปลี่ยน `M_VER` ใน `index.html` ให้แก้ `version.json` เป็นเลขเดียวกันเสมอ — หน้าเว็บที่เปิดค้างไว้ใช้ไฟล์นี้เช็คว่ามีเวอร์ชันใหม่
 ถ้าแก้ไอคอนหรือ manifest ให้เปลี่ยนชื่อ cache (`C`) ใน `sw.js` ด้วย
