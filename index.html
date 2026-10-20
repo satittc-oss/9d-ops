@@ -1641,7 +1641,7 @@ async function mQtSave(Q){if(!mIsEng())throw new PvErr("เฉพาะ Engineer
  if(!Q.no){Q.no=qtNextNo(await mQuotes(!0))}let doc={...Q,items:c.rows.filter(x=>String(x.code||x.desc||"").trim()).map(({code,desc,qty,unit,price,disc,cost})=>({code,desc,qty,unit,price,disc,cost})),net:c.net,updatedBy:M.profile.name,updatedAt:pvNow()};delete doc.id;
  let fields={Title:Q.no,ProjectCode:Q.job||"",Customer:Q.cust.name,NetTotal:qtF(c.net),QuoteStatus:Q.status||"ร่าง",DocJson:JSON.stringify(doc)};
  let r=Q.id?await G(`/sites/${M.sid}/lists/${lid}/items/${Q.id}/fields`,{method:"PATCH",json:fields}):await G(`/sites/${M.sid}/lists/${lid}/items`,{method:"POST",json:{fields}});QT.at=0;return{...doc,id:Q.id||String(r.id)}}
-function qtHTML(Q){let co=qtCo(),c=qtCalc(Q),e=mEsc,C=Q.cust||{},row=(k,v)=>`<tr><th>${k}</th><td>${v||""}</td></tr>`,D=v=>v?dvTH2(v):"",until=Q.until||(Q.date&&Q.validDays?new Date(Date.parse(Q.date)+qtN(Q.validDays)*864e5).toISOString().slice(0,10):"");
+function qtHTML(Q){let co=qtCo(),c=qtCalc(Q),e=mEsc,C=Q.cust||{},row=(k,v)=>v&&String(v).replace(/<[^>]+>/g,"").trim()?`<tr><th>${k}</th><td>${v}</td></tr>`:"",D=v=>v?dvTH2(v):"",until=Q.until||(Q.date&&Q.validDays?new Date(Date.parse(Q.date)+qtN(Q.validDays)*864e5).toISOString().slice(0,10):"");
  let items=c.rows.filter(x=>String(x.code||x.desc||"").trim());
  return`<article class="dd qd" lang="th"><header class="dd-h">${window.NINE_LOGO?`<img class="dd-logo" src="${window.NINE_LOGO}" alt="Nine Distribution">`:""}<div class="dd-co"><b>${e(co.name)}</b><span>${e(co.addr)}</span><span>${["Phone: "+e(co.tel),co.fax?"Fax: "+e(co.fax):"","เลขประจำตัวผู้เสียภาษี "+e(co.taxId)].filter(Boolean).join(" · ")}</span></div>
   <div class="dd-no"><h1>ใบเสนอราคา</h1><p>QUOTATION</p><table><tr><th>เลขที่/Doc No.</th><td><b>${e(Q.no||"(ร่าง)")}</b></td></tr><tr><th>วันที่/Date</th><td>${D(Q.date)}</td></tr><tr><th>ยืนราคาถึง/Until</th><td>${D(until)}${Q.validDays?` (${e(Q.validDays)} วัน)`:""}</td></tr></table></div></header>
@@ -2325,7 +2325,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.29";
+var M_VER="v16.30";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -2872,5 +2872,23 @@ h1,h2,h3{font-weight:500;letter-spacing:0;color:var(--ink)}
 .qd .qd-tot tr.net th,.qd .qd-tot tr.net td{background:#122349;color:#fff;font-weight:700}
 #dashv select.qt-st{font:inherit;font-size:13px;padding:4px 6px;border-radius:4px;border:1px solid #c9ced6;background:#fff}#dashv select.qt-st.ok{border-color:#1d7a45;color:#1d7a45}#dashv select.qt-st.no{border-color:#b3261e;color:#b3261e}#dashv select.qt-st.cur{border-color:#284397;color:#284397}
 #dashv td.r{text-align:right}#dashv .dv-pregt td small{display:block}
+</style>
+<style id="v1630">
+.dd.qd{padding:7mm 8mm 6mm;font-size:8.4pt;line-height:1.38}
+.qd .dd-h{gap:4mm;padding-bottom:2.5mm;align-items:center}
+.qd .dd-logo{width:22mm}
+.qd .dd-co{font-size:7.4pt;line-height:1.35}.qd .dd-co b{font-size:9.2pt}
+.qd .dd-no h1{font-size:14pt}.qd .dd-no>p{font-size:6.8pt;margin:0 0 1mm;letter-spacing:1.6px}
+.qd .dd-no table{font-size:7.8pt}.qd .dd-no th{padding:.2mm 2mm}.qd .dd-no td{padding:.2mm 0}
+.qd .dd-2{gap:3mm;margin:2.5mm 0;grid-template-columns:1fr 1fr}
+.qd .dd-box{padding:1.6mm 2.6mm;border-radius:1.5mm}.qd .dd-box h3{font-size:8.4pt;margin:0 0 .8mm}
+.qd .dd-box table{font-size:7.8pt}.qd .dd-box th{padding:.2mm 2.5mm .2mm 0}.qd .dd-box td{padding:.2mm 0}
+.qd .dd-items{font-size:7.9pt}.qd .dd-items th{padding:1mm 1.4mm;font-size:7.4pt;line-height:1.25;vertical-align:bottom}.qd .dd-items td{padding:.9mm 1.4mm}
+.qd .qd-items th:nth-child(2),.qd .qd-items td:nth-child(2){white-space:nowrap}
+.qd .qd-sum{gap:5mm;margin-top:2mm}.qd .qd-words{font-size:7.8pt}.qd .qd-words p{margin:0 0 .8mm}
+.qd .qd-tot{font-size:8pt;min-width:70mm}.qd .qd-tot th,.qd .qd-tot td{padding:.8mm 1.8mm}
+.qd .dd-note{font-size:7.8pt;margin:2mm 0 0}.qd .dd-ack{font-size:7.8pt;margin:1.6mm 0 0}
+.qd .dd-signs{gap:5mm;margin-top:6mm;padding-top:0}.qd .dd-sign{font-size:7.8pt}.qd .dd-sig{height:11mm}.qd .dd-sign p{margin:.5mm 0}
+.qd .dd-f{margin-top:4mm;font-size:6.6pt;padding-top:1.4mm}
 </style>
 </body></html>
