@@ -1641,9 +1641,9 @@ async function mQtSave(Q){if(!mIsEng())throw new PvErr("เฉพาะ Engineer
  if(!Q.no){Q.no=qtNextNo(await mQuotes(!0))}let doc={...Q,items:c.rows.filter(x=>String(x.code||x.desc||"").trim()).map(({code,desc,qty,unit,price,disc,cost})=>({code,desc,qty,unit,price,disc,cost})),net:c.net,updatedBy:M.profile.name,updatedAt:pvNow()};delete doc.id;
  let fields={Title:Q.no,ProjectCode:Q.job||"",Customer:Q.cust.name,NetTotal:qtF(c.net),QuoteStatus:Q.status||"ร่าง",DocJson:JSON.stringify(doc)};
  let r=Q.id?await G(`/sites/${M.sid}/lists/${lid}/items/${Q.id}/fields`,{method:"PATCH",json:fields}):await G(`/sites/${M.sid}/lists/${lid}/items`,{method:"POST",json:{fields}});QT.at=0;return{...doc,id:Q.id||String(r.id)}}
-function qtHTML(Q){let co=qtCo(),c=qtCalc(Q),e=mEsc,C=Q.cust||{},row=(k,v)=>v&&String(v).replace(/<[^>]+>/g,"").trim()?`<tr><th>${k}</th><td>${v}</td></tr>`:"",D=v=>v?dvTH2(v):"",until=Q.until||(Q.date&&Q.validDays?new Date(Date.parse(Q.date)+qtN(Q.validDays)*864e5).toISOString().slice(0,10):"");
+function qtHTML(Q,LY){let ly=qtLayout(LY),co=qtCo(),c=qtCalc(Q),e=mEsc,C=Q.cust||{},row=(k,v)=>v&&String(v).replace(/<[^>]+>/g,"").trim()?`<tr><th>${k}</th><td>${v}</td></tr>`:"",D=v=>v?dvTH2(v):"",until=Q.until||(Q.date&&Q.validDays?new Date(Date.parse(Q.date)+qtN(Q.validDays)*864e5).toISOString().slice(0,10):"");
  let items=c.rows.filter(x=>String(x.code||x.desc||"").trim());
- return`<article class="dd qd" lang="th"><header class="dd-h">${window.NINE_LOGO?`<img class="dd-logo" src="${window.NINE_LOGO}" alt="Nine Distribution">`:""}<div class="dd-co"><b>${e(co.name)}</b><span>${e(co.addr)}</span><span>${["Phone: "+e(co.tel),co.fax?"Fax: "+e(co.fax):"","เลขประจำตัวผู้เสียภาษี "+e(co.taxId)].filter(Boolean).join(" · ")}</span></div>
+ return`<article class="dd qd${ly.bottom?" qd-bottom":""}" lang="th" style="--qmt:${ly.mt}mm;--qms:${ly.ms}mm;--qmb:${ly.mb}mm;--qs:${ly.scale/100};--qlogo:${ly.logo}mm;--qsig:${ly.sig}mm"><header class="dd-h">${window.NINE_LOGO?`<img class="dd-logo" src="${window.NINE_LOGO}" alt="Nine Distribution">`:""}<div class="dd-co"><b>${e(co.name)}</b><span>${e(co.addr)}</span><span>${["Phone: "+e(co.tel),co.fax?"Fax: "+e(co.fax):"","เลขประจำตัวผู้เสียภาษี "+e(co.taxId)].filter(Boolean).join(" · ")}</span></div>
   <div class="dd-no"><h1>ใบเสนอราคา</h1><p>QUOTATION</p><table><tr><th>เลขที่/Doc No.</th><td><b>${e(Q.no||"(ร่าง)")}</b></td></tr><tr><th>วันที่/Date</th><td>${D(Q.date)}</td></tr><tr><th>ยืนราคาถึง/Until</th><td>${D(until)}${Q.validDays?` (${e(Q.validDays)} วัน)`:""}</td></tr></table></div></header>
  <section class="dd-2"><div class="dd-box"><h3>ข้อมูลลูกค้า / Customer</h3><table>${row("รหัสลูกค้า/Code",e(C.code||""))}${row("นามลูกค้า/Name","<b>"+e(C.name||"")+"</b>")}${row("สาขา/Branch",e(C.branch||""))}${row("ที่อยู่/Address",e(C.addr||""))}${row("ผู้ติดต่อ/Contact",[C.contact,C.tel&&"โทร "+C.tel,C.email].filter(Boolean).map(e).join(" · "))}</table></div>
   <div class="dd-box"><h3>รายละเอียด / Details</h3><table>${row("เลขที่งาน/Job No.",e(Q.job||""))}${row("ชื่อโครงการ/Job Des.",e(Q.jobDes||""))}${row("อ้างอิง/Ref. Doc.",e(Q.ref||""))}${row("พนักงานขาย/Sales",e(Q.sales||""))}${row("กำหนดชำระ/Term",e(Q.term||""))}${row("สถานที่จัดส่ง/Delivery",e(Q.delivery||""))}${row("ขนส่ง/Transport",e(Q.transport||""))}${Q.ext?row("เอกสารภายนอก/Ext",e(Q.ext)):""}</table></div></section>
@@ -1651,18 +1651,18 @@ function qtHTML(Q){let co=qtCo(),c=qtCalc(Q),e=mEsc,C=Q.cust||{},row=(k,v)=>v&&S
   <tbody>${items.map((x,i)=>`<tr><td class="n">${i+1}</td><td><b>${e(x.code||"")}</b></td><td class="qd-desc">${e(x.desc||"")}</td><td class="n">${x.qty}</td><td>${e(x.unit||"")}</td><td class="r">${qtF(x.price)}</td><td class="r">${x.disc?qtF(x.disc):""}</td><td class="r">${qtF(x.sub)}</td></tr>`).join("")}</tbody></table>
  <section class="qd-sum"><div class="qd-words"><p><b>รวมรายการ/Item</b> ${items.length} · <b>Units</b> ${c.units}</p><p class="qd-th">(${e(qtBaht(c.net))})</p><p class="qd-en">(${e(qtEng(c.net))})</p></div>
   <table class="qd-tot"><tr><th>รวมเงิน/Sub Total</th><td>${qtF(c.sub)}</td></tr><tr><th>ส่วนลด/Discount</th><td>${qtF(c.bd)}</td></tr><tr><th>จำนวนเงินไม่รวมภาษีมูลค่าเพิ่ม</th><td>${qtF(c.pre)}</td></tr><tr><th>ภาษีมูลค่าเพิ่ม/VAT ${c.vr}%</th><td>${qtF(c.vat)}</td></tr><tr class="net"><th>ยอดเงินสุทธิ/Net Total (${e(Q.currency||"Baht")})</th><td>${qtF(c.net)}</td></tr></table></section>
- <p class="dd-note"><b>หมายเหตุ/Remark</b><br>${String(Q.remark??QT_REMARK).split(/\n/).map(e).join("<br>")}</p>
+ <div class="qd-bot"><p class="dd-note"><b>หมายเหตุ/Remark</b><br>${String(Q.remark??QT_REMARK).split(/\n/).map(e).join("<br>")}</p>
  <p class="dd-ack">${e(QT_CONFIRM)}</p>
  <section class="dd-signs">${[["ผู้เสนอราคา / Quoted by",Q.quotedBy||Q.maker||""],["ผู้อนุมัติ / Approved by",Q.approvedBy||""],["ผู้สั่งซื้อ / Customer",""]].map(([t,n])=>`<div class="dd-sign"><p class="dd-role">${t}</p><div class="dd-sig"></div><p class="dd-nm">( ${n?e(n):"……………………………………"} )</p><p class="dd-dt">วันที่/Date ………/………/………</p></div>`).join("")}</section>
- <footer class="dd-f"><span>${e(Q.no||"")} · ${e(co.name)}</span><span>ใบเสนอราคานอกระบบ ERP · ออกโดย 9D Integrated Operations · พิมพ์ ${dvTH2(dvToday())}</span></footer></article>`}
+ <footer class="dd-f"><span>${e(Q.no||"")} · ${e(co.name)}</span><span>ใบเสนอราคานอกระบบ ERP · ออกโดย 9D Integrated Operations · พิมพ์ ${dvTH2(dvToday())}</span></footer></div></article>`}
 var qtFile=Q=>(String(Q.no||"Quotation")+"_"+String(Q.cust?.name||"")).replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,80)+".pdf";
-window.dvQtPdf=async(id,forPrint)=>{let Q=(QT.items||[]).find(x=>x.id===id);if(!Q)return;mToast("กำลังสร้างไฟล์ PDF…");try{let b=await dvDocPdf(qtHTML(Q));document.querySelectorAll(".nine-toast").forEach(t=>{if(/กำลังสร้างไฟล์ PDF/.test(t.textContent))t.remove()});dvPdfDeliver(b,qtFile(Q),forPrint)}catch(e){mToast("สร้าง PDF ไม่สำเร็จ: "+e.message,!0)}};
-window.dvQtMail=async id=>{let Q=(QT.items||[]).find(x=>x.id===id);if(!Q)return;mToast("กำลังสร้าง PDF และร่างอีเมล…");try{let b=await dvDocPdf(qtHTML(Q)),c=qtCalc(Q);document.querySelectorAll(".nine-toast").forEach(t=>{if(/กำลังสร้าง PDF และร่างอีเมล/.test(t.textContent))t.remove()});
+window.dvQtPdf=async(id,forPrint,LY)=>{let Q=(QT.items||[]).find(x=>x.id===id);if(!Q)return;mToast("กำลังสร้างไฟล์ PDF…");try{let b=await dvDocPdf(qtHTML(Q,LY));document.querySelectorAll(".nine-toast").forEach(t=>{if(/กำลังสร้างไฟล์ PDF/.test(t.textContent))t.remove()});dvPdfDeliver(b,qtFile(Q),forPrint)}catch(e){mToast("สร้าง PDF ไม่สำเร็จ: "+e.message,!0)}};
+window.dvQtMail=async(id,LY)=>{let Q=(QT.items||[]).find(x=>x.id===id);if(!Q)return;mToast("กำลังสร้าง PDF และร่างอีเมล…");try{let b=await dvDocPdf(qtHTML(Q,LY)),c=qtCalc(Q);document.querySelectorAll(".nine-toast").forEach(t=>{if(/กำลังสร้าง PDF และร่างอีเมล/.test(t.textContent))t.remove()});
   let m=await mOutlookDraft({to:Q.cust?.email||"",subject:"ใบเสนอราคา "+Q.no+(Q.jobDes?" · "+Q.jobDes:"")+" · "+(Q.cust?.name||""),body:"เรียน "+(Q.cust?.contact||Q.cust?.name||"ลูกค้า")+"\n\nบริษัท ไนน์ ดิสทริบิวชั่น จำกัด ขอส่งใบเสนอราคาเลขที่ "+Q.no+(Q.jobDes?" สำหรับ "+Q.jobDes:"")+" ตามไฟล์แนบ\nยอดเงินสุทธิ "+qtF(c.net)+" บาท (รวม VAT)"+(Q.until?"\nยืนราคาถึง "+dvTH2(Q.until):"")+"\n\nหากมีข้อสงสัยติดต่อกลับได้เลยครับ/ค่ะ\n\nขอบคุณครับ/ค่ะ\n"+M.profile.name,attach:[{blob:b,name:qtFile(Q)}]});
   if(m&&Q.status==="ร่าง"){try{await mQtSave({...Q,status:"ส่งลูกค้าแล้ว"});DV.stAt=0;dvRender()}catch(e){}}}catch(e){mToast("สร้างร่างไม่สำเร็จ: "+e.message,!0)}};
 window.dvQtView=id=>{let Q=(QT.items||[]).find(x=>x.id===id);if(!Q)return;let d=document.createElement("dialog");d.className="dv-dlg dv-qtv";
- d.innerHTML=`<div class="dv-qtvbar"><b>${mEsc(Q.no)}</b><span></span><button type="button" class="dv-btn" data-a="pdf">ดาวน์โหลด PDF</button><button type="button" class="dv-btn" data-a="print">พิมพ์</button><button type="button" class="dv-save" data-a="mail">ส่งทางอีเมล (Outlook)</button><button type="button" class="dv-xbtn" data-a="x" aria-label="ปิด">✕</button></div><div class="dv-qtvdoc">${qtHTML(Q)}</div>`;
- document.body.appendChild(d);d.addEventListener("close",()=>d.remove());d.querySelector("[data-a=x]").onclick=()=>d.close();d.querySelector("[data-a=pdf]").onclick=()=>dvQtPdf(id);d.querySelector("[data-a=print]").onclick=()=>dvQtPdf(id,!0);d.querySelector("[data-a=mail]").onclick=()=>dvQtMail(id);d.showModal()};
+ d.innerHTML=`<div class="dv-qtvbar"><b>${mEsc(Q.no)}</b><span></span><button type="button" class="dv-btn" data-a="ly">จัดหน้ากระดาษ</button><button type="button" class="dv-btn" data-a="pdf">ดาวน์โหลด PDF</button><button type="button" class="dv-btn" data-a="print">พิมพ์</button><button type="button" class="dv-save" data-a="mail">ส่งทางอีเมล (Outlook)</button><button type="button" class="dv-xbtn" data-a="x" aria-label="ปิด">✕</button></div><div class="dv-qtvdoc">${qtHTML(Q)}</div>`;
+ document.body.appendChild(d);d.addEventListener("close",()=>d.remove());d.querySelector("[data-a=x]").onclick=()=>d.close();d.querySelector("[data-a=ly]").onclick=()=>dvQtLayout(id,d);d.querySelector("[data-a=pdf]").onclick=()=>dvQtPdf(id,!1,d._ly);d.querySelector("[data-a=print]").onclick=()=>dvQtPdf(id,!0,d._ly);d.querySelector("[data-a=mail]").onclick=()=>dvQtMail(id,d._ly);d.showModal()};
 window.dvQtStatus=async(id,s)=>{let Q=(QT.items||[]).find(x=>x.id===id);if(!Q)return;try{await mQtSave({...Q,status:s});mToast(Q.no+" · "+s);DV.stAt=0;dvRender()}catch(e){mToast("บันทึกไม่สำเร็จ: "+e.message,!0)}};
 window.dvQtForm=async(id,copy)=>{let st=await dvState(),src=id?(QT.items||[]).find(x=>x.id===id):null,me=M.profile.name,today=dvToday();
  let Q=src?JSON.parse(JSON.stringify(src)):{date:today,validDays:30,branch:"Headquarter",maker:me,quotedBy:me,currency:"Baht",vat:7,term:"",remark:QT_REMARK,cust:{},items:[{code:"",desc:"",qty:1,unit:"ชุด",price:"",disc:"",cost:""}],status:"ร่าง"};
@@ -1702,6 +1702,18 @@ window.dvQtForm=async(id,copy)=>{let st=await dvState(),src=id?(QT.items||[]).fi
  d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());
  let save=async view=>{read();er.textContent="กำลังบันทึก…";d.querySelectorAll(".dv-dact button").forEach(b=>b.disabled=!0);try{let r=await mQtSave(Q);await mQuotes(!0);d.close();mToast("บันทึกใบเสนอราคา "+r.no+" แล้ว");DV.stAt=0;dvRender();if(view)dvQtView(r.id)}catch(x){er.textContent="บันทึกไม่สำเร็จ: "+x.message;d.querySelectorAll(".dv-dact button").forEach(b=>b.disabled=!1)}};
  d.querySelector("[data-a=save]").onclick=()=>save(!1);d.querySelector("[data-a=saveview]").onclick=()=>save(!0);d.showModal()};
+/* v16.31 จัดหน้ากระดาษใบเสนอราคาเอง: ขอบบน/ข้าง/ล่าง, ขนาดตัวอักษร, โลโก้, ช่องเซ็น, ชิดล่าง — เก็บเป็นค่าเริ่มต้นของทีมใน settings.quoteLayout */
+var QT_LY0={mt:7,ms:8,mb:6,scale:100,logo:22,sig:11,bottom:!0};
+var qtLayout=o=>({...QT_LY0,...(M.cache?.settings?.quoteLayout||{}),...(o||{})});
+window.dvQtLayout=(id,dlg)=>{let Q=(QT.items||[]).find(x=>x.id===id);if(!Q||!dlg)return;let old=dlg.querySelector(".qt-lyp");if(old){old.remove();return}let L=qtLayout(),doc=dlg.querySelector(".dv-qtvdoc");
+ let F=[["mt","ขอบบน (มม.)",3,25,1],["ms","ขอบซ้าย-ขวา (มม.)",3,25,1],["mb","ขอบล่าง (มม.)",3,25,1],["scale","ขนาดตัวอักษร (%)",80,130,5],["logo","ขนาดโลโก้ (มม.)",12,40,1],["sig","ความสูงช่องเซ็น (มม.)",6,25,1]];
+ let p=document.createElement("div");p.className="qt-lyp";p.innerHTML=`<h3>จัดหน้ากระดาษ <small>A4 แนวตั้ง · มีผลกับดู / PDF / พิมพ์ / อีเมล</small></h3><div class="qt-lyg">${F.map(([k,t,a,b,st])=>`<label><span>${t} <b data-v="${k}">${L[k]}</b></span><input type="range" name="${k}" min="${a}" max="${b}" step="${st}" value="${L[k]}"></label>`).join("")}<label class="qt-lyc"><input type="checkbox" name="bottom"${L.bottom?" checked":""}> หมายเหตุ + ช่องเซ็น ชิดขอบล่างกระดาษ</label></div>
+  <div class="qt-lyb"><button type="button" class="dv-btn" data-a="reset">คืนค่าเดิม</button><button type="button" class="dv-save" data-a="save">บันทึกเป็นค่าเริ่มต้นของทีม</button></div><p class="qt-lym" role="status"></p>`;
+ dlg.querySelector(".dv-qtvbar").after(p);
+ let read=()=>{let o={};for(let[k]of F)o[k]=Number(p.querySelector(`[name=${k}]`).value);o.bottom=p.querySelector("[name=bottom]").checked;return o},show=()=>{let o=read();for(let[k]of F)p.querySelector(`[data-v=${k}]`).textContent=o[k];dlg._ly=o;doc.innerHTML=qtHTML(Q,o)};
+ p.addEventListener("input",show);p.addEventListener("change",show);
+ p.querySelector("[data-a=reset]").onclick=()=>{for(let[k]of F)p.querySelector(`[name=${k}]`).value=QT_LY0[k];p.querySelector("[name=bottom]").checked=QT_LY0.bottom;show()};
+ p.querySelector("[data-a=save]").onclick=async ev=>{let b=ev.currentTarget,m=p.querySelector(".qt-lym");b.disabled=!0;m.textContent="กำลังบันทึก…";try{await mLoad(!0);let st={...(M.cache?.settings||{}),quoteLayout:read()};await mSaveSettings(st);if(M.cache)M.cache.settings=st;m.textContent="บันทึกแล้ว — ใบเสนอราคาทุกใบใช้ค่านี้"}catch(e){m.textContent="บันทึกไม่สำเร็จ: "+e.message}finally{b.disabled=!1}}};
 var QT_ST={"ร่าง":"gry","ส่งลูกค้าแล้ว":"cur","ลูกค้าตกลง":"ok","ไม่ได้งาน":"no","ยกเลิก":"gry"};
 async function dvQuotesPage(host){if(!mIsEng()){host.innerHTML=`<p class="dv-empty">หน้านี้สำหรับ Engineer เท่านั้น</p>`;return}DV.sig=dvSig();let list=[],err="";try{list=await mQuotes()}catch(e){err=e.message}
  let fs=DV.qs||"",shown=list.filter(q=>!fs||q.status===fs),cnt=s=>list.filter(q=>q.status===s).length,e=mEsc;
@@ -2325,7 +2337,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.30";
+var M_VER="v16.31";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -2873,22 +2885,26 @@ h1,h2,h3{font-weight:500;letter-spacing:0;color:var(--ink)}
 #dashv select.qt-st{font:inherit;font-size:13px;padding:4px 6px;border-radius:4px;border:1px solid #c9ced6;background:#fff}#dashv select.qt-st.ok{border-color:#1d7a45;color:#1d7a45}#dashv select.qt-st.no{border-color:#b3261e;color:#b3261e}#dashv select.qt-st.cur{border-color:#284397;color:#284397}
 #dashv td.r{text-align:right}#dashv .dv-pregt td small{display:block}
 </style>
-<style id="v1630">
-.dd.qd{padding:7mm 8mm 6mm;font-size:8.4pt;line-height:1.38}
+<style id="v1631">
+.dd.qd{padding:var(--qmt,7mm) var(--qms,8mm) var(--qmb,6mm);font-size:calc(8.4pt*var(--qs,1));line-height:1.38;min-height:296mm;display:flex;flex-direction:column;box-sizing:border-box}
 .qd .dd-h{gap:4mm;padding-bottom:2.5mm;align-items:center}
-.qd .dd-logo{width:22mm}
-.qd .dd-co{font-size:7.4pt;line-height:1.35}.qd .dd-co b{font-size:9.2pt}
-.qd .dd-no h1{font-size:14pt}.qd .dd-no>p{font-size:6.8pt;margin:0 0 1mm;letter-spacing:1.6px}
-.qd .dd-no table{font-size:7.8pt}.qd .dd-no th{padding:.2mm 2mm}.qd .dd-no td{padding:.2mm 0}
+.qd .dd-logo{width:var(--qlogo,22mm)}
+.qd .dd-co{font-size:calc(7.4pt*var(--qs,1));line-height:1.35}.qd .dd-co b{font-size:calc(9.2pt*var(--qs,1))}
+.qd .dd-no h1{font-size:calc(14pt*var(--qs,1))}.qd .dd-no>p{font-size:calc(6.8pt*var(--qs,1));margin:0 0 1mm;letter-spacing:1.6px}
+.qd .dd-no table{font-size:calc(7.8pt*var(--qs,1))}.qd .dd-no th{padding:.2mm 2mm}.qd .dd-no td{padding:.2mm 0}
 .qd .dd-2{gap:3mm;margin:2.5mm 0;grid-template-columns:1fr 1fr}
-.qd .dd-box{padding:1.6mm 2.6mm;border-radius:1.5mm}.qd .dd-box h3{font-size:8.4pt;margin:0 0 .8mm}
-.qd .dd-box table{font-size:7.8pt}.qd .dd-box th{padding:.2mm 2.5mm .2mm 0}.qd .dd-box td{padding:.2mm 0}
-.qd .dd-items{font-size:7.9pt}.qd .dd-items th{padding:1mm 1.4mm;font-size:7.4pt;line-height:1.25;vertical-align:bottom}.qd .dd-items td{padding:.9mm 1.4mm}
+.qd .dd-box{padding:1.6mm 2.6mm;border-radius:1.5mm}.qd .dd-box h3{font-size:calc(8.4pt*var(--qs,1));margin:0 0 .8mm}
+.qd .dd-box table{font-size:calc(7.8pt*var(--qs,1))}.qd .dd-box th{padding:.2mm 2.5mm .2mm 0}.qd .dd-box td{padding:.2mm 0}
+.qd .dd-items{font-size:calc(7.9pt*var(--qs,1))}.qd .dd-items th{padding:1mm 1.4mm;font-size:calc(7.4pt*var(--qs,1));line-height:1.25;vertical-align:bottom}.qd .dd-items td{padding:.9mm 1.4mm}
 .qd .qd-items th:nth-child(2),.qd .qd-items td:nth-child(2){white-space:nowrap}
-.qd .qd-sum{gap:5mm;margin-top:2mm}.qd .qd-words{font-size:7.8pt}.qd .qd-words p{margin:0 0 .8mm}
-.qd .qd-tot{font-size:8pt;min-width:70mm}.qd .qd-tot th,.qd .qd-tot td{padding:.8mm 1.8mm}
-.qd .dd-note{font-size:7.8pt;margin:2mm 0 0}.qd .dd-ack{font-size:7.8pt;margin:1.6mm 0 0}
-.qd .dd-signs{gap:5mm;margin-top:6mm;padding-top:0}.qd .dd-sign{font-size:7.8pt}.qd .dd-sig{height:11mm}.qd .dd-sign p{margin:.5mm 0}
-.qd .dd-f{margin-top:4mm;font-size:6.6pt;padding-top:1.4mm}
+.qd .qd-sum{gap:5mm;margin-top:2mm}.qd .qd-words{font-size:calc(7.8pt*var(--qs,1))}.qd .qd-words p{margin:0 0 .8mm}
+.qd .qd-tot{font-size:calc(8pt*var(--qs,1));min-width:70mm}.qd .qd-tot th,.qd .qd-tot td{padding:.8mm 1.8mm}
+.qd .qd-bot{margin-top:4mm;break-inside:avoid}.qd.qd-bottom .qd-bot{margin-top:auto;padding-top:4mm}
+.qd .dd-note{font-size:calc(7.8pt*var(--qs,1));margin:0}.qd .dd-ack{font-size:calc(7.8pt*var(--qs,1));margin:1.6mm 0 0}
+.qd .dd-signs{gap:5mm;margin-top:5mm;padding-top:0}.qd .dd-sign{font-size:calc(7.8pt*var(--qs,1))}.qd .dd-sig{height:var(--qsig,11mm)}.qd .dd-sign p{margin:.5mm 0}
+.qd .dd-f{margin-top:3mm;font-size:calc(6.6pt*var(--qs,1));padding-top:1.4mm}
+.qt-lyp{padding:12px 16px;border-bottom:1px solid #e1e4ea;background:#f7f8fb}.qt-lyp h3{margin:0 0 8px;font-size:15px}.qt-lyp h3 small{font-weight:400;color:#686666;margin-left:6px;font-size:12px}
+.qt-lyg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 18px}.qt-lyg label{display:flex;flex-direction:column;gap:2px;font-size:13px}.qt-lyg label span{display:flex;justify-content:space-between}.qt-lyg input[type=range]{width:100%;accent-color:#284397}
+.qt-lyg .qt-lyc{flex-direction:row;align-items:center;gap:8px;grid-column:1/-1}.qt-lyb{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}.qt-lym{margin:6px 0 0;font-size:12px;color:#686666;text-align:right;min-height:1em}
 </style>
 </body></html>
