@@ -1,0 +1,56 @@
+# AGENTS.md — 9D Integrated Operations (9d-ops)
+
+คู่มือสำหรับ AI coding agent (Codex / Claude / อื่น ๆ) ที่จะแก้ repo นี้ต่อ · อ่านให้จบก่อนแก้โค้ด
+
+## ภาพรวม
+- เว็บแอปของ Nine Distribution: รับ Service Request จากเซลส์ → อนุมัติ → สร้าง Teams Private Channel อัตโนมัติ → ติดตามสถานะ/ขั้นตอนงาน + ยืมสินค้า, งานเซอร์วิส (AEM/CommScope), ใบเสนอราคานอกระบบ ERP, เมืองจำลอง 3 มิติ
+- ข้อมูลทั้งหมดอยู่ใน Microsoft 365 ของบริษัท (SharePoint Lists + Teams) — ไม่มี backend ของตัวเอง เบราว์เซอร์เรียก Microsoft Graph / SharePoint REST ตรงด้วยบัญชีของผู้ใช้ (OAuth PKCE, delegated)
+- โฮสต์: GitHub Pages จาก branch `main` / root → https://satittc-oss.github.io/9d-ops/ (push แล้วขึ้นเว็บเองใน 1–2 นาที)
+
+## ไฟล์
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `index.html` | **ซอร์สหลัก (ไฟล์เดียว ~1 MB)** — React app ที่ build แล้ว + โค้ด 9D ทั้งหมด (สคริปต์ inline ก้อนที่ 3) + CSS ต่อท้ายเป็น `<style id="v16xx">` ก่อน `</body>` |
+| `city.html` | เมืองจำลอง 3 มิติ (three.js r128 ใน `vendor/`) รับข้อมูลจาก index.html ผ่าน `postMessage` (`{t:"9d-city",v:1,...}`) |
+| `version.json` | `{"v":"v16.xx"}` ต้องตรงกับ `M_VER` ใน index.html เสมอ — หน้าที่เปิดค้างใช้ไฟล์นี้เช็กว่ามีเวอร์ชันใหม่ |
+| `sw.js`, `manifest.webmanifest`, ไอคอน | PWA (ติดตั้งเป็นแอป) — แก้ไอคอน/manifest ให้เปลี่ยนชื่อ cache `C` ใน sw.js |
+| `README.md` | บันทึกการเปลี่ยนแปลงแต่ละเวอร์ชัน (ภาษาไทย) |
+
+**ไม่มีขั้นตอน build** — แก้ `index.html` ตรง ๆ (ซอร์สแยกไฟล์เดิมไม่ได้อยู่ใน repo และเก่ากว่า index.html แล้ว อย่าพยายามสร้างใหม่จากที่อื่น)
+
+## วิธีหาโค้ดใน index.html
+- โค้ด 9D ใช้ prefix: `m*` = ชั้นข้อมูล/Microsoft 365 (เช่น `mLoad`, `mState`, `mProject`, `mSaveTrack`, `mRun`, `mChannel`, `mSubmit`, `mDecide`), `dv*` = หน้าจอ/แดชบอร์ด (เช่น `dvRender`, `dvProjectsPage`, `dvStatusPage`, `dvQuotesPage`, `dvNav`), `qt*` = ใบเสนอราคา, `pv*` = ร่างคำขอในเครื่อง (localStorage)
+- ค้นด้วยคอมเมนต์เวอร์ชัน เช่น `/* v16.28` — ทุกการแก้ใหม่ให้ใส่คอมเมนต์ภาษาไทยสั้น ๆ ขึ้นต้นด้วยเลขเวอร์ชันแบบเดียวกัน
+- สคริปต์หลักเป็นสโคปเดียว (ไม่ใช่ global) — ฟังก์ชันที่ถูกเรียกจาก `onclick` ใน HTML ต้องประกาศเป็น `window.xxx=`
+- หน้าใหม่: เพิ่มใน `dvNav` (รายการ `want` + `dvNavIcon`) และใน `dvRender` (`if(DV.page==="...")`)
+- ตรวจ syntax ก่อน commit: ดึงสคริปต์ inline ก้อนใหญ่ออกมาแล้ว `node --check`
+
+## ข้อมูลใน SharePoint (ไซต์ ninedistribution.sharepoint.com/sites/KendoProject)
+- **All Projects List** (`CFG.listId` 29246322-232d-426e-a572-92c388bd379d): 1 รายการ = 1 คำขอ/โครงการ · คอลัมน์ไทยใช้ internal name (ดู `M.cols` / `mF(f,"key")`) · `RequestStatus` = Approved / Reject / ว่าง (= รอพิจารณา)
+- **9D Project Tracking**: ข้อมูลเสริมของเว็บ แยกตาม `ProjectItemId`
+  - `0` = settings ของทีม (`mSaveSettings`)
+  - `> 0` = ข้อมูลติดตามของรายการนั้น (Payload JSON) — เขียนผ่าน `mSaveTrack` เท่านั้น และ**ฟิลด์ใหม่ต้องเพิ่มในอาร์เรย์ `keep` ใน `mSaveTrack`** ไม่งั้นจะหายตอนบันทึกครั้งถัดไป
+  - `< 0` (= −เลขรายการ) = แถวบันทึกแบบเพิ่มอย่างเดียว: สถานะ `{s}`, ขั้นตอน `{sub}`, ประวัติอนุมัติ `{d}` (approved / rejected / reopened / cancelled)
+  - `-9000000000` presence (ตำแหน่ง Engineer) · `-9100000000` flow-index · `-9200000000` inbox จาก Power Automate · `-9300000000` ประวัติการลบโครงการ
+- **9D Product Loans**, **9D Quotations**: List จำกัดสิทธิ์เฉพาะ Engineer (สร้างจากเว็บครั้งแรก)
+- ไซต์ `/sites/9deng`: List งานเซอร์วิส AEM และ CommScope Certifications
+- Power Automate flow "9D Teams hashtag sync" (บัญชี Satit) อ่าน Teams ทุกชั่วโมงแล้วเขียนแถว inbox — เว็บแปลง #แฮชแท็กจาก inbox (`mInboxMerge`)
+
+## กติกาที่ต้องทำตาม
+1. **ห้ามแก้ข้อมูลจริง / สิทธิ์ / โครงสร้าง List ใน SharePoint หรือ Teams** ระหว่างพัฒนา — ทดสอบด้วยการจำลอง (mock) เท่านั้น การสร้าง List/คอลัมน์ใหม่ให้เกิดจากปุ่มบนเว็บที่ผู้ใช้กดเอง
+2. **ห้าม commit อีเมลพนักงาน, token, รหัสผ่าน** — repo เป็น public · รายชื่อผู้อนุมัติ/แอดมินเก็บเป็น SHA-256 ของอีเมล (`approverHashes`, `adminHashes`)
+3. ทุก release: เพิ่ม `M_VER` (เช่น v16.31 → v16.32) + แก้ `version.json` ให้ตรง + เพิ่มหัวข้อใน `README.md`
+4. โค้ดที่สลับตัวแปร `PV` ชั่วคราว (`mRun`, การบันทึกร่าง, `mSubmit`) ต้องอยู่ใต้คิว `mPvLock()` — เคยทำให้ Channel ถูกสร้างซ้ำและข้อความโพสต์ผิดงาน (v16.28)
+5. การสร้าง Teams Channel ต้องผ่าน `mChannel` (มีกันซ้ำ: in-flight map, `chanClaim`, อ่าน `mTrackFresh`)
+6. ข้อความภาษาไทยทั้งหมดบนหน้าเว็บ · มือถือใช้งานได้ (ช่องกรอกตัวอักษร ≥16px, จอ ≤680px มีแถบเมนูล่าง)
+7. CSS ใหม่ใส่เป็น `<style id="v16xx">` ก่อน `</body>` ตัวสุดท้าย และ scope ด้วย class ของฟีเจอร์นั้น
+8. Repo ต้องเป็น **public** และ GitHub Pages ต้องเปิด (Settings → Pages → main / root) — ถ้าเปลี่ยนเป็น private บนบัญชีฟรี เว็บจะหาย
+
+## การทดสอบ (แนะนำ)
+- ไม่มี test ใน repo — ใช้ Playwright เปิด `index.html` ผ่าน `python3 -m http.server` แล้วดัก request ทั้งหมดไป `login.microsoftonline.com`, `graph.microsoft.com`, `*.sharepoint.com` ด้วย mock ที่ตอบข้อมูลปลอม
+- ใช้ clientId ปลอม `11111111-1111-1111-1111-111111111111` แทนตัวจริงในสำเนาทดสอบ → จะมี hook `window.__t` (sync, ts, render, od ฯลฯ) สำหรับเทสต์
+- ห้ามทดสอบกับ tenant จริง
+
+## Deploy
+- commit แล้ว push เข้า `main` (หรือเปิด PR ให้เจ้าของ merge) → GitHub Pages อัปเดตเอง · เช็ก https://satittc-oss.github.io/9d-ops/version.json ว่าเป็นเวอร์ชันใหม่
+- ก่อนเริ่มงานทุกครั้ง `git pull` — มีหลาย agent/session แก้ repo นี้ อย่าเขียนทับงานของคนอื่น (ถ้า index.html บน main เปลี่ยนระหว่างทำ ให้ merge/ทำ patch ใหม่บนเวอร์ชันล่าสุด)
