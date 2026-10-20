@@ -557,7 +557,7 @@ var mT=x=>Date.parse(x||0)||0;
 var mPsNewer=(a,b)=>!a?b:!b?a:mT(b.at)>mT(a.at)?b:mT(a.at)>mT(b.at)?a:{...a,...b,remindAt:[a.remindAt,b.remindAt].filter(Boolean).sort((x,y)=>mT(x)-mT(y)).pop()};
 var mF=(f,k)=>{let c=M.cols[k];return c?f[c.type==="user"?c.name+"LookupId":c.name]:void 0};
 function mEngineerOf(f,track){if(track?.engineer)return track.engineer;return""}
-function mProject(it,track){let f=it.fields||{},u=it.createdBy?.user||{},email=(u.email||"").toLowerCase(),id=Number(it.id),ap=mReqStatus(f),t=track||{};
+function mProject(it,track){let f=it.fields||{},u=it.createdBy?.user||{},email=(u.email||"").toLowerCase(),id=Number(it.id),t=track||{},ap=t.reopen&&!String(mF(f,"approval")||"").trim()?"pending":mReqStatus(f);
  let arr=v=>Array.isArray(v)?v:v?String(v).split(/;#|,\s*/).filter(Boolean):[];
  let ad=mF(f,"assignedAt"),sr={schemaVersion:1,source:mF(f,"source")||"",brands:arr(mF(f,"brands")),workTypes:arr(mF(f,"workTypes")),notes:mF(f,"notes")||"",urgency:mF(f,"urgency")||"",closingChance:mF(f,"closingChance")||"",assignedAt:ad?new Date(new Date(ad).getTime()+7*36e5).toISOString().slice(0,16):"",estimatedValue:mF(f,"estimatedValue")||"",attachments:[]};
  let stage=t.stage||(ap==="approved"?"approved":ap==="rejected"?"rejected":"pending");
@@ -588,7 +588,7 @@ async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(
  return{syncJobs:jobs,session,accounts:[...Object.values(accMap),],projects:all,activities:acts.slice(0,400),members:own?members.filter(m=>m.role!=="sales"||m.email.toLowerCase()===M.profile.email.toLowerCase()):members,settings:{listUrl:M.listWebUrl,...s.settings},bridgeConfigured:!0,samplePreview:!1,microsoftObservations:obs}}
 /* --- Writes --- */
 async function mSaveTrack(p,acts,syncInfo){if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
- let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr","subRemind","chanGone","onBehalf"];
+ let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr","subRemind","chanGone","onBehalf","reopen"];
  if(old.itemId){try{let cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${old.itemId}?$expand=fields($select=Payload)`),fp=JSON.parse(cur.fields?.Payload||"{}");old={...old,...fp,itemId:old.itemId}}catch(e){}}
  /* v16.1: อ่านค่าล่าสุดก่อนเขียน แล้วทับเฉพาะช่องที่ส่งมา — กันข้อมูลเก่าของอีกแท็บ/อีกคนลบสถานะที่เพิ่งบันทึก */
  let pl={};keep.forEach(k=>{if(old[k]!==void 0)pl[k]=old[k];if(p[k]!==void 0)pl[k]=p[k]});pl.pstat=mPsNewer(old.pstat,p.pstat);if(!pl.pstat)delete pl.pstat;pl.activities=[...acts,...(old.activities||[])].slice(0,120);pl.sync=syncInfo||old.sync;
@@ -772,11 +772,11 @@ async function mAutoChannels(){if(M.role==="sales"||M.role==="viewer"||M.autoBus
 /* Channel ที่เว็บสร้างแต่ยังไม่ได้โพสต์ข้อความเปิดงาน @แท็ก / คัดลอกไฟล์แนบ (เช่น สร้างจากหน้าเว็บเวอร์ชันเก่าที่ยังไม่ได้รีเฟรช) → ทำย้อนหลังครั้งเดียว ครั้งละไม่เกิน 3 งาน */
 async function mSetupCatchUp(since){await mLoad(!0);let st=await mState(),tr=M.cache.track,n=0;
  for(let p of st.projects){if(n>=3)break;if(!String(p.id).startsWith("sp-")||!p.channelId||!p.teamId||(p.createdAt||"")<since)continue;let t=tr[Number(p.listItemId)]||{};if(t.setupAt)continue;
-  let mk=(st.activities||[]).find(a=>a.projectId===p.id&&/^สร้าง Private Channel/.test(a.action||"")&&/^สร้าง Channel /.test(a.note||""));if(!mk)continue;
+  let mk=(st.activities||[]).find(a=>a.projectId===p.id&&/^สร้าง Private Channel/.test(a.action||"")&&(/^สร้าง Channel /.test(a.note||"")||(/^ใช้ Channel /.test(a.note||"")&&Date.now()-Date.parse(p.createdAt||0)<3*864e5)));if(!mk)continue;
   let msgs=[];try{msgs=(await mHttp(`${M_GRAPH}/teams/${p.teamId}/channels/${p.channelId}/messages?$top=50`,{},"teams")).value||[]}catch(e){continue}
   let has=msgs.some(m=>/\[9D\] เปิดงาน/.test(m.body?.content||""));n++;
   let acc=st.accounts.find(a=>a.id===p.accountId),note="";
-  if(!has){try{note=await mChannelSetup(p,{teamId:p.teamId,channelId:p.channelId},acc,{name:mk.actor,email:Object.values(CFG.engineers).find(e=>mNorm(e.split("@")[0])===mNorm(String(mk.actor).split(" ")[0]))||""})}catch(e){note="ไม่สำเร็จ: "+e.message}}
+  if(!has){try{note=await mChannelSetup(p,{teamId:p.teamId,channelId:p.channelId,skipFiles:!!t.chanFilesAt},acc,{name:mk.actor,email:Object.values(CFG.engineers).find(e=>mNorm(e.split("@")[0])===mNorm(String(mk.actor).split(" ")[0]))||""})}catch(e){note="ไม่สำเร็จ: "+e.message}}
   await mSaveTrack({...p,setupAt:pvNow()},has?[]:[{id:"act-"+pvUid(),actor:M.profile.name,action:"โพสต์ข้อความเปิดงาน @แท็ก ย้อนหลัง",note,createdAt:pvNow()}]);
   if(!has&&typeof mToast==="function")mToast(p.code+" · โพสต์ข้อความเปิดงานใน Channel ย้อนหลัง: "+note)}}
 async function mAdmin(action,b){if(M.role!=="admin")throw new PvErr("เฉพาะผู้ดูแลระบบ",403);await mLoad(!0);let s=JSON.parse(JSON.stringify(M.cache.settings));s.accounts=s.accounts||{};s.members=s.members||[];s.settings=s.settings||{};
@@ -795,11 +795,11 @@ async function mRequestApproval(b){throw new PvErr("ไม่ใช้ขั้�
  try{await mSaveTrack(np,[{id:"act-"+pvUid(),actor:M.profile.name,action:"ส่งขออนุมัติ (Submit) ใน Microsoft Lists",note:"รายการ #"+p.listItemId+" · ผู้อนุมัติ: "+apr.map(e=>e.split("@")[0]).join(", ")+(ok?"":" · Lists ยังไม่ยืนยันสถานะ Pending"),createdAt:pvNow()}],{lists:"success",teams:"blocked",listsNote:"ส่งขออนุมัติรายการ #"+p.listItemId,teamsNote:"รออนุมัติก่อนสร้าง Channel",updatedAt:pvNow()})}catch(e){}
  M.cacheAt=0;return{project:np}}
 async function mDecide(b){if(!M.isApprover)throw new PvErr("เฉพาะผู้อนุมัติเท่านั้น",403);let p=await mVisible(b.projectId),d=b.decision==="rejected"?"rejected":"approved",cur=await mApprovalStatus(p.listItemId),cm=pvTxt(b.comment,1e3,"เหตุผล");
- if(cur!=="pending"){M.cacheAt=0;throw new PvErr("รายการนี้ตอบผลไปแล้ว ("+cur+")",409)}
+ if(cur!=="pending"&&!(M.cache?.track?.[Number(p.listItemId)]?.reopen&&p.listApproval==="pending")){M.cacheAt=0;throw new PvErr("รายการนี้ตอบผลไปแล้ว ("+cur+")",409)}
  await mSetRequestStatus(p.listItemId,d);
  /* v16.13: บันทึกประวัติการอนุมัติแบบเพิ่มแถว (ไม่มีใครเขียนทับได้) */
  try{await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:p.code+" · "+(d==="approved"?"อนุมัติ":"ไม่อนุมัติ"),ProjectItemId:-Number(p.listItemId),TrackVersion:0,Payload:JSON.stringify({d,by:M.profile.name,email:M.profile.email,at:pvNow(),note:cm,code:p.code})}}})}catch(e){console.warn("[9D] approval log",e)}
- let np={...p,stage:d,listApproval:d,approvalStatus:d,waitingOn:d==="approved"?"Engineer":"—",nextAction:d==="approved"?"มอบหมาย Engineer และสร้าง Private Channel":("ไม่อนุมัติ"+(cm?": "+cm:"")),version:(p.version||1)+1,updatedAt:pvNow()};
+ let np={...p,reopen:null,stage:d,listApproval:d,approvalStatus:d,waitingOn:d==="approved"?"Engineer":"—",nextAction:d==="approved"?"มอบหมาย Engineer และสร้าง Private Channel":("ไม่อนุมัติ"+(cm?": "+cm:"")),version:(p.version||1)+1,updatedAt:pvNow()};
  let acts=[{id:"act-"+pvUid(),actor:M.profile.name,action:d==="approved"?"อนุมัติโครงการ":"ไม่อนุมัติโครงการ",note:"Request Status: "+mReqChoice(d)+" โดย "+M.profile.name+(cm?" · "+cm:""),createdAt:pvNow()}];
  let sync={lists:"success",teams:"blocked",listsNote:"",teamsNote:"",updatedAt:pvNow()};
  try{sync.listsNote=await mWriteBack(np)}catch(e){sync.lists="failed";sync.listsNote="เขียนกลับ List ไม่สำเร็จ: "+e.message}
@@ -901,7 +901,7 @@ async function mChanFilesAuto(){if(!["admin","engineer"].includes(M.role)||M.cfB
   try{await mSaveTrack({...p,chanFilesAt:r.ok?pvNow():void 0,chanFilesTry:pvNow(),chanFilesErr:err},acts)}catch(e){console.warn("[9D] chanfiles save",e)}if(r.copied.length)n++}}
  catch(e){console.warn("[9D] chanfiles",e)}finally{M.cfBusy=!1}return n}
 async function mChannelSetup(p,ch,acc,creator){let notes=[],copied=[];if(!ch.members)try{ch.members=(await G(`/teams/${ch.teamId}/channels/${ch.channelId}/members`)).value||[]}catch(e){ch.members=[]}
- let fr=await mChanFiles(p,ch);copied=fr.copied;notes.push(...fr.notes);ch.filesOk=fr.ok;
+ let fr=ch.skipFiles?{copied:[],notes:[],ok:!0}:await mChanFiles(p,ch);copied=fr.copied;notes.push(...fr.notes);ch.filesOk=fr.ok;
  if(copied.length)notes.unshift("คัดลอกไฟล์แนบ "+copied.length+" ไฟล์ไปที่ Files ของ Channel");
  let cur=ch.members||[],ce=String(creator?.email||"").toLowerCase(),cm=creator?cur.find(m=>ce&&(m.email||"").toLowerCase()===ce||mNorm(m.displayName)===mNorm(creator.name)):null,me=creator?{name:cm?.displayName||creator.name,oid:cm?.userId||""}:M.profile,ae=(acc?.email||"").toLowerCase(),sm=cur.find(m=>(m.email||"").toLowerCase()===ae),sr=p.serviceRequest||{};
  let ments=me.oid?[{id:0,mentionText:me.name,mentioned:{user:{id:me.oid,displayName:me.name,userIdentityType:"aadUser"}}}]:[];
@@ -995,7 +995,7 @@ async function mOldAudit(onp){let st=await mState(),since=Date.parse(CFG.autoCha
    let i=v.findIndex(x=>isOk(x));if(i>=0){let x=v[i];r.by=x.Editor?.LookupValue||x.Editor?.Title||"";r.email=x.Editor?.Email||"";r.at=x.Created||"";r.how=isOk(x)+" · เวอร์ชัน "+(x.VersionLabel||"")}else r.how="ไม่พบการอนุมัติในประวัติ ("+v.length+" เวอร์ชัน)"}catch(e){r.err=e.message}
   rows.push(r);onp&&onp(rows.length,ps.length)});
  rows.sort((a,b)=>String(a.p.code).localeCompare(String(b.p.code)));OLDAUD.rows=rows;OLDAUD.at=pvNow();return rows}
-var mOldTarget=r=>!["won","lost","cancelled","delivered"].includes(r.s)&&r.ap!=="rejected";
+var mOldTarget=r=>!M.cache?.track?.[Number(r.p.listItemId)]?.reopen&&!["won","lost","cancelled","delivered"].includes(r.s)&&r.ap!=="rejected";
 async function mOldApply(rows,onp){let c=M.cols,me=M.profile.name,n=0,err=0,todo=rows.filter(mOldTarget);
  await mPool(todo,3,async r=>{let p=r.p,f={};try{
    if(c.approval&&!c.approval.readOnly)f[c.approval.name]=mReqChoice("approved");if(c.latest&&!c.latest.readOnly)f[c.latest.name]=PSTAT.active.latest;if(c.winLoss&&!c.winLoss.readOnly)f[c.winLoss.name]=PSTAT.active.wl;if(c.step&&!c.step.readOnly)f[c.step.name]=SUBST.recv.t;
@@ -1054,7 +1054,7 @@ async function mSetPStat(pid,s,o={}){if(!PSTAT[s])throw new PvErr("สถาน�
 async function mStatusAuto(){if(M.role==="sales"||M.role==="viewer"||!TS.at||M.statusBusy)return;M.statusBusy=!0;try{await mLoad(!0);let st=await mState();
  await mStepCol();try{if(await mInboxPersist(st)){await mLoad(!0);st=await mState()}}catch(e){console.warn("[9D] inbox",e)}try{await mFlowIndex(st)}catch(e){console.warn("[9D] flow index",e)}
  /* v16.3 คืนสถานะอนุมัติ: งานเก่า (ก่อนเปิดใช้ระบบ) ที่มี Channel / สถานะโครงการแล้ว แต่ "Approval status" เดิมถูกรีเซ็ตจากการแก้รายการ → ตั้ง Request Status = Approved */
- if(M.isApprover&&M.cols.approval){let since=Date.parse(CFG.autoChannelSince||"2026-10-16T00:00:00+07:00"),fix=st.projects.filter(p=>String(p.id).startsWith("sp-")&&p.listApproval==="pending"&&Date.parse(p.createdAt||0)<since&&(p.channelId||p.pstat?.s)).slice(0,10);
+ if(M.isApprover&&M.cols.approval){let since=Date.parse(CFG.autoChannelSince||"2026-10-16T00:00:00+07:00"),fix=st.projects.filter(p=>String(p.id).startsWith("sp-")&&p.listApproval==="pending"&&!M.cache?.track?.[Number(p.listItemId)]?.reopen&&Date.parse(p.createdAt||0)<since&&(p.channelId||p.pstat?.s)).slice(0,10);
   for(let p of fix){try{await mSetRequestStatus(p.listItemId,"approved");await mSaveTrack({...p,listApproval:"approved",stage:"approved"},[{id:"act-"+pvUid(),actor:M.profile.name,action:"คืนสถานะอนุมัติ",note:"งานเก่าที่อนุมัติ/เปิด Channel แล้ว แต่ Approval status เดิมถูกรีเซ็ตจากการแก้รายการ → Request Status = Approved (ไม่สร้าง Channel ใหม่)",createdAt:pvNow()}])}catch(e){console.warn("[9D] repair",e)}}
   if(fix.length){await mLoad(!0);st=await mState()}}
  let byId=Object.fromEntries(st.projects.map(p=>[p.id,p])),acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a])),n=0;
@@ -1506,11 +1506,11 @@ async function dvCityPage(host){DV.sig=dvSig();if(host.querySelector(".dv-cityf"
 /* v16.13 ประวัติการอนุมัติ (ซ่อนไว้ กดเปิดดู) — จากบันทึกการกดอนุมัติ / ไม่อนุมัติบนเว็บ · Engineer/Admin เห็นทั้งหมด เซลส์เห็นเฉพาะงานของตัวเอง */
 function dvApprovalLog(st,acc){let byL={};for(let p of st.projects)if(p.listItemId)byL[p.listItemId]=p;let rows=[],seen=[],dup=(lid,d,at)=>seen.some(x=>x[0]===lid&&x[1]===d&&Math.abs(x[2]-Date.parse(at))<12e4);
  for(let[lid,arr]of Object.entries(M.alog||{}))for(let x of arr){let p=byL[lid];if(!p)continue;rows.push({p,d:x.d,by:x.by,at:x.at,note:x.note||""});seen.push([lid,x.d,Date.parse(x.at)])}
- for(let[lid,t]of Object.entries(M.cache?.track||{})){let p=byL[lid];if(!p)continue;for(let a of t.activities||[]){let d=a.action==="อนุมัติโครงการ"?"approved":a.action==="ไม่อนุมัติโครงการ"?"rejected":"";if(!d||dup(lid,d,a.createdAt))continue;
+ for(let[lid,t]of Object.entries(M.cache?.track||{})){let p=byL[lid];if(!p)continue;for(let a of t.activities||[]){let d=a.action==="อนุมัติโครงการ"?"approved":a.action==="ไม่อนุมัติโครงการ"?"rejected":a.action==="ถอยกลับเป็นรอพิจารณา"?"reopened":"";if(!d||dup(lid,d,a.createdAt))continue;
   rows.push({p,d,by:a.actor,at:a.createdAt,note:String(a.note||"").replace(/^Request Status: \S+ โดย [^·]*·?\s*/,"")})}}
  rows.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));if(!rows.length)return"";
  let tm=iso=>{let d=new Date(Date.parse(iso)+252e5);return dvTH2(d.toISOString().slice(0,10))+" "+d.toISOString().slice(11,16)};
- return`<details class="dv-card dv-alog"><summary>ประวัติการอนุมัติ <small>${rows.length} รายการ · กดเพื่อดู</small></summary><div class="dv-alog-w"><table><thead><tr><th>เวลา</th><th>โครงการ</th><th>เซลส์</th><th>ผล</th><th>โดย</th><th>เหตุผล</th></tr></thead><tbody>${rows.slice(0,300).map(r=>`<tr><td>${tm(r.at)}</td><td><b>${mEsc(r.p.code)}</b>${r.p.name&&r.p.name!==r.p.code?"<br><small>"+mEsc(r.p.name)+"</small>":""}</td><td>${mEsc(acc[r.p.accountId]?.name||"")}</td><td>${r.d==="approved"?`<span class="dv-st ok">${dvIcon.ok} อนุมัติ</span>`:`<span class="dv-st no">${dvIcon.no} ไม่อนุมัติ</span>`}</td><td>${mEsc(r.by||"")}</td><td>${mEsc(r.note)}</td></tr>`).join("")}</tbody></table></div></details>`}
+ return`<details class="dv-card dv-alog"><summary>ประวัติการอนุมัติ <small>${rows.length} รายการ · กดเพื่อดู</small></summary><div class="dv-alog-w"><table><thead><tr><th>เวลา</th><th>โครงการ</th><th>เซลส์</th><th>ผล</th><th>โดย</th><th>เหตุผล</th></tr></thead><tbody>${rows.slice(0,300).map(r=>`<tr><td>${tm(r.at)}</td><td><b>${mEsc(r.p.code)}</b>${r.p.name&&r.p.name!==r.p.code?"<br><small>"+mEsc(r.p.name)+"</small>":""}</td><td>${mEsc(acc[r.p.accountId]?.name||"")}</td><td>${r.d==="reopened"?`<span class="dv-st gry">↩ กลับไปรอพิจารณา</span>`:r.d==="approved"?`<span class="dv-st ok">${dvIcon.ok} อนุมัติ</span>`:`<span class="dv-st no">${dvIcon.no} ไม่อนุมัติ</span>`}</td><td>${mEsc(r.by||"")}</td><td>${mEsc(r.note)}</td></tr>`).join("")}</tbody></table></div></details>`}
 /* เปลี่ยนสถานะล่าสุด (7 วัน) — ให้เห็นว่าคำสั่งจาก Teams / ปุ่มบนเว็บบันทึกแล้ว */
 var dvRecent=(ps,acc)=>{let wk=Date.now()-7*864e5,r=ps.filter(x=>x.p.pstat?.at&&Date.parse(x.p.pstat.at)>=wk).sort((a,b)=>Date.parse(b.p.pstat.at)-Date.parse(a.p.pstat.at)).slice(0,6);if(!r.length)return"";
  return`<div class="dv-card dv-recent"><h3>เปลี่ยนสถานะล่าสุด <small>7 วัน</small></h3><ul>${r.map(x=>`<li><span class="dv-code">${mEsc(x.p.code)}</span>${dvPChip(x.s)}<small>${dvAgo(x.p.pstat.at)}ที่แล้ว · ${mEsc(x.p.pstat.by||"")}${x.p.pstat.via==="teams"?" · Teams":" · เว็บ"}</small></li>`).join("")}</ul></div>`};
@@ -1528,7 +1528,7 @@ async function dvProjectsPage(host){let st=await dvState(),me=String(M.profile.e
  let DP=mDups(st),DUPS=new Set([...DP.sp.map(z=>z[0]),...DP.tm.map(z=>z[0])]),engU=mIsEng();
  let row=x=>{let p=x.p,q=[p.code,p.name,p.client,x.sales,x.eng].join(" ").toLowerCase(),ch=mChanUrl(p),dup=DUPS.has(mCodeClean(p.code));
   return`<tr class="dv-preg" data-q="${mEsc(q)}"><td><b class="dv-code">${mEsc(p.code)}</b>${dup?'<span class="dv-dupb" title="Project Code นี้ซ้ำ — ดูกล่องแจ้งเตือนด้านบน">ซ้ำ</span>':""}</td><td><b>${mEsc(p.name!==p.code?p.name:"")||"—"}</b><small>${mEsc(p.client&&p.client!=="—"?p.client:"")}</small></td><td>${mEsc(x.sales)}</td><td>${mEsc(x.eng||"—")}</td><td class="st">${stc(x)}</td><td>${p.createdAt?dvTH2(dvDay(Date.parse(p.createdAt))):""}</td>
-   <td class="lk">${ch?`<a href="${mEsc(ch)}" target="_blank" rel="noreferrer">Teams ↗</a>`:""}${p.listItemUrl?`<a href="${mEsc(p.listItemUrl)}" target="_blank" rel="noreferrer">SharePoint ↗</a>`:""}${x.s==="active"||x.s==="delivered"?`<a href="javascript:void 0" onclick="dvToStatus('${mEsc(String(p.code).replace(/['\\]/g,""))}','${x.s}')">สถานะ →</a>`:""}${engU?`<button type="button" class="dv-del" onclick="dvDelProject('${mEsc(p.id)}')" title="ลบโครงการ / Teams Channel">ลบ</button>`:""}</td></tr>`};
+   <td class="lk">${ch?`<a href="${mEsc(ch)}" target="_blank" rel="noreferrer">Teams ↗</a>`:""}${p.listItemUrl?`<a href="${mEsc(p.listItemUrl)}" target="_blank" rel="noreferrer">SharePoint ↗</a>`:""}${x.s==="active"||x.s==="delivered"?`<a href="javascript:void 0" onclick="dvToStatus('${mEsc(String(p.code).replace(/['\\]/g,""))}','${x.s}')">สถานะ →</a>`:""}${engU&&!["pending"].includes(x.s)?`<button type="button" class="dv-reo" onclick="dvReopen('${mEsc(p.id)}')" title="อนุมัติผิด? ถอยกลับไปรอพิจารณา">↩ รอพิจารณา</button>`:""}${engU?`<button type="button" class="dv-del" onclick="dvDelProject('${mEsc(p.id)}')" title="ลบโครงการ / Teams Channel">ลบ</button>`:""}</td></tr>`};
  let canNew=M.role!=="viewer";
  host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>ทะเบียนโครงการ</h1><p class="dv-sub">ทุกโครงการใน All Projects List พร้อมสถานะและขั้นตอนล่าสุด · เปลี่ยนสถานะได้ที่หน้า สถานะโครงการ</p></div>
   <div class="dv-hact">${canNew?`<button type="button" class="dv-sb pri" onclick="dvNewProject()">+ สร้างโครงการ</button>`:""}<button type="button" class="dv-sb" id="dv-pcsv">ดาวน์โหลด CSV</button></div></header>
@@ -1571,6 +1571,20 @@ function mOnBehalfUI(el){M.onBehalf=null;if(!mIsEng()||!M.profile)return;let me=
  sel.onchange=()=>{let a=list.find(x=>x.email===sel.value);M.onBehalf=a?{email:a.email,name:a.name}:null;box.classList.toggle("on",!!a);
   try{let r=mNextCode(a?a.email:M.profile.email,a?a.name:M.profile.name);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,r.code);el.dispatchEvent(new Event("input",{bubbles:!0}));
    let h=el.parentNode.querySelector(".code-auto");if(h)h.textContent="ออกเลขให้อัตโนมัติ"+(a?" (ของ "+a.name+")":"")+": "+r.fmt+" (ตัวย่อ "+r.pre+") · แก้ไขได้"}catch(e){console.warn("[9D] code",e)}}}
+/* v16.26 ถอยกลับเป็น "รอพิจารณา" (Engineer) — กรณีอนุมัติ/ไม่อนุมัติผิด: ล้าง Request Status + จดเหตุผล · Channel เดิมเก็บไว้ (อนุมัติใหม่จะใช้ Channel เดิม) */
+async function mReopenApproval(p,reason){if(!mIsEng())throw new PvErr("เฉพาะ Engineer",403);let c=M.cols.approval;if(!c)throw new PvErr("ไม่พบคอลัมน์ Request Status",409);
+ try{await G(`/sites/${M.sid}/lists/${M.lid}/items/${p.listItemId}/fields`,{method:"PATCH",json:{[c.name]:null}})}
+ catch(e){await SP(`/web/lists(guid'${M.lid}')/items(${p.listItemId})`,{method:"POST",headers:{"X-HTTP-Method":"MERGE","IF-MATCH":"*"},json:{[c.name]:null}})}
+ let prev=p.listApproval;try{await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:p.code+" · กลับไปรอพิจารณา",ProjectItemId:-Number(p.listItemId),TrackVersion:0,Payload:JSON.stringify({d:"reopened",prev,by:M.profile.name,email:M.profile.email,at:pvNow(),note:reason||"",code:p.code})}}})}catch(e){console.warn("[9D] reopen log",e)}
+ await mSaveTrack({...p,stage:"pending",listApproval:"pending",reopen:{at:pvNow(),by:M.profile.name,email:M.profile.email,reason:reason||"",prev}},[{id:"act-"+pvUid(),actor:M.profile.name,action:"ถอยกลับเป็นรอพิจารณา",note:"จาก "+(prev==="rejected"?"ไม่อนุมัติ":"อนุมัติแล้ว")+(reason?" · เหตุผล: "+reason:"")+(p.channelId?" · Teams Channel เดิมยังอยู่ (อนุมัติใหม่จะใช้ Channel เดิม)":""),createdAt:pvNow()}]);M.cacheAt=0}
+window.dvReopen=async pid=>{if(!mIsEng()){mToast("เฉพาะ Engineer",!0);return}let st=await dvState(),p=st.projects.find(x=>x.id===pid);if(!p)return;let s=mPStat(p);
+ let d=document.createElement("dialog");d.className="dv-dlg sm dv-deld";
+ d.innerHTML=`<form method="dialog"><h2>ถอยกลับเป็น "รอพิจารณา"</h2><p class="dv-dsub"><b>${mEsc(p.code)}</b>${p.name&&p.name!==p.code?" · "+mEsc(p.name):""} · ตอนนี้: ${p.listApproval==="rejected"?"ไม่อนุมัติ":"อนุมัติแล้ว"}${["won","lost","cancelled","delivered"].includes(s)?" · สถานะงาน "+mEsc({won:"WIN",lost:"LOSS",cancelled:"ยกเลิก",delivered:"ส่งงานแล้ว"}[s]):""}</p>
+  <ul class="dv-cap" style="margin:0;padding-left:18px;line-height:1.7"><li>Request Status ใน SharePoint จะว่าง → งานกลับไปอยู่หน้า <b>รออนุมัติ</b></li><li>${p.channelId?"Teams Channel เดิมยังอยู่ — อนุมัติใหม่จะใช้ Channel เดิม (ถ้าจะลบ Channel ใช้ปุ่ม ลบ)":"ยังไม่มี Teams Channel"}</li><li>บันทึกในประวัติการอนุมัติว่าใครถอยกลับ เมื่อไร</li></ul>
+  <label style="display:flex;flex-direction:column;gap:4px;font-size:14px">เหตุผล (ไม่บังคับ)<input name="rs" autocomplete="off" placeholder="เช่น กดอนุมัติผิดงาน" style="font:inherit;font-size:16px;padding:9px 11px;border:1px solid #c9ced6;border-radius:6px"></label>
+  <p class="dv-ferr" role="alert"></p><div class="dv-dbtn"><button type="button" class="dv-btn" data-a="x">ยกเลิก</button><button type="button" class="dv-save" data-a="go">ถอยกลับเป็นรอพิจารณา</button></div></form>`;
+ document.body.appendChild(d);d.addEventListener("close",()=>d.remove());d.querySelector("[data-a=x]").onclick=()=>d.close();let go=d.querySelector("[data-a=go]"),er=d.querySelector(".dv-ferr");
+ go.onclick=async()=>{go.disabled=!0;er.textContent="กำลังบันทึก…";try{await mReopenApproval(p,d.querySelector("[name=rs]").value.trim());d.close();mToast(p.code+" · กลับไปรอพิจารณาแล้ว",!1,{label:"ไปหน้ารออนุมัติ",fn:()=>{let n=[...document.querySelectorAll(".sidebar .nav-item")].find(x=>/รออนุมัติ/.test(x.textContent));DV.page=null;DV.bypass=1;try{n&&n.click()}finally{DV.bypass=0}dvSync()}});DV.stAt=0;dvRender()}catch(e){go.disabled=!1;er.textContent="ไม่สำเร็จ: "+e.message}};d.showModal()};
 /* Project Code ซ้ำ: SharePoint (รายการใน All Projects List) + Teams (ชื่อ Channel ที่ขึ้นต้นด้วยรหัสเดียวกัน) */
 function mDups(st){let sp={},tm={},seen=new Set();for(let p of st.projects){if(!String(p.id).startsWith("sp-")||seen.has(p.id))continue;seen.add(p.id);let c=mCodeClean(p.code);if(c.length>=4)(sp[c]=sp[c]||[]).push(p)}
  for(let r of TS.all||[]){if(r.ignored||!mChanOk(r.channelId,r.teamId))continue;let c=mCodeClean(r.name);if(c.length>=5&&/\d{2}/.test(c))(tm[c]=tm[c]||[]).push(r)}
@@ -2154,7 +2168,7 @@ function mDashRender(){let d=document.getElementById("dash");if(!d||d.style.disp
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.25";
+var M_VER="v16.26";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -2677,4 +2691,5 @@ h1,h2,h3{font-weight:500;letter-spacing:0;color:var(--ink)}
 .ob-pick small{color:#686666;line-height:1.5}
 .ob-pick.on{border-style:solid;border-color:#284397;background:#eef2fb}
 </style>
+<style id="v1626">#dashv .dv-reo{margin-left:12px;border:1px solid #c9d3e6;background:#fff;color:#284397;border-radius:4px;padding:2px 10px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}#dashv .dv-reo:hover,#dashv .dv-reo:focus-visible{background:#eef2fb}</style>
 </body></html>
