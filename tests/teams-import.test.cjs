@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const fs=require('node:fs');
 const path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-const edit=html.slice(html.indexOf('var M_REQ_EDIT='),html.indexOf('/* ===== v16.29 ใบเสนอราคา'));
+const edit=html.slice(html.indexOf('var M_REQ_EDIT='),html.indexOf('/* ===== v16.37 ใบเสนอราคา'));
 const imports=html.slice(html.indexOf('var M_IMPORT='),html.indexOf('window.mOfferTeamImports=mOfferTeamImports;'));
 const keys=html.slice(html.indexOf('var mKey=s=>'),html.indexOf('/* v16.21 เก็บผลซิงค์'));
 const plain=x=>JSON.parse(JSON.stringify(x));
@@ -70,7 +70,7 @@ test('ยังไม่ทราบผล POST ครั้งก่อนห�
  const c=setup();c.trackError=true;await assert.rejects(c.mImportTeamProject(c.input()));c.trackError=false;await assert.rejects(c.mImportTeamProject({...c.input(),code:'OTHER26001'}),e=>e.status===409);c.M.cache.items.length=0;await assert.rejects(c.mImportTeamProject(c.input()),e=>e.status===409&&/ครั้งก่อน/.test(e.message));assert.equal(c.posts().length,1);
 });
 test('Metadata อยู่ใน keep, ข้ามการเพิ่มสมาชิกอัตโนมัติ, และผูกคำถามหลังซิงค์',()=>{
- assert.ok(html.includes('"reqCancel","importSource"]'));assert.ok(html.includes('!T(p).importSource&&(!p.permissionsVerifiedAt'));assert.ok(html.includes('M.cacheAt=0;mScheduleImportOffer()}'));assert.ok(html.includes('if(act==="import_team_project")return J(await mImportTeamProject(b));'));assert.ok(html.includes('onclick="mImportProject(this.dataset.cid)"'));
+ assert.ok(html.includes('"reqCancel","importSource","channelArchive"]'));assert.ok(html.includes('!T(p).importSource&&(!p.permissionsVerifiedAt'));assert.ok(html.includes('M.cacheAt=0;mScheduleImportOffer()}'));assert.ok(html.includes('if(act==="import_team_project")return J(await mImportTeamProject(b));'));assert.ok(html.includes('onclick="mImportProject(this.dataset.cid)"'));
 });
 test('Tracking ยังไม่พร้อม: หยุดก่อนสร้างรายการ',async()=>{
  const c=setup();c.M.tl=null;await assert.rejects(c.mImportTeamProject(c.input()),e=>e.status===409);assert.equal(c.posts().length,0);

@@ -1,7 +1,7 @@
 /* 9D Ops service worker — เปิดแบบแอปได้ / เปิดหน้าล่าสุดได้แม้สัญญาณหลุด
    หน้าเว็บโหลดจากเน็ตก่อนเสมอ (ได้เวอร์ชันใหม่ทันที) · ไม่แตะคำขอไป Microsoft 365 */
-const C="9d-ops-shell-3"; // เปลี่ยนเลขทุกครั้งที่แก้ไอคอน/manifest เพื่อให้เครื่องที่ติดตั้งแล้วโหลดไฟล์ใหม่
-const SHELL=["./","manifest.webmanifest","icon-192.png","icon-512.png","apple-touch-icon.png","favicon-32.png"];
+const C="9d-ops-shell-4"; // v16.37 เก็บโลโก้ PNG โปร่งใสไว้ในแอปด้วย
+const SHELL=["./","manifest.webmanifest","icon-192.png","icon-512.png","apple-touch-icon.png","favicon-32.png","assets/nine-logo.png"];
 const ROOT=new URL("./",self.registration.scope).pathname,isApp=u=>u.pathname===ROOT||u.pathname===ROOT+"index.html";
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(SHELL)).catch(()=>{}))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});

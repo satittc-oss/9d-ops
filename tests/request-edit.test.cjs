@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const fs=require('node:fs');
 const path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-const block=html.slice(html.indexOf('var M_REQ_EDIT='),html.indexOf('/* ===== v16.29 ใบเสนอราคา'));
+const block=html.slice(html.indexOf('var M_REQ_EDIT='),html.indexOf('/* ===== v16.37 ใบเสนอราคา'));
 const project=html.slice(html.indexOf('function mProject('),html.indexOf('function mRole('));
 const plain=x=>JSON.parse(JSON.stringify(x));
 class PvErr extends Error{constructor(message,status=400){super(message);this.status=status}}
