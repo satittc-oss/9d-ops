@@ -1,0 +1,22 @@
+{
+  "name": "9d-sync-worker",
+  "version": "16.41.0",
+  "private": true,
+  "description": "SharePoint and Teams sync runner for the 9D workspace",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node worker.cjs --config ./config.local.json",
+    "login": "node worker.cjs --config ./config.local.json --login",
+    "once": "node worker.cjs --config ./config.local.json --once --apply"
+  },
+  "dependencies": {
+    "@azure/msal-node": "7.0.1",
+    "@azure/msal-node-extensions": "5.5.2"
+  },
+  "allowScripts": {
+    "keytar@7.9.0": true,
+    "@azure/msal-node-extensions@5.5.2": true
+  }
+}

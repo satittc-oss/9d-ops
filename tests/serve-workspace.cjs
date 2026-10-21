@@ -5,6 +5,7 @@ function page(html,count,baseline,role='admin',people=120,orphans=2){
  const match=html.match(/new MutationObserver\([\s\S]*?\)\.observe\(document\.getElementById\("root"\),\{childList:!0,subtree:!0\}\);/);
  if(!match)throw Error('UI observer not found');
  html=html.replace(/clientId:"[0-9a-f-]{36}"/,'clientId:"11111111-1111-1111-1111-111111111111"').replace(/<link[^>]+href="https:\/\/fonts\.googleapis\.com[^"\n]*"[^>]*>/g,'');
+ if(!baseline)html=html.replace('<script src="sync-m365.js?v=16.41"></script>','<script src="sync-m365.js?v=16.41"></script><script src="tests/sync-fixture.js"></script>');
  const hook=`
 // ข้อมูลสมมติใช้ตรวจความเสถียรหน้าจอ ไม่มีสิทธิ์เขียนข้อมูลจริง
 const UI_TEST={reads:0,stateCalls:0,renders:0,observers:0,delay:180,extraDelay:80,quoteDelay:2000};window.__uiTest=UI_TEST;
@@ -31,6 +32,14 @@ mSpUserId=async()=>11;mSaveSettings=async(settings,guard={})=>{if(guard.etag&&gu
 mSaveTrack=async p=>{let t=uiTracking.find(x=>x.fields.ProjectItemId===Number(p.listItemId)),track=JSON.parse(t.fields.Payload);track.channelArchive=p.channelArchive;t.fields.Payload=JSON.stringify(track);M.cache.track[Number(p.listItemId)].channelArchive=p.channelArchive};
 TS.at=new Date().toISOString();TS.channels={};TS.all=Array.from({length:28},(_,i)=>{let days=Object.fromEntries([9,19,6,2,37,34,5].map((v,j)=>[dvDay(uiNow-(6-j)*864e5),Math.max(0,Math.round(v*(i%5+1)/28))]));let r={pid:'sp-'+(i+1),channelId:'channel-'+(i+1),teamId:'mock-team',name:'DEMO26'+(i+1)+'_งานตัวอย่าง',teamName:'ทีมขาย '+(i%4+1),url:'https://example.invalid/teams/'+(i+1),days,last:uiDate(i%10),lastBy:'ฝ่ายขายตัวอย่าง',lastMent:['@ทั้ง Channel'],eng:{[Hd[i%3]]:{days}},recent:[{id:'m'+i,text:'ข้อความจำลองประสานงานโครงการ',at:uiDate(i%10),by:'ผู้ใช้ตัวอย่าง'}]};TS.channels[r.pid]=r;return r});
 TS.extra=Array.from({length:${orphans}},(_,i)=>({pid:'teams-extra-'+(i+1),teamId:'mock-team',channelId:'orphan-'+(i+1),name:i===0?'DEMO27001_งานจาก Teams เดิม':i===1?'งานออกแบบระบบตัวอย่าง':'DEMO27'+String(i+1).padStart(3,'0')+'_งานตัวอย่าง',teamName:i%2?'ทีมวิศวกรตัวอย่าง':'ทีมขายตัวอย่าง',url:'https://example.invalid/teams/orphan-'+(i+1),days:{},eng:{}}));TS.all.push(...TS.extra);TS.live=TS.all.map(r=>r.channelId);mTeamsSync=async()=>{TS.at=new Date().toISOString();UI_TEST.syncs=(UI_TEST.syncs||0)+1;if(typeof mApprovalImportsInject==='function')mApprovalImportsInject();return TS};
+${baseline?'':`
+// ตัว adapter/queue จริงทำงานกับ transport จำลองนี้เท่านั้น
+const uiFixture=NineSyncFixture.create({profile:M.profile,role:M.role,columns:M.cols,projects:uiItems,tracking:uiTracking,settings:uiSettings,config:boConfig(),now:()=>Date.now()});
+uiItems.splice(0,uiItems.length,...uiFixture.lists.projects);uiTracking[0].fields.Payload=uiFixture.lists.tracking[0].fields.Payload;uiSettings=JSON.parse(uiTracking[0].fields.Payload);
+boClient=()=>uiFixture.client;
+const uiOldAll=gAll;gAll=async url=>url.includes('/lists/directory/items')?uiFixture.lists.directory:uiOldAll(url);
+const uiSaveSettings=mSaveSettings;mSaveSettings=async(...args)=>{await uiSaveSettings(...args);uiFixture.lists.tracking[0].fields.Payload=uiTracking[0].fields.Payload};
+`}
 const uiOriginalState=mState;mState=async(...args)=>{UI_TEST.stateCalls++;return uiOriginalState(...args)};
 const uiOriginalRender=dvRender;dvRender=async(...args)=>{UI_TEST.renders++;return uiOriginalRender(...args)};
 const uiExtra=async()=>{await new Promise(r=>setTimeout(r,UI_TEST.extraDelay));return[]};mLoans=uiExtra;mSvcItems=uiExtra;mCerts=uiExtra;
@@ -38,7 +47,7 @@ const originalQuotes=mQuotes;mQuotes=async(...args)=>{await new Promise(r=>setTi
 PV.projects=[];PV.activities=[];PV.accounts=[];PV.session={userId:'mock-ui',name:M.profile.name,email:M.profile.email,role:'${role}'};PV_PROFILE.name=M.profile.name;PV_PROFILE.email=M.profile.email;
 window.__uiTestState=async()=>({page:DV.page,readQueue:!!M.loadPending,renderBusy:DV.busy,active:[...document.querySelectorAll('.sidebar .nav-item.active')].map(x=>x.textContent.trim()),stateCalls:UI_TEST.stateCalls,reads:UI_TEST.reads,renders:UI_TEST.renders});
 const uiMO=window.MutationObserver;window.MutationObserver=class extends uiMO{constructor(fn){super((records,observer)=>{UI_TEST.observers++;fn(records,observer)})}};
-async function uiStart(){await mLoad(true);document.getElementById('gate').style.display='none';const bar=document.querySelector('.offline-notice');bar.textContent='ข้อมูลจำลองสำหรับทดสอบ UI · ${baseline?'ก่อนแก้ v16.34':'v16.40 ปรับคำและกรองผู้รับผิดชอบ'} · ไม่เชื่อมระบบบริษัท';bar.style.display='block';
+async function uiStart(){${baseline?'':`if(M.role==='admin'){uiFixture.faults.teams403=true;let req=await boClient().request('sp-2','edit',{name:'โครงการปรับปรุงเครือข่าย',due:'2026-11-05',nextAction:'ตรวจแบบและยืนยันรายการ'}),q=await boClient().engine.enqueue(req);await boClient().engine.process(q.id);uiFixture.faults.teams403=false;await boClient().engine.enqueue(await boClient().request('sp-3','step',{value:'price'}));}`}await mLoad(true);document.getElementById('gate').style.display='none';const bar=document.querySelector('.offline-notice');bar.textContent='ข้อมูลจำลองสำหรับทดสอบ UI · ${baseline?'ก่อนแก้ v16.34':'v16.41 หลังบ้านและซิงก์ · ข้อมูลจำลอง'} · ไม่เชื่อมระบบบริษัท';bar.style.display='block';
  (0,og.createRoot)(document.getElementById('root')).render((0,sg.jsx)(Xi,{}));
  ${match[0]}
  setTimeout(()=>{mNavInject();dvSync()},100);
