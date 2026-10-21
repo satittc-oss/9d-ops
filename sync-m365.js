@@ -45,6 +45,42 @@
     quote: { label: "ส่งราคาแล้ว", who: "ลูกค้า", days: 14 },
     cust: { label: "รอลูกค้า", who: "ลูกค้า", days: 14 },
   };
+  // v16.42 ชื่อขั้นตอน/ผู้รับผิดชอบที่แสดง = ค่ากลางจาก uiConfig.status.cards (Admin เผยแพร่)
+  // ใช้ชุดเดียวกับหน้าเว็บ; รหัสสถานะ/กฎ/การอ่านคำสั่งยังมาจาก STATUS/STEPS เสมอ ไม่เปลี่ยนตามข้อความที่กรอก
+  function cardView(data) {
+    let step = {},
+      status = {};
+    for (let [k, v] of Object.entries(STEPS))
+      step[k] = { label: v.label, who: v.who };
+    for (let [k, v] of Object.entries(STATUS)) status[k] = v.label;
+    let cards = data && data.uiConfig && data.uiConfig.status;
+    cards = cards && cards.cards;
+    if (cards && typeof cards === "object" && !Array.isArray(cards)) {
+      let str = (x) => (typeof x === "string" && x.length <= 80 ? x : null);
+      for (let k of Object.keys(STEPS)) {
+        let c = cards[k];
+        if (!c || typeof c !== "object" || Array.isArray(c)) continue;
+        let lb = str(c.label);
+        if (lb && lb.trim()) step[k].label = lb;
+        if (c.who !== undefined) {
+          let wh = str(c.who);
+          if (wh !== null) step[k].who = wh;
+        }
+      }
+      let d = cards.delivered;
+      if (d && typeof d === "object" && !Array.isArray(d)) {
+        let lb = str(d.label);
+        if (lb && lb.trim()) status.delivered = lb;
+      }
+    }
+    return {
+      step,
+      status,
+      stepLabel: (k) => (step[k] ? step[k].label : STEPS[k] && STEPS[k].label),
+      stepWho: (k) => (step[k] ? step[k].who : STEPS[k] && STEPS[k].who),
+      statusLabel: (k) => status[k] || (STATUS[k] && STATUS[k].label) || k,
+    };
+  }
   const REQUEST = {
     name: [200],
     client: [200],
@@ -922,6 +958,7 @@
         values = r.values || {},
         a = await ready(),
         w = a.workflow,
+        cards = cardView((await settings()).data),
         c = cfg.columns || {},
         f = {},
         track = {},
@@ -993,7 +1030,8 @@
           add("latest", m.latest);
           add("winLoss", m.result);
           if (c.step && !c.step.readOnly)
-            f[c.step.name] = k === "active" ? STEPS.recv.label : m.label;
+            f[c.step.name] =
+              k === "active" ? cards.stepLabel("recv") : cards.statusLabel(k);
         } else {
           before.step = p.data.sub?.sub || "recv";
           after.step = k;
@@ -1005,7 +1043,9 @@
             msg: r.source?.messageId || "",
           };
           if (c.step && !c.step.readOnly)
-            f[c.step.name] = m.label + " · งานอยู่ที่ " + m.who;
+            f[c.step.name] =
+              cards.stepLabel(k) +
+              (cards.stepWho(k) ? " · งานอยู่ที่ " + cards.stepWho(k) : "");
         }
       }
       if (["edit", "request", "work"].includes(r.kind)) {
@@ -1320,8 +1360,8 @@
         if (c.step && !c.step.readOnly && p.data.sub?.sub)
           f[c.step.name] =
             state && state !== "active"
-              ? STATUS[state].label
-              : STEPS[p.data.sub.sub].label;
+              ? cards.statusLabel(state)
+              : cards.stepLabel(p.data.sub.sub);
         if (c.engineer && !c.engineer.readOnly) {
           let member = (await settings()).data.members.find(
             (m) =>
@@ -1383,7 +1423,7 @@
         track.lastReminder = { key: r.key, at: now() };
         after.reminder =
           "ขั้นตอน " +
-          STEPS[sub].label +
+          cards.stepLabel(sub) +
           " ค้าง " +
           Math.floor((clock() - since) / 864e5) +
           " วัน";
@@ -1414,6 +1454,7 @@
         before,
         after,
         channel,
+        cards,
         intent: { request: r, author: actor.oid },
         note: after.note || after.reminder || "",
         project: {
@@ -1493,7 +1534,8 @@
       let p = plan.project,
         state = p.pstat?.s || "active",
         step = p.sub?.sub,
-        m = STEPS[step],
+        cards = plan.cards || cardView({}),
+        m = step && STEPS[step] ? { label: cards.stepLabel(step) } : null,
         heading = {
           edit: "อัปเดตข้อมูลโครงการ",
           request: "แก้ไขคำขอ",
@@ -1509,7 +1551,7 @@
           directory: "ข้อมูลล่าสุดจากทะเบียน SharePoint",
           reminder: "ติดตามงานเกินเกณฑ์",
         }[plan.kind],
-        html = `<p><b>[9D] ${esc(p.code)} · ${esc(heading)}</b></p><p>${esc(p.name)}${p.client ? " · " + esc(p.client) : ""}</p><p>สถานะ: ${esc(STATUS[state]?.label || state)}${state === "active" && m ? " · " + esc(m.label) : ""}<br>Engineer: ${esc(p.engineer || "ยังไม่ระบุ")}${p.due ? "<br>กำหนดส่ง: " + esc(p.due) : ""}${p.nextAction ? "<br>ทำต่อ: " + esc(p.nextAction) : ""}${p.waitingOn ? "<br>งานอยู่ที่: " + esc(p.waitingOn) : ""}</p>${plan.note ? "<p>" + esc(plan.note) + "</p>" : ""}<p><small>โดย ${esc(plan.actor.name)} · ${esc(plan.source)}<br>9D Sync · ${esc(key)}</small></p>`;
+        html = `<p><b>[9D] ${esc(p.code)} · ${esc(heading)}</b></p><p>${esc(p.name)}${p.client ? " · " + esc(p.client) : ""}</p><p>สถานะ: ${esc(cards.statusLabel(state))}${state === "active" && m ? " · " + esc(m.label) : ""}<br>Engineer: ${esc(p.engineer || "ยังไม่ระบุ")}${p.due ? "<br>กำหนดส่ง: " + esc(p.due) : ""}${p.nextAction ? "<br>ทำต่อ: " + esc(p.nextAction) : ""}${p.waitingOn ? "<br>งานอยู่ที่: " + esc(p.waitingOn) : ""}</p>${plan.note ? "<p>" + esc(plan.note) + "</p>" : ""}<p><small>โดย ${esc(plan.actor.name)} · ${esc(plan.source)}<br>9D Sync · ${esc(key)}</small></p>`;
       return G(
         channelPath(plan.channel) +
           (plan.channel.rootId

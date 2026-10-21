@@ -420,3 +420,32 @@ test("SharePoint source ต้องตรวจบทบาท/เจ้าข�
     "blocked",
   );
 });
+test("v16.42 ชื่อขั้นตอน/ผู้รับผิดชอบที่ Admin เผยแพร่ ใช้ทั้งข้อความ Teams และคอลัมน์ SharePoint โดยไม่เปลี่ยนรหัส", async () => {
+  let f = F.create(),
+    srow = f.lists.tracking.find((r) => r.fields.ProjectItemId === 0),
+    s = JSON.parse(srow.fields.Payload);
+  s.uiConfig = {
+    v: 2,
+    status: {
+      cards: {
+        buy: { label: "ประสานจัดซื้อ (รอราคาทุน)", who: "จัดซื้อ/บัญชี" },
+        price: { label: "x".repeat(200) },
+        cust: { who: 123 },
+      },
+    },
+  };
+  srow.fields.Payload = JSON.stringify(s);
+  let r = await done(f, "step", { value: "buy" });
+  assert.equal(r.job.state, "complete");
+  assert.equal(data(f).sub.sub, "buy");
+  assert.equal(f.lists.projects[0].fields.latest, "In Progress");
+  assert.ok(
+    f.lists.projects[0].fields.step.includes("ประสานจัดซื้อ (รอราคาทุน)"),
+  );
+  assert.ok(f.lists.projects[0].fields.step.includes("จัดซื้อ/บัญชี"));
+  let msg = f.messages.get("channel-1").at(-1).body.content;
+  assert.ok(msg.includes("ประสานจัดซื้อ (รอราคาทุน)"));
+  let r2 = await done(f, "step", { value: "price" });
+  assert.equal(r2.job.state, "complete");
+  assert.ok(f.lists.projects[0].fields.step.includes("รอราคา"));
+});
