@@ -1,0 +1,9 @@
+# Worker credentials and organization configuration stay outside the public repo
+sync-worker/node_modules/
+sync-worker/config.local.json
+sync-worker/*.local.json
+sync-worker/.cache/
+msal-cache*
+.env
+.env.*
+!.env.example

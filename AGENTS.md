@@ -85,3 +85,17 @@
 ## Deploy
 - commit แล้ว push เข้า `main` (หรือเปิด PR ให้เจ้าของ merge) → GitHub Pages อัปเดตเอง · เช็ก https://satittc-oss.github.io/9d-ops/version.json ว่าเป็นเวอร์ชันใหม่
 - ก่อนเริ่มงานทุกครั้ง `git pull` — มีหลาย agent/session แก้ repo นี้ อย่าเขียนทับงานของคนอื่น (ถ้า index.html บน main เปลี่ยนระหว่างทำ ให้ merge/ทำ patch ใหม่บนเวอร์ชันล่าสุด)
+
+## ฟีเจอร์ v16.41 · คิวถาวรและหลังบ้านข้อมูล
+- `sync-core.js` และ `sync-m365.js` เป็น UMD ใช้ทั้งเว็บและ `sync-worker/worker.cjs`; ไม่มี build step และอย่าแยกแก้ worker ให้กฎต่างจาก browser. Inline หลักให้เลือกก้อนที่ยาวที่สุด (ไม่อ้าง script index คงที่) เพราะมี external script เพิ่ม
+- อ่าน `docs/DATA-MAPPING.md` / `docs/ADMIN-SYNC.md` ก่อนแก้ sync. Main List เป็นแหล่ง request fields; protected Sync Directory เป็นแหล่ง auxiliary business fields ส่วน settings row 0 เป็นแหล่ง UI/Flow/roles; syncAccess v1 เปิดใช้หลัง Admin กด Setup เท่านั้น
+- ฟิลด์ใหม่ของ Directory ไม่ต้องเพิ่ม Tracking keep เว้นแต่ยังใช้ผ่าน mSaveTrack; native channelArchive/permissions/setup/ไฟล์ยังใช้ Tracking เดิม. ห้าม overlay channelArchive เก่าจาก Directory ทับผล native ล่าสุด
+- Queue own-items, Directory Admin-write + Engineer-read + per-owner item read, settings แถว 0 Admin-write. Runtime setup/role alignment ต้องมี scope preview และ explicit confirmation; ห้ามขยาย Microsoft ACL ระหว่างพัฒนา/เปิดหน้าเฉย ๆ. Main List/ไซต์/ใบเสนอราคาไม่อยู่ใน setup scope นี้
+- อย่าเชื่อ actor/email/receipt ที่ผู้ใช้ใส่ใน JobJson; ใช้ Graph createdBy/lastModifiedBy และ protected settings. Teams ต้อง GET canonical root/reply และ from.user.id + channel binding ก่อนนำคำสั่งมาใช้. Legacy inbox ไม่ใช่ trusted source ในโหมดใหม่
+- ทุก write business command ตรวจ policy/roles/owner อีกครั้ง; Viewer project read-only (Quotation own-author policy เดิมยังคง). Queue state จาก non-Admin ต้องตรวจใหม่; หาก Directory มี applied operation ให้หา message marker ก่อน ห้าม POST ซ้ำ
+- Core มี per-job lease, per-project active intent, eTag/revision, read-back และ audit. แยก uncertain/skipped/N/A จาก complete เสมอ. อย่า reset uncertain เป็น pending เพื่อ retry POST. จบ receipt แล้วต้องซ่อม active cleanup ได้
+- `syncObserved` เทียบ Main, `syncPublished` เทียบ business snapshot; ไม่รวม lease/cursor/heartbeat ใน change detection เพื่อป้องกัน loop. ข้อมูลขัดแย้งต้องไม่เลือกชนะเงียบ ๆ. Binding เปลี่ยนผ่าน Admin dialog ไม่แก้ Directory JSON เพื่อ retarget Teams
+- Worker ใช้ delegated auth แยก Graph/SharePoint audience, encrypted OS credential store เท่านั้น. ห้าม commit config.local.json/cache/node_modules/token หรือพิมพ์ token. ปกติ CLI read-only; --apply เป็นคำสั่งเขียน. การตั้ง Entra/device login/scheduler ผู้ดูแลทำเอง
+- ชุด mock `tests/sync-fixture.js` เรียก Core+M365 adapter จริงแต่ไม่มี network; ห้ามใช้ fixture/hook clientId ปลอมบนเว็บ production. `node --test tests/*.test.cjs` และ preview `node tests/serve-workspace.cjs` ไม่มี Microsoft จริง
+- UI `bo*` เป็นหลังบ้าน, `ws*` เป็นร่าง/เผยแพร่ UI เดิม. การอ่าน/บันทึก settings ใช้ fresh Admin+eTag+GET ยืนยัน แม้ PATCH คืน success. Poll ต้องคง form/cursor ไม่รื้อหน้าขณะพิมพ์
+- ห้าม merge/deploy งาน v16.41 จนเจ้าของอนุมัติ PR นี้โดยตรง (คำสั่ง up ของรุ่นเก่าไม่ใช่การอนุมัติรุ่นนี้)

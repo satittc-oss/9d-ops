@@ -1,6 +1,16 @@
 # 9d-ops
 9D Integrated Operations - Nine Distribution (Microsoft 365 sign-in required)
 
+## v16.41 · หลังบ้านข้อมูล/Flow และคิวซิงก์ SharePoint–Teams
+- ศูนย์ผู้ดูแล 8 ส่วน: ภาพรวม, ข้อมูลโครงการ, คิว, Flow, หน้าเว็บ, ผู้ใช้, การเชื่อมต่อ และประวัติ/สำรอง ใช้ CI ขาว/ดำ/ฟ้า/น้ำเงินและโลโก้ 9D เดิม
+- SharePoint เป็นข้อมูลกลาง แยก protected Directory/Queue ออกจาก UI settings; แก้โครงการมี preview ค่าเดิม/ใหม่ และเปลี่ยน Channel ต้องยืนยันผลกระทบ
+- คิวถาวรแยก receipt SharePoint/Teams, GET ยืนยันก่อน complete, eTag/revision/leases, operation key, audit, retry เฉพาะส่วนที่ค้าง และตรวจ marker เมื่อ Teams POST ไม่ทราบผล
+- รับการแก้ Main/Directory และ hashtag Teams ที่รองรับผ่าน canonical identity/role/owner check; แยก UI label จาก immutable status key. ไม่เชื่อ receipt ที่ผู้ส่งคิวแก้เอง
+- เพิ่ม Node worker ที่ใช้ sync engine เดียวกับเว็บ รันได้เมื่อปิดเบราว์เซอร์ ต้องให้ Admin ตั้ง Entra consent/login/scheduler เอง; default check เป็น read-only และต้อง `--apply` จึงเขียน
+- เพิ่มตัวกรองวันที่ในสถานะ ยอดการ์ดตรงกับคำค้น/ตัวกรอง รายการและบอร์ด; คง focus/คำค้นและขนาดปุ่มกระชับ/มือถือ 44px
+- ทดสอบ mock 182 รายการผ่าน พร้อมตรวจ UI 360/2,000 โครงการและมือถือ; ยังไม่เปลี่ยน Lists/ACL/ข้อมูลจริงหรือเริ่ม worker ในองค์กร รออนุมัติ PR ก่อน merge/deploy
+- [Mapping และ conflict rules](docs/DATA-MAPPING.md) · [ติดตั้ง/การใช้งาน/ข้อจำกัด](docs/ADMIN-SYNC.md) · [หลักฐานทดสอบและภาพหน้าจอ](docs/TESTING-v16.41.md)
+
 ## v16.40 · Admin ปรับหน้าสถานะ / กรอง Engineer และเซลส์
 - หน้าสถานะมีปุ่ม **ปรับแต่งหน้านี้** สำหรับ Admin → ศูนย์ผู้ดูแล / สถานะโครงการ: แก้หัวข้อ คำอธิบาย ชื่อการ์ด และข้อความ “อยู่ที่” พร้อมเลื่อนลำดับภายในกลุ่มระหว่างทำ/หลังส่งงาน มีตัวอย่างในร่างก่อนกดเผยแพร่ให้ทั้งทีม
 - คำและลำดับเป็นการแสดงผลเฉพาะหน้าสถานะ รวมบอร์ดและชื่อขั้นตอนในรายการ รหัสขั้นตอน/การอนุมัติ/แฮชแท็ก Teams และผู้รับผิดชอบจริงยังใช้ข้อมูลเดิม
