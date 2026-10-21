@@ -69,12 +69,25 @@ test('POST หมดเวลาแต่สร้างแล้ว: ค้น�
 test('ยังไม่ทราบผล POST ครั้งก่อนหรือเปลี่ยนเจ้าของ/รหัสระหว่างกู้คืน: ไม่ POST ซ้ำ',async()=>{
  const c=setup();c.trackError=true;await assert.rejects(c.mImportTeamProject(c.input()));c.trackError=false;await assert.rejects(c.mImportTeamProject({...c.input(),code:'OTHER26001'}),e=>e.status===409);c.M.cache.items.length=0;await assert.rejects(c.mImportTeamProject(c.input()),e=>e.status===409&&/ครั้งก่อน/.test(e.message));assert.equal(c.posts().length,1);
 });
-test('Metadata อยู่ใน keep, ข้ามการเพิ่มสมาชิกอัตโนมัติ, และผูกคำถามหลังซิงค์',()=>{
- assert.ok(html.includes('"reqCancel","importSource","channelArchive"]'));assert.ok(html.includes('!T(p).importSource&&(!p.permissionsVerifiedAt'));assert.ok(html.includes('M.cacheAt=0;mScheduleImportOffer()}'));assert.ok(html.includes('if(act==="import_team_project")return J(await mImportTeamProject(b));'));assert.ok(html.includes('onclick="mImportProject(this.dataset.cid)"'));
+test('Metadata อยู่ใน keep, ข้ามการเพิ่มสมาชิกอัตโนมัติ, และอัปเดตปุ่มหลังซิงค์โดยไม่เปิดคำถามเอง',()=>{
+ assert.ok(html.includes('"reqCancel","importSource","channelArchive"]'));assert.ok(html.includes('!T(p).importSource&&(!p.permissionsVerifiedAt'));assert.ok(html.includes('M.cacheAt=0;mApprovalImportsInject()}'));assert.ok(html.includes('if(act==="import_team_project")return J(await mImportTeamProject(b));'));assert.ok(html.includes('onclick="mImportProject(this.dataset.cid)"'));
 });
 test('Tracking ยังไม่พร้อม: หยุดก่อนสร้างรายการ',async()=>{
  const c=setup();c.M.tl=null;await assert.rejects(c.mImportTeamProject(c.input()),e=>e.status===409);assert.equal(c.posts().length,0);
 });
 test('POST สร้างรายการไม่ retry อัตโนมัติ และเก็บหลักฐานเมื่อผล 503 ไม่แน่นอน',async()=>{
  const c=setup();c.postError=503;await assert.rejects(c.mImportTeamProject(c.input()),e=>e.status===503);assert.equal(c.posts().length,1);assert.equal(c.posts()[0].noRetry,true);assert.equal(Object.keys(c.mImportReceipts()).length,1);await assert.rejects(c.mImportTeamProject(c.input()),e=>e.status===409);assert.equal(c.posts().length,1);assert.ok(html.includes('tries<2&&!o.noRetry'));
+});
+
+test('การซิงค์หรือการเรียกโดยไม่มีคำสั่งผู้ใช้ไม่เปิด Popup และไม่อ่าน/เขียนข้อมูล',async()=>{
+ const c=setup();let reads=0;c.mState=async()=>{reads++;throw Error('not expected')};c.document.createElement=()=>{throw Error('no automatic dialog')};for(let force of [undefined,false,{},1])await c.mOfferTeamImports(force);assert.equal(reads,0);assert.equal(c.calls.length,0);assert.ok(!html.includes('mScheduleImportOffer'));assert.ok(html.includes('mApprovalImportsInject();'));
+});
+test('คลิกเปิดสองครั้งระหว่างอ่านข้อมูล ใช้คำขอเดียว และเปิดใหม่ได้เมื่ออ่านล้มเหลว',async()=>{
+ const c=setup();let fail,reads=0;c.mState=()=>{reads++;return new Promise((_,reject)=>fail=reject)};const first=c.mOfferTeamImports(true);await c.mOfferTeamImports(true);assert.equal(reads,1);assert.equal(c.M_IMPORT.prompting,true);fail(new Error('Mock read failed'));await assert.rejects(first,/Mock read failed/);assert.equal(c.M_IMPORT.prompting,false);assert.equal(c.calls.length,0);
+});
+test('ปุ่มนำเข้าไม่เปิดให้ Sales/Viewer และตรวจบทบาทอีกครั้งหลังอ่าน',async()=>{
+ for(let role of ['sales','viewer']){let c=setup();c.M.role=role;c.mState=async()=>{throw Error('must not read')};await c.mOfferTeamImports(true);assert.equal(c.M_IMPORT.prompting,undefined)}let c=setup();c.mState=async()=>{c.M.role='viewer'};await assert.rejects(c.mOfferTeamImports(true),e=>e.status===403);assert.equal(c.M_IMPORT.prompting,false);assert.equal(c.calls.length,0);
+});
+test('ค้นหา Channel/Team/รหัสได้ และคำค้นเป็นข้อความธรรมดา',()=>{
+ const c=setup(),list=[{name:'งานออกแบบอาคาร',teamName:'Design Team',projectCode:'DEMO001'},{name:'งานระบบ',teamName:'ทีมขาย',projectCode:'DEMO002'}];assert.deepEqual(plain(c.mImportFilter(list,' design ')),[list[0]]);assert.deepEqual(plain(c.mImportFilter(list,'อาคาร')),[list[0]]);assert.deepEqual(plain(c.mImportFilter(list,'demo002')),[list[1]]);assert.equal(c.mImportFilter(list,'<script>').length,0);assert.equal(c.mImportFilter(list,'').length,2);
 });

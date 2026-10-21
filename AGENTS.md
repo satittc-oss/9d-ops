@@ -63,6 +63,11 @@
 - จำกัด `uiConfig` 16,000 bytes / settings รวม 62,000 bytes (UTF-8); รายชื่อค้นหาและวาดหน้า 25 คน แต่ยังใช้ที่เก็บ settings เดิม หากต้องรองรับขนาดใหญ่กว่านี้ให้แยกทะเบียนผู้ใช้เป็นงานออกแบบใหม่ ไม่ตัดข้อมูลเดิมเพื่อให้บันทึกผ่าน
 - ปุ่มใหม่ใช้ตัวแปร `--ws-button-height` / `--ws-radius` และชุด class ร่วม; บนมือถือขั้นต่ำ 44px/ช่องกรอก 16px ระวัง `.dv-del` เดิมมี position:absolute ใน media query จึงต้อง scope/reset สำหรับหน้าหรือฟอร์มใหม่
 
+## ฟีเจอร์ v16.39 · รายการจาก Teams แบบกดเปิดเอง
+- ห้ามเปิดหน้าต่างนำเข้า Channel หลังซิงค์อัตโนมัติ `mOfferTeamImports(true)` ใช้เฉพาะจากการกดของผู้ใช้ `mApprovalImportsInject` เพิ่มปุ่มใน `.page-heading .heading-actions` ของหน้ารออนุมัติ และอัปเดตจำนวนอย่างเดียวหลังซิงค์
+- `mImportCandidates` และขั้นตอนตรวจ Channel/กันซ้ำ/ยืนยันสร้างเดิมยังคงใช้ จำกัดทางเข้าด้วย Engineer/Admin ตรวจบทบาทอีกครั้งหลังอ่านและกันคลิกเปิดซ้อนก่อนเริ่มอ่าน
+- ปุ่มนำเข้าเป็นการเปิดดู ยังไม่เขียน SharePoint จนผู้ใช้ยืนยันในฟอร์ม ตัวเลือกรายการค้นหาและแบ่งหน้า 25 รายการ ไม่กรองทิ้งตามชื่อ Channel ที่อาจเป็นชื่อโครงการจริง
+
 ## การทดสอบ (แนะนำ)
 - ชุดทดสอบจำลอง: `node --test tests/*.test.cjs` · ตัวอย่าง UI `node tests/serve-workspace.cjs` (localhost:8771, `?role=admin|engineer|sales|viewer`) ไม่มีการติดต่อ Microsoft จริง
 - การตรวจ UI เพิ่มเติม: ใช้ Playwright เปิด `index.html` ผ่าน `python3 -m http.server` แล้วดัก request ทั้งหมดไป `login.microsoftonline.com`, `graph.microsoft.com`, `*.sharepoint.com` ด้วย mock ที่ตอบข้อมูลปลอม

@@ -137,7 +137,7 @@ test('คำขอวาดหน้าเดียวกันระหว่�
  const r=renderSetup();r.DV.page='status';let calls=0;r.c.dvStatusPage=async()=>{calls++;await r.d.promise};const first=r.c.dvRender();await Promise.all(Array.from({length:10},()=>r.c.dvRender()));assert.equal(calls,1);r.d.resolve();await first;assert.equal(r.timers.length,1);await r.timers[0]();assert.equal(calls,2);
 });
 test('MutationObserver ข้ามการอัปเดตภายใน dashboard และรวมการเปลี่ยน React ต่อเฟรม',()=>{
- const frames=[],runs=[],c=context({requestAnimationFrame:fn=>{frames.push(fn);return frames.length},mNavInject:()=>runs.push('nav'),dvSync:()=>runs.push('sync'),mCodeAuto:()=>runs.push('code'),dvDraftInject:()=>runs.push('draft'),dvWorkspaceSettingsInject:()=>{},wsApplyUi(){}},between('var mUiFrame=','async function boot()'));
+ const frames=[],runs=[],c=context({requestAnimationFrame:fn=>{frames.push(fn);return frames.length},mNavInject:()=>runs.push('nav'),dvSync:()=>runs.push('sync'),mCodeAuto:()=>runs.push('code'),dvDraftInject:()=>runs.push('draft'),dvWorkspaceSettingsInject:()=>{},wsApplyUi(){},mApprovalImportsInject(){}},between('var mUiFrame=','async function boot()'));
  const record=inside=>({target:{nodeType:1,closest:()=>inside?{}:null}});c.mUiSchedule([record(true)]);assert.equal(frames.length,0);for(let i=0;i<20;i++)c.mUiSchedule([record(false)]);assert.equal(frames.length,1);frames[0]();assert.deepEqual(runs,['nav','sync','code','draft']);
 });
 test('เปิดคีย์บอร์ดที่เปลี่ยนเฉพาะความสูงไม่วาดหน้า และแท็บที่ซ่อนไม่ poll หน้าจอ',()=>{
