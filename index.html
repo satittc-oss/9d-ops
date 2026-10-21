@@ -985,10 +985,10 @@ function mInboxMerge(inbox,items,slog,sublog){let since=mT(CFG.statusSince||"202
    else if(sb&&(eng||own))B.push({sub:sb,at:m.at,by:m.by,via:"teams",msg:m.id,root:m.root,inbox:1})}
   if(S.length)slog[pid]=S;if(B.length)sublog[pid]=B}}
 /* เขียนคำสั่งจาก inbox เป็นแถวบันทึกถาวร (inbox เก็บแค่ข้อความล่าสุด) + ตอบใน Thread + อัปเดต All Projects List */
-async function mInboxPersist(st){let n=0;if(!M.tl)return 0;for(let p of st.projects){for(let kind of["s","sub"]){let x=kind==="s"?p.pstat:p.sub,m=x&&(kind==="s"?PSTAT[x.s]:SUBST[x.sub]);if(!x?.inbox||!m)continue;
+async function mInboxPersist(st){let n=0;if(!M.tl)return 0;for(let p of st.projects){for(let kind of["s","sub"]){let x=kind==="s"?p.pstat:p.sub,m=x&&(kind==="s"?PSTAT[x.s]:SUBST[x.sub]);if(!x?.inbox||!m)continue;let lbl=kind==="s"?mPStatName(x.s):mCardName(x.sub).label;
   try{await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:p.code+(kind==="s"?" · สถานะ "+x.s:" · ขั้นตอน "+x.sub),ProjectItemId:-Number(p.listItemId),TrackVersion:0,Payload:JSON.stringify(kind==="s"?{s:x.s,at:x.at,by:x.by,via:"teams",msg:x.msg,prev:x.prev||"",code:p.code,flow:1}:{sub:x.sub,at:x.at,by:x.by,via:"teams",msg:x.msg,code:p.code,flow:1})}}});
-   x.inbox=0;await mSaveTrack(p,[{id:"act-"+pvUid(),actor:x.by,action:(kind==="s"?"สถานะโครงการ: ":"ขั้นตอน: ")+m.t,note:"สั่งจาก Teams Channel (ผ่าน Power Automate)",createdAt:pvNow()}]);
-   if(p.teamId&&p.channelId&&M.teamsOK!==!1){try{await mChanPost(p.teamId,p.channelId,`<p>✅ [9D] บันทึก${kind==="s"?"สถานะ":"ขั้นตอน"} <b>${mEsc(m.t)}</b> ให้ ${mEsc(p.code)} แล้ว (สั่งโดย ${mEsc(x.by)})</p>`,x.root||x.msg)}catch(e){}}
+   x.inbox=0;await mSaveTrack(p,[{id:"act-"+pvUid(),actor:x.by,action:(kind==="s"?"สถานะโครงการ: ":"ขั้นตอน: ")+lbl,note:"สั่งจาก Teams Channel (ผ่าน Power Automate)",createdAt:pvNow()}]);
+   if(p.teamId&&p.channelId&&M.teamsOK!==!1){try{await mChanPost(p.teamId,p.channelId,`<p>✅ [9D] บันทึก${kind==="s"?"สถานะ":"ขั้นตอน"} <b>${mEsc(lbl)}</b> ให้ ${mEsc(p.code)} แล้ว (สั่งโดย ${mEsc(x.by)})</p>`,x.root||x.msg)}catch(e){}}
    try{await mPStatSP(p,{quiet:kind!=="s"})}catch(e){}}catch(e){console.warn("[9D] inbox",e)}if(++n>=10)return n}}return n}
 /* แถว flow-index: Channel ที่ flow ต้องอ่าน (งานที่ยังเปิด และมีความเคลื่อนไหวใน 45 วัน, สูงสุด 40 ห้อง) — เขียนเมื่อรายการเปลี่ยน หรือทุก 24 ชม. */
 async function mFlowIndex(st){if(!M.tl)return;let ch=st.projects.filter(p=>p.teamId&&p.channelId&&p.listApproval==="approved"&&["active","delivered"].includes(mPStat(p))).map(p=>{let r=TS.channels?.[p.id]||(TS.all||[]).find(x=>x.channelId===p.channelId);return{p,last:Math.max(mT(r?.last),mT(p.pstat?.at),mT(p.sub?.at),mT(p.createdAt))}})
@@ -1011,7 +1011,7 @@ async function mOldAudit(onp){let st=await mState(),since=Date.parse(CFG.autoCha
 var mOldTarget=r=>!M.cache?.track?.[Number(r.p.listItemId)]?.reopen&&!["won","lost","cancelled","delivered"].includes(r.s)&&r.ap!=="rejected";
 async function mOldApply(rows,onp){let c=M.cols,me=M.profile.name,n=0,err=0,todo=rows.filter(mOldTarget);
  await mPool(todo,3,async r=>{let p=r.p,f={};try{
-   if(c.approval&&!c.approval.readOnly)f[c.approval.name]=mReqChoice("approved");if(c.latest&&!c.latest.readOnly)f[c.latest.name]=PSTAT.active.latest;if(c.winLoss&&!c.winLoss.readOnly)f[c.winLoss.name]=PSTAT.active.wl;if(c.step&&!c.step.readOnly)f[c.step.name]=SUBST.recv.t;
+   if(c.approval&&!c.approval.readOnly)f[c.approval.name]=mReqChoice("approved");if(c.latest&&!c.latest.readOnly)f[c.latest.name]=PSTAT.active.latest;if(c.winLoss&&!c.winLoss.readOnly)f[c.winLoss.name]=PSTAT.active.wl;if(c.step&&!c.step.readOnly)f[c.step.name]=mCardName("recv").label;
    await G(`/sites/${M.sid}/lists/${M.lid}/items/${p.listItemId}/fields`,{method:"PATCH",json:f});
    if(!r.hasLog&&M.tl)await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:p.code+" · อนุมัติ (ย้อนหลัง)",ProjectItemId:-Number(p.listItemId),TrackVersion:0,Payload:JSON.stringify({d:"approved",at:r.at||p.createdAt||pvNow(),by:r.by||me,note:(r.by?"ย้อนหลังจากประวัติ SharePoint ("+r.how+")":"ไม่พบผู้อนุมัติในประวัติ — ตั้งย้อนหลังโดย "+me)+" · งานเก่าตั้งเป็น อนุมัติแล้ว · กำลังดำเนินการ",code:p.code,via:"backfill"})}}});
    n++}catch(e){err++;r.err=e.message}onp&&onp(n+err,todo.length)});
@@ -1019,6 +1019,9 @@ async function mOldApply(rows,onp){let c=M.cols,me=M.profile.name,n=0,err=0,todo
 /* สีขั้นตอนตาม CI (ชุดสีรอง) */
 var SUBORD=["recv","design","buy","sup","price","sales","quote","cust"];
 var STEPCOL={recv:"#005CB9",design:"#272BA7",buy:"#00A9B4",sup:"#6A1499",price:"#FF8000",sales:"#BC1A8C",quote:"#00B259",cust:"#FFC012",delivered:"#00ADEF",closed:"#000000"};
+/* v16.42 ชื่อขั้นตอน/ผู้รับผิดชอบที่แสดง = ค่ากลางจาก uiConfig.status (Admin เผยแพร่) — ใช้ชุดเดียวกันทั้งหน้าเว็บ คอลัมน์ SharePoint และข้อความ Teams ที่ส่งใหม่ รหัส/กฎยังมาจาก SUBST/PSTAT เสมอ */
+function mCardName(k){let c=wsUi().status.cards[k];if(c)return{label:c.label,who:c.who||""};if(SUBST[k])return{label:SUBST[k].t,who:SUBST[k].who||""};return{label:PSTAT[k]?.t||k,who:""}}
+var mPStatName=s=>s==="delivered"?mCardName("delivered").label:(PSTAT[s]?.t||s);
 var mApprovedAt=p=>{let a=(M.alog?.[p.listItemId]||[]).filter(x=>x.d==="approved").sort((x,y)=>mT(x.at)-mT(y.at)).pop();return a?.at||p.createdAt||""};
 function mSubOf(p){if(!p||mPStat(p)!=="active")return null;let x=p.sub,m=x&&SUBST[x.sub],base=Math.max(mT(p.pstat?.at),mT(mApprovedAt(p)));
  if(!m||mT(x.at)<=mT(p.pstat?.at||0))x={sub:"recv",at:new Date(base||Date.now()).toISOString(),by:"",dflt:1},m=SUBST.recv;
@@ -1028,21 +1031,21 @@ async function mSetSub(pid,k,o={}){let m=SUBST[k];if(!m)throw new PvErr("ขั�
  let staff=M.role!=="sales"&&M.role!=="viewer",me=String(M.profile.email||"").toLowerCase(),by=o.by||M.profile.name;
  if(!o.via&&!staff&&p.accountId!=="acc-"+me)throw new PvErr("ตั้งขั้นตอนได้เฉพาะโครงการของตัวเอง",403);
  if(typeof boEnabled==='function'&&boEnabled())return boStatus(pid,k,"step",o);
- let cur=mSubOf(p);if(cur&&cur.sub===k&&!o.via)return{p,same:!0,note:"อยู่ขั้นตอน "+m.t+" อยู่แล้ว"};
+ let cur=mSubOf(p);if(cur&&cur.sub===k&&!o.via)return{p,same:!0,note:"อยู่ขั้นตอน "+mCardName(k).label+" อยู่แล้ว"};
  if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
  let row={sub:k,at:o.at||pvNow(),by,via:o.via||"web",msg:o.msg||"",prev:cur?.sub||"",code:p.code};
  await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:p.code+" · ขั้นตอน "+k,ProjectItemId:-Number(p.listItemId),TrackVersion:0,Payload:JSON.stringify(row)}}});
- await mSaveTrack(p,[{id:"act-"+pvUid(),actor:by,action:"ขั้นตอน: "+m.t,note:(o.via==="teams"?"สั่งจาก Teams Channel":"ผ่านเว็บ")+" · งานอยู่ที่ "+m.who+(cur?" · เดิม: "+cur.m.t:""),createdAt:pvNow()}]);
+ let cn=mCardName(k);await mSaveTrack(p,[{id:"act-"+pvUid(),actor:by,action:"ขั้นตอน: "+cn.label,note:(o.via==="teams"?"สั่งจาก Teams Channel":"ผ่านเว็บ")+(cn.who?" · งานอยู่ที่ "+cn.who:"")+(cur?" · เดิม: "+mCardName(cur.sub).label:""),createdAt:pvNow()}]);
  let notes=[],ch=o.ch||(p.teamId&&p.channelId?{teamId:p.teamId,channelId:p.channelId}:null);p.sub={...row};
  if(staff&&M.cols.step){try{await mPStatSP(p,{quiet:1});notes.push("บันทึกใน All Projects List แล้ว")}catch(e){}}
- if(ch&&M.teamsOK!==!1){try{let h=`<p>✅ [9D] บันทึกขั้นตอน <b>${mEsc(m.t)}</b> ให้ ${mEsc(p.code)} แล้ว (งานอยู่ที่ ${mEsc(m.who)} · โดย ${mEsc(by)})</p><p><small>ถ้าเกิน ${m.warn} วันระบบจะเตือนในนี้</small></p>`;
-  if(o.msg)await mChanPost(ch.teamId,ch.channelId,h,o.root||o.msg);else await mChanPost(ch.teamId,ch.channelId,`<p><b>[9D] ${mEsc(p.code)} · ขั้นตอน: ${mEsc(m.t)}</b></p><p>งานอยู่ที่ ${mEsc(m.who)} · โดย ${mEsc(by)} ผ่าน 9D Integrated Operations</p>`);notes.push("แจ้งใน Channel แล้ว")}catch(e){notes.push("โพสต์ใน Channel ไม่สำเร็จ")}}
+ if(ch&&M.teamsOK!==!1){try{let h=`<p>✅ [9D] บันทึกขั้นตอน <b>${mEsc(cn.label)}</b> ให้ ${mEsc(p.code)} แล้ว (${cn.who?"งานอยู่ที่ "+mEsc(cn.who)+" · ":""}โดย ${mEsc(by)})</p><p><small>ถ้าเกิน ${m.warn} วันระบบจะเตือนในนี้</small></p>`;
+  if(o.msg)await mChanPost(ch.teamId,ch.channelId,h,o.root||o.msg);else await mChanPost(ch.teamId,ch.channelId,`<p><b>[9D] ${mEsc(p.code)} · ขั้นตอน: ${mEsc(cn.label)}</b></p><p>${cn.who?"งานอยู่ที่ "+mEsc(cn.who)+" · ":""}โดย ${mEsc(by)} ผ่าน 9D Integrated Operations</p>`);notes.push("แจ้งใน Channel แล้ว")}catch(e){notes.push("โพสต์ในChannel ไม่สำเร็จ")}}
  M.cacheAt=0;return{p,note:notes.join(" · ")}}
 /* v16.3: แก้รายการใน List ทำให้ "Approval status" เดิม (Lists Approvals) ถูกรีเซ็ตเป็น 0 → งานที่อนุมัติไปแล้วเด้งกลับมารออนุมัติ
    จึงใส่ Request Status = Approved ไปพร้อมกันทุกครั้งที่เขียนรายการที่อนุมัติแล้วแต่ Request Status ยังว่าง */
 var mKeepApproved=(p,f)=>{let c=M.cols.approval;if(c&&!c.readOnly&&p.listApproval==="approved"&&!/^approv/i.test(p.listReqStatus||""))f[c.name]=mReqChoice("approved");return f};
 /* v16.17 คอลัมน์ "ขั้นตอนงาน (9D)" ใน All Projects List — ข้อความเดียวกับหน้าสถานะ (ไม่มีจำนวนวัน จะได้ไม่ต้องเขียนทุกวัน) */
-function mStepText(p){let s=mPStat(p);if(s==="active"){let sb=mSubOf(p);return sb.dflt?SUBST.recv.t:sb.m.t+" · งานอยู่ที่ "+sb.m.who+" · ตั้งแต่ "+new Date(mT(sb.at)+252e5).toISOString().slice(0,10)+(sb.by?" ("+sb.by+")":"")}return PSTAT[s]?.t||""}
+function mStepText(p){let s=mPStat(p);if(s==="active"){let sb=mSubOf(p),cn=mCardName(sb.sub);return sb.dflt?mCardName("recv").label:cn.label+(cn.who?" · งานอยู่ที่ "+cn.who:"")+" · ตั้งแต่ "+new Date(mT(sb.at)+252e5).toISOString().slice(0,10)+(sb.by?" ("+sb.by+")":"")}return mPStatName(s)}
 async function mStepCol(){if(M.cols.step||M.stepTry||!(M.role==="admin"||M.isApprover))return;M.stepTry=1;
  try{let c=await G(`/sites/${M.sid}/lists/${M.lid}/columns`,{method:"POST",json:{name:"NineDStep",displayName:"ขั้นตอนงาน (9D)",description:"ขั้นตอนงานจาก #แฮชแท็กใน Teams หรือหน้าสถานะโครงการ — เขียนโดย 9D Integrated Operations",text:{}}});M.cols.step={name:c?.name||"NineDStep",type:"text",readOnly:!1};
   try{await SP(`/web/lists(guid'${M.lid}')/DefaultView/ViewFields/addViewField('${M.cols.step.name}')`,{method:"POST"})}catch(e){}M.cacheAt=0}catch(e){M.stepErr=e.message;console.warn("[9D] step column",e)}}
@@ -1062,8 +1065,8 @@ async function mSetPStat(pid,s,o={}){if(!PSTAT[s])throw new PvErr("สถาน�
  let notes=[];if(staff){try{await mPStatSP(p);notes.push("บันทึกใน All Projects List แล้ว")}catch(e){notes.push("ยังเขียน All Projects List ไม่ได้ ("+e.message+") — ระบบจะลองใหม่")}}else notes.push("Engineer จะอัปเดต All Projects List ให้อัตโนมัติ");
  let ch=o.ch||(p.teamId&&p.channelId?{teamId:p.teamId,channelId:p.channelId}:null);
  if(ch&&M.teamsOK!==!1){try{let hint=s==="delivered"?"<p>เซลส์แจ้งผลลูกค้าในนี้ได้เลย: พิมพ์ <b>#win</b> · <b>#loss</b> · <b>#ยกเลิก</b> — ถ้าลูกค้าขอเพิ่ม Engineer พิมพ์ <b>#เปิดงานใหม่</b></p>":"";
-  if(o.msg)await mChanPost(ch.teamId,ch.channelId,`<p>✅ [9D] บันทึกสถานะ <b>${mEsc(PSTAT[s].t)}</b> ให้ ${mEsc(p.code)} แล้ว (สั่งโดย ${mEsc(by)})</p>${hint}`,o.root||o.msg);
-  else await mChanPost(ch.teamId,ch.channelId,`<p><b>[9D] ${mEsc(p.code)} · สถานะ: ${mEsc(PSTAT[s].t)}</b></p><p>โดย ${mEsc(by)} ผ่าน 9D Integrated Operations</p>${hint}`);notes.push("แจ้งใน Channel แล้ว")}catch(e){notes.push("โพสต์ใน Channel ไม่สำเร็จ")}}
+  if(o.msg)await mChanPost(ch.teamId,ch.channelId,`<p>✅ [9D] บันทึกสถานะ <b>${mEsc(mPStatName(s))}</b> ให้ ${mEsc(p.code)} แล้ว (สั่งโดย ${mEsc(by)})</p>${hint}`,o.root||o.msg);
+  else await mChanPost(ch.teamId,ch.channelId,`<p><b>[9D] ${mEsc(p.code)} · สถานะ: ${mEsc(mPStatName(s))}</b></p><p>โดย ${mEsc(by)} ผ่าน 9D Integrated Operations</p>${hint}`);notes.push("แจ้งใน Channel แล้ว")}catch(e){notes.push("โพสต์ใน Channel ไม่สำเร็จ")}}
  M.cacheAt=0;return{p,note:notes.join(" · ")}}
 /* Engineer เปิดเว็บ (หลังซิงค์ Teams): 1) ทำตามคำสั่ง # ใน Channel 2) ทำให้ All Projects List ตรงกับสถานะ 3) เตือนเซลส์เมื่อรอลูกค้าเงียบเกิน 60 วัน */
 async function mStatusAuto(){if(typeof boEnabled==='function'&&boEnabled())return boAuto();if(M.role==="sales"||M.role==="viewer"||!TS.at||M.statusBusy)return;M.statusBusy=!0;try{await mLoad(!0);let st=await mState();
@@ -1085,8 +1088,8 @@ async function mStatusAuto(){if(typeof boEnabled==='function'&&boEnabled())retur
   try{await mSetSub(p.id,c.sub,{via:"teams",by:c.by,msg:c.id,root:c.root,at:c.at,ch:{teamId:r.teamId,channelId:r.channelId}});await mLoad(!0);st=await mState();byId=Object.fromEntries(st.projects.map(p=>[p.id,p]))}catch(e){console.warn("[9D] sub cmd",e)}if(++n>=10)break}
  /* เตือนครั้งเดียวต่อขั้นตอน เมื่อค้างเกินกำหนด */
  n=0;for(let p of st.projects){let sb=mSubOf(p);if(!sb||!sb.over||!p.channelId||!p.teamId||p.subRemind===sb.at)continue;
-  try{await mChanPost(p.teamId,p.channelId,`<p><b>[9D] ${mEsc(p.code)} · ${mEsc(sb.m.t)} มา ${sb.days} วัน</b> (งานอยู่ที่ ${mEsc(sb.m.who)})</p><p>มีความคืบหน้าไหมครับ? อัปเดตในนี้ได้เลย เช่น <b>#ทำBOM</b> · <b>#รอซัพ</b> · <b>#รอราคา</b> · <b>#ส่งราคา</b> · <b>#รอลูกค้า</b> · <b>#ส่งงานแล้ว</b></p>`);
-   p.subRemind=sb.at;await mSaveTrack(p,[{id:"act-"+pvUid(),actor:M.profile.name,action:"เตือนขั้นตอนค้าง",note:sb.m.t+" เกิน "+sb.m.warn+" วัน",createdAt:pvNow()}])}catch(e){console.warn("[9D] sub remind",e)}if(++n>=5)break}
+  let rn=mCardName(sb.sub);try{await mChanPost(p.teamId,p.channelId,`<p><b>[9D] ${mEsc(p.code)} · ${mEsc(rn.label)} มา ${sb.days} วัน</b>${rn.who?" (งานอยู่ที่ "+mEsc(rn.who)+")":""}</p><p>มีความคืบหน้าไหมครับ? อัปเดตในนี้ได้เลย เช่น <b>#ทำBOM</b> · <b>#รอซัพ</b> · <b>#รอราคา</b> · <b>#ส่งราคา</b> · <b>#รอลูกค้า</b> · <b>#ส่งงานแล้ว</b></p>`);
+   p.subRemind=sb.at;await mSaveTrack(p,[{id:"act-"+pvUid(),actor:M.profile.name,action:"เตือนขั้นตอนค้าง",note:rn.label+" เกิน "+sb.m.warn+" วัน",createdAt:pvNow()}])}catch(e){console.warn("[9D] sub remind",e)}if(++n>=5)break}
  n=0;let n2=0;for(let p of st.projects){if(p.listApproval!=="approved"||!String(p.id).startsWith("sp-"))continue;let m=PSTAT[p.pstat?.s],need=!!m&&(p.listLatest!==m.latest||p.listWinLoss!==m.wl),step=!!M.cols.step&&p.listStep!==mStepText(p);
   if(need){try{await mPStatSP(p)}catch(e){}if(++n>=10)break}else if(step&&n2<25){n2++;try{await mPStatSP(p,{quiet:1})}catch(e){}}}
  n=0;for(let p of st.projects){if(p.pstat?.s!=="delivered"||!p.channelId||!p.teamId)continue;let r=TS.channels[p.id]||(TS.all||[]).find(x=>x.channelId===p.channelId),quiet=[p.pstat.at,p.pstat.remindAt,r?.last].filter(Boolean).sort().pop()||p.pstat.at;
@@ -2807,7 +2810,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.41";
+var M_VER="v16.42";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
