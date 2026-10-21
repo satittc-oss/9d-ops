@@ -55,7 +55,7 @@
 
 ## ฟีเจอร์ v16.38 · ศูนย์ผู้ดูแล
 - `ws*` เป็นชุดฟังก์ชันหน้าตั้งค่า Admin ในสโคปเดิม; `WS_ADMIN` เก็บร่างในหน่วยความจำ ส่วนค่ากลางอยู่ใน settings แถวเดิม (`ProjectItemId=0`)
-- `uiConfig` schema 1 เก็บ theme/pages/actions/custom; `sidebarOrder` ยังเป็นฟิลด์เดิมและรวม custom page ด้วย อย่าใส่ Admin ใน catalog จัดลำดับ เพราะต้องอยู่ใต้ Management และอาจเกิด DOM reorder วนซ้ำ
+- `uiConfig` schema 2 ตั้งแต่ v16.40 เก็บ theme/pages/actions/custom/status และอ่าน schema 1 เดิมได้; `sidebarOrder` ยังเป็นฟิลด์เดิมและรวม custom page ด้วย อย่าใส่ Admin ใน catalog จัดลำดับ เพราะต้องอยู่ใต้ Management และอาจเกิด DOM reorder วนซ้ำ
 - `wsValidateUi` รับเฉพาะรูปแบบที่รู้จัก: ข้อความธรรมดา, HTTPS ไม่มี user/password, custom สูงสุด 12 หน้า/6 ลิงก์ต่อหน้า; ห้ามเพิ่ม raw HTML/JavaScript/CSS จากค่าที่ผู้ใช้กรอก
 - `wsPageAllowed`/ปุ่มที่ซ่อนใช้ควบคุมหน้าจอ ไม่ใช่ ACL ของ Microsoft และต้องคงข้อจำกัดเดิมของยืมสินค้า/งานเซอร์วิส ภาพรวม/ทางเข้า Admin/คำสั่งบันทึกและยกเลิกต้องเข้าถึงได้เสมอ
 - การเขียนจากแผง Admin ใช้ `wsSettingsEdit`: ตรวจ Admin จาก settings ล่าสุด, คิวงาน/Web Locks, eTag `If-Match` ผ่าน `mSaveSettings(s,{etag})`, ไม่ retry PATCH ที่ไม่ทราบผล และอ่านยืนยันก่อนรายงานว่าสำเร็จ; `wsPublish` ตรวจ fingerprint ของ UI+order เพื่อกันร่างเก่าทับฉบับใหม่ โดยคงสมาชิก/ค่าระบบที่เพิ่งแก้
@@ -67,6 +67,14 @@
 - ห้ามเปิดหน้าต่างนำเข้า Channel หลังซิงค์อัตโนมัติ `mOfferTeamImports(true)` ใช้เฉพาะจากการกดของผู้ใช้ `mApprovalImportsInject` เพิ่มปุ่มใน `.page-heading .heading-actions` ของหน้ารออนุมัติ และอัปเดตจำนวนอย่างเดียวหลังซิงค์
 - `mImportCandidates` และขั้นตอนตรวจ Channel/กันซ้ำ/ยืนยันสร้างเดิมยังคงใช้ จำกัดทางเข้าด้วย Engineer/Admin ตรวจบทบาทอีกครั้งหลังอ่านและกันคลิกเปิดซ้อนก่อนเริ่มอ่าน
 - ปุ่มนำเข้าเป็นการเปิดดู ยังไม่เขียน SharePoint จนผู้ใช้ยืนยันในฟอร์ม ตัวเลือกรายการค้นหาและแบ่งหน้า 25 รายการ ไม่กรองทิ้งตามชื่อ Channel ที่อาจเป็นชื่อโครงการจริง
+
+## ฟีเจอร์ v16.40 · ตั้งค่าหน้าสถานะและตัวกรองผู้รับผิดชอบ
+- `wsDefaultStatus` / `wsValidateStatus` เก็บคำและลำดับการ์ดใน `uiConfig.status` (schema 2); นำเข้ารุ่น 1 จะเติมค่าเริ่มต้น ห้ามเปลี่ยน `SUBST` / `SUBORD` / `PSTAT` ตามข้อความที่ Admin กรอก เพราะยังใช้เขียนสถานะจริงและอ่านคำสั่ง Teams
+- ลำดับต้องมีครบทุก key ภายในกลุ่มเดิม: 8 ขั้นตอน active และ delivered/closed; ไม่รองรับการเพิ่ม/ลบสถานะจริงจากหน้า Admin คำที่กรอกเป็น plain text และ escape ก่อนแสดงเสมอ
+- ใช้ร่าง/เผยแพร่/backup/eTag/fingerprint ชุดเดียวกับ Admin เดิม และปฏิเสธ schema รุ่นใหม่ที่ยังไม่รู้จัก เพื่อไม่ให้เว็บเก่าบันทึกทับค่ารุ่นใหม่
+- `dvStatusRows` รับเฉพาะ `st.projects` ที่กรองสิทธิ์จาก `mState` แล้ว; ตัวเลือกชื่อและตัวเลขทั้งหมดต้องมาจากชุดนี้ ห้ามย้อนกลับไปอ่าน `M.cache.items` เพื่อรวมงานที่บัญชีไม่มีสิทธิ์เห็น
+- ตัวกรอง Engineer ใช้ค่าที่กำหนดจริงใน `p.engineer` เทียบชื่อ/อีเมลแบบตรงตัว ไม่เดาจากผู้ตอบ Teams หรือผู้อนุมัติ; ไม่มีค่าให้จัดเป็น “ยังไม่ระบุ Engineer” ส่วน Sales ใช้ `accountId` ของเจ้าของงาน (รวมกรณีคีย์แทน)
+- `DV.se`/`DV.sa` เป็นตัวเลือกชั่วคราวของหน้าจอ ห้ามส่งลง settings ร่วม; ใช้กรองก่อนสรุปยอด/รายการ/บอร์ด แล้วค่อยค้นหาและแบ่งแสดง
 
 ## การทดสอบ (แนะนำ)
 - ชุดทดสอบจำลอง: `node --test tests/*.test.cjs` · ตัวอย่าง UI `node tests/serve-workspace.cjs` (localhost:8771, `?role=admin|engineer|sales|viewer`) ไม่มีการติดต่อ Microsoft จริง
