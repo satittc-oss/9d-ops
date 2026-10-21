@@ -53,6 +53,21 @@
 - `channelArchive` อยู่ใน Tracking keep: ส่ง Archive เฉพาะกดยืนยันในโครงการปิด (WIN/LOSS/ยกเลิก) · 202 ยังไม่สำเร็จ ต้องอ่าน `channel.isArchived` · ห้าม retry POST เมื่อผลไม่แน่นอน
 - Archive ขอ delegated `ChannelSettings.ReadWrite.All` ผ่านปุ่ม consent เท่านั้น และส่ง `shouldSetSpoSiteReadOnlyForMembers:false`
 
+## ฟีเจอร์ v16.38 · ศูนย์ผู้ดูแล
+- `ws*` เป็นชุดฟังก์ชันหน้าตั้งค่า Admin ในสโคปเดิม; `WS_ADMIN` เก็บร่างในหน่วยความจำ ส่วนค่ากลางอยู่ใน settings แถวเดิม (`ProjectItemId=0`)
+- `uiConfig` schema 1 เก็บ theme/pages/actions/custom; `sidebarOrder` ยังเป็นฟิลด์เดิมและรวม custom page ด้วย อย่าใส่ Admin ใน catalog จัดลำดับ เพราะต้องอยู่ใต้ Management และอาจเกิด DOM reorder วนซ้ำ
+- `wsValidateUi` รับเฉพาะรูปแบบที่รู้จัก: ข้อความธรรมดา, HTTPS ไม่มี user/password, custom สูงสุด 12 หน้า/6 ลิงก์ต่อหน้า; ห้ามเพิ่ม raw HTML/JavaScript/CSS จากค่าที่ผู้ใช้กรอก
+- `wsPageAllowed`/ปุ่มที่ซ่อนใช้ควบคุมหน้าจอ ไม่ใช่ ACL ของ Microsoft และต้องคงข้อจำกัดเดิมของยืมสินค้า/งานเซอร์วิส ภาพรวม/ทางเข้า Admin/คำสั่งบันทึกและยกเลิกต้องเข้าถึงได้เสมอ
+- การเขียนจากแผง Admin ใช้ `wsSettingsEdit`: ตรวจ Admin จาก settings ล่าสุด, คิวงาน/Web Locks, eTag `If-Match` ผ่าน `mSaveSettings(s,{etag})`, ไม่ retry PATCH ที่ไม่ทราบผล และอ่านยืนยันก่อนรายงานว่าสำเร็จ; `wsPublish` ตรวจ fingerprint ของ UI+order เพื่อกันร่างเก่าทับฉบับใหม่ โดยคงสมาชิก/ค่าระบบที่เพิ่งแก้
+- `uiPrevious` เก็บหน้าจอก่อนหน้า 1 ฉบับ, `uiAudit` จำกัด 12 รายการ; JSON export/import มีเฉพาะ UI+order ห้ามรวม members/accounts หรือข้อมูลเชื่อมต่อ นำเข้าหรือคืนค่าต้องเป็นร่างก่อนเผยแพร่
+- จำกัด `uiConfig` 16,000 bytes / settings รวม 62,000 bytes (UTF-8); รายชื่อค้นหาและวาดหน้า 25 คน แต่ยังใช้ที่เก็บ settings เดิม หากต้องรองรับขนาดใหญ่กว่านี้ให้แยกทะเบียนผู้ใช้เป็นงานออกแบบใหม่ ไม่ตัดข้อมูลเดิมเพื่อให้บันทึกผ่าน
+- ปุ่มใหม่ใช้ตัวแปร `--ws-button-height` / `--ws-radius` และชุด class ร่วม; บนมือถือขั้นต่ำ 44px/ช่องกรอก 16px ระวัง `.dv-del` เดิมมี position:absolute ใน media query จึงต้อง scope/reset สำหรับหน้าหรือฟอร์มใหม่
+
+## ฟีเจอร์ v16.39 · รายการจาก Teams แบบกดเปิดเอง
+- ห้ามเปิดหน้าต่างนำเข้า Channel หลังซิงค์อัตโนมัติ `mOfferTeamImports(true)` ใช้เฉพาะจากการกดของผู้ใช้ `mApprovalImportsInject` เพิ่มปุ่มใน `.page-heading .heading-actions` ของหน้ารออนุมัติ และอัปเดตจำนวนอย่างเดียวหลังซิงค์
+- `mImportCandidates` และขั้นตอนตรวจ Channel/กันซ้ำ/ยืนยันสร้างเดิมยังคงใช้ จำกัดทางเข้าด้วย Engineer/Admin ตรวจบทบาทอีกครั้งหลังอ่านและกันคลิกเปิดซ้อนก่อนเริ่มอ่าน
+- ปุ่มนำเข้าเป็นการเปิดดู ยังไม่เขียน SharePoint จนผู้ใช้ยืนยันในฟอร์ม ตัวเลือกรายการค้นหาและแบ่งหน้า 25 รายการ ไม่กรองทิ้งตามชื่อ Channel ที่อาจเป็นชื่อโครงการจริง
+
 ## การทดสอบ (แนะนำ)
 - ชุดทดสอบจำลอง: `node --test tests/*.test.cjs` · ตัวอย่าง UI `node tests/serve-workspace.cjs` (localhost:8771, `?role=admin|engineer|sales|viewer`) ไม่มีการติดต่อ Microsoft จริง
 - การตรวจ UI เพิ่มเติม: ใช้ Playwright เปิด `index.html` ผ่าน `python3 -m http.server` แล้วดัก request ทั้งหมดไป `login.microsoftonline.com`, `graph.microsoft.com`, `*.sharepoint.com` ด้วย mock ที่ตอบข้อมูลปลอม
