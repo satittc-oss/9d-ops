@@ -547,13 +547,14 @@ async function mLoadData(){
  let track={},pres={},settings={settings:{},accounts:{},members:[]};
  let ti=await tiP;
  if(ti){
-  let slog={},alog={},sublog={},inbox=[];for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
+  let slog={},alog={},sublog={},inbox=[],wfl=[];for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
    else if(pid===M_PRES){let em=String(pl.email||"").toLowerCase();if(em&&(!pres[em]||mT(pl.at)>=mT(pres[em].at)))pres[em]={...pl,row:t.id}}
-   else if(pid===M_FLOWIX)M.flowIx={...pl,row:t.id};else if(pid===M_INBOX){if(pl.pid)inbox.push({...pl,row:t.id})}
+   else if(pid===M_FLOWIX)M.flowIx={...pl,row:t.id};else if(pid===M_WFLOG)wfl.push({...pl,row:t.id});else if(pid===M_INBOX){if(pl.pid)inbox.push({...pl,row:t.id})}
    else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.sub)(sublog[-pid]=sublog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
    /* v16.25 งานที่ Engineer คีย์แทนเซลส์: นับเป็นของเซลส์ทุกส่วน (Created By ใน SharePoint ยังเป็นชื่อผู้คีย์) */
    for(let it of items){let ob=track[Number(it.id)]?.onBehalf;if(ob?.email&&!it.createdByReal){it.createdByReal=it.createdBy;it.createdBy={user:{email:String(ob.email).toLowerCase(),displayName:ob.name||ob.email}}}}
+   M.wfLog=wfl.sort((a,b)=>mT(b.at)-mT(a.at)).slice(0,100);try{mWfApply(settings)}catch(e){console.warn("[9D] workflow apply",e)}
    if(settings.syncAccess?.v!==1)mInboxMerge(inbox,items,slog,sublog);
    for(let k in slog){slog[k].sort((a,b)=>mT(a.at)-mT(b.at));let last=slog[k][slog[k].length-1],t=track[k]||(track[k]={});let ps={s:last.s,at:last.at,by:last.by,via:last.via,msg:last.msg||"",prev:last.prev,...(last.inbox?{inbox:1,root:last.root}:{})};t.pstat=mPsNewer(t.pstat,ps)}
    /* v16.16: ขั้นตอนย่อย (#รอราคา ฯลฯ) — แถวเพิ่มแบบเดียวกัน ใช้ตัวล่าสุด */
@@ -598,7 +599,7 @@ async function mState(force){let c=await mLoad(force),s=c.settings;M.role=mRole(
  return{syncJobs:jobs,session,accounts:[...Object.values(accMap),],projects:all,activities:acts.slice(0,400),members:own?members.filter(m=>m.role!=="sales"||m.email.toLowerCase()===M.profile.email.toLowerCase()):members,settings:{listUrl:M.listWebUrl,...s.settings},bridgeConfigured:!0,samplePreview:!1,microsoftObservations:obs}}
 /* --- Writes --- */
 async function mSaveTrack(p,acts,syncInfo){if(!M.tl)throw new PvErr(M.trackErr||"ยังไม่มี list ติดตามงาน",409);
- let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr","subRemind","chanGone","onBehalf","reopen","chanClaim","reqCancel","importSource","channelArchive"];
+ let id=Number(p.listItemId),old=M.cache?.track?.[id]||{},keep=["stage","engineer","waitingOn","nextAction","followup","summary","outcome","salesSummary","salesUpdatedAt","closeRequestedAt","closeRequestedBy","deliveredAt","closedAt","channelId","channelUrl","teamId","permissionsVerifiedAt","priority","due","version","updatedAt","autoChanAt","autoChanErr","setupAt","pstat","autoReqDone","autoReqAt","autoReqErr","reqFiles","permFixAt","permErr","permKey","chanFilesAt","chanFilesTry","chanFilesErr","subRemind","chanGone","onBehalf","reopen","chanClaim","reqCancel","importSource","channelArchive","wfDone"];
  if(old.itemId){try{let cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${old.itemId}?$expand=fields($select=Payload)`),fp=JSON.parse(cur.fields?.Payload||"{}");old={...old,...fp,itemId:old.itemId}}catch(e){}}
  /* v16.1: อ่านค่าล่าสุดก่อนเขียน แล้วทับเฉพาะช่องที่ส่งมา — กันข้อมูลเก่าของอีกแท็บ/อีกคนลบสถานะที่เพิ่งบันทึก */
  let pl={};keep.forEach(k=>{if(old[k]!==void 0)pl[k]=old[k];if(p[k]!==void 0)pl[k]=p[k]});pl.pstat=mPsNewer(old.pstat,p.pstat);if(!pl.pstat)delete pl.pstat;pl.activities=[...acts,...(old.activities||[])].slice(0,120);pl.sync=syncInfo||old.sync;
@@ -972,6 +973,7 @@ function mCmd(t){t=String(t||"");if(!t||t.includes("[9D]"))return"";let s=t.toLo
 var SUBST={recv:{t:"รับงานแล้ว · กำลังดำเนินการ",who:"เรา",z:"E",warn:0,dflt:1},design:{t:"ทำ BOM / ออกแบบ",tag:"#ทำBOM",who:"เรา",z:"E",warn:3},sup:{t:"รอซัพพลายเออร์",tag:"#รอซัพ",who:"Supplier",z:"V",warn:7},buy:{t:"ประสานจัดซื้อ",tag:"#รอจัดซื้อ",who:"จัดซื้อ",z:"P",warn:7},price:{t:"รอราคา",tag:"#รอราคา",who:"Supplier / จัดซื้อ",z:"V",warn:7},cust:{t:"รอลูกค้า",tag:"#รอลูกค้า",who:"ลูกค้า",z:"C",warn:14},sales:{t:"รอเซลส์",tag:"#รอเซลส์",who:"Sales",z:"S",warn:7},quote:{t:"ส่งราคาแล้ว",tag:"#ส่งราคา",who:"ลูกค้า",z:"C",warn:14}};
 function mSub(t){t=String(t||"");if(!t||t.includes("[9D]"))return"";let s=t.toLowerCase(),hit=new Set();
  for(let[re,c]of[[/#(ทำbom|bom|ออกแบบ|design)(?![a-z])/,"design"],[/#(รอซัพ|รอsupplier|รอvendor|รอเวนเดอร์)/,"sup"],[/#(รอจัดซื้อ|ประสานจัดซื้อ)/,"buy"],[/#รอราคา/,"price"],[/#รอลูกค้า/,"cust"],[/#(รอเซลส์|รอเซล|รอsales)/,"sales"],[/#(ส่งราคา|เสนอราคา)/,"quote"]])if(re.test(s))hit.add(c);
+ if(typeof WF_ON!=="undefined"&&WF_ON)mWfTagHit(s,hit);
  return hit.size===1?[...hit][0]:""}
 /* v16.17 Power Automate (ทำงานแม้ไม่มีใครเปิดเว็บ): flow อ่านข้อความล่าสุดของ Channel ในแถว flow-index แล้วเขียนแถว inbox (1 แถวต่อ Channel, ProjectItemId = M_INBOX)
    เว็บแปลง #แฮชแท็กจาก inbox ด้วยกติกาเดียวกับการซิงค์ Teams (สิทธิ์: Engineer หรือเซลส์เจ้าของงาน) → ทุกคนเห็นสถานะทันที; Engineer เปิดเว็บเมื่อไรจะเขียนเป็นบันทึกถาวร + ตอบใน Thread */
@@ -1024,8 +1026,9 @@ function mCardName(k){let c=wsUi().status.cards[k];if(c)return{label:c.label,who
 var mPStatName=s=>s==="delivered"?mCardName("delivered").label:(PSTAT[s]?.t||s);
 var mApprovedAt=p=>{let a=(M.alog?.[p.listItemId]||[]).filter(x=>x.d==="approved").sort((x,y)=>mT(x.at)-mT(y.at)).pop();return a?.at||p.createdAt||""};
 function mSubOf(p){if(!p||mPStat(p)!=="active")return null;let x=p.sub,m=x&&SUBST[x.sub],base=Math.max(mT(p.pstat?.at),mT(mApprovedAt(p)));
+ if(m?.hidden){x={...x,sub:"recv",was:x.sub};m=SUBST.recv}
  if(!m||mT(x.at)<=mT(p.pstat?.at||0))x={sub:"recv",at:new Date(base||Date.now()).toISOString(),by:"",dflt:1},m=SUBST.recv;
- let days=Math.floor((Date.now()-mT(x.at))/864e5),warn=M.cache?.settings?.workflowPolicy?.warnDays?.[x.sub]??m.warn;return{...x,m,days,over:warn>0&&days>=warn}}
+ let days=Math.floor((Date.now()-mT(x.at))/864e5),warn=(typeof WF_ON!=="undefined"&&WF_ON)?m.warn:(M.cache?.settings?.workflowPolicy?.warnDays?.[x.sub]??m.warn);return{...x,m,days,over:warn>0&&days>=warn}}
 async function mSetSub(pid,k,o={}){let m=SUBST[k];if(!m)throw new PvErr("ขั้นตอนไม่ถูกต้อง",400);await mLoad(!0);let st=await mState(),p=st.projects.find(x=>x.id===pid);if(!p)throw new PvErr("ไม่พบโครงการ หรือไม่มีสิทธิ์",404);
  if(p.listApproval!=="approved"||mPStat(p)!=="active")throw new PvErr("ตั้งขั้นตอนได้เฉพาะงานที่กำลังทำ",409);
  let staff=M.role!=="sales"&&M.role!=="viewer",me=String(M.profile.email||"").toLowerCase(),by=o.by||M.profile.name;
@@ -1041,6 +1044,156 @@ async function mSetSub(pid,k,o={}){let m=SUBST[k];if(!m)throw new PvErr("ขั�
  if(ch&&M.teamsOK!==!1){try{let h=`<p>✅ [9D] บันทึกขั้นตอน <b>${mEsc(cn.label)}</b> ให้ ${mEsc(p.code)} แล้ว (${cn.who?"งานอยู่ที่ "+mEsc(cn.who)+" · ":""}โดย ${mEsc(by)})</p><p><small>ถ้าเกิน ${m.warn} วันระบบจะเตือนในนี้</small></p>`;
   if(o.msg)await mChanPost(ch.teamId,ch.channelId,h,o.root||o.msg);else await mChanPost(ch.teamId,ch.channelId,`<p><b>[9D] ${mEsc(p.code)} · ขั้นตอน: ${mEsc(cn.label)}</b></p><p>${cn.who?"งานอยู่ที่ "+mEsc(cn.who)+" · ":""}โดย ${mEsc(by)} ผ่าน 9D Integrated Operations</p>`);notes.push("แจ้งใน Channel แล้ว")}catch(e){notes.push("โพสต์ในChannel ไม่สำเร็จ")}}
  M.cacheAt=0;return{p,note:notes.join(" · ")}}
+/* ===== v16.46 ตั้งค่า Workflow (Admin) =====
+   settings.workflow = {v:1, steps:[{k,t,tag,who,z,warn,color}], rules:[{id,name,on,since,trigger:{type,to,step,days},cond:{sales,brand,urgency,type},actions:[{type,...}]}], at, by}
+   - steps แทน SUBST/SUBORD/STEPCOL (แก้ในที่ เพื่อให้โค้ดเดิมทุกจุดอ่านค่าเดียวกัน) · ขั้นตอนที่ลบ = ซ่อน (key เดิมยังอ่านได้ งานเก่าแสดงเป็น "รับงานแล้ว")
+   - กฎทำงานในเว็บ Engineer/Admin ที่เปิดอยู่ (ต่อจาก mStatusAuto) ผ่าน mPvLock · กันทำซ้ำด้วย track.wfDone["<rule>|<event>"] (จองก่อนทำ)
+   - ประวัติ: แถว ProjectItemId = M_WFLOG ใน 9D Project Tracking (1 แถวต่อรอบ) */
+var SUBST0=JSON.parse(JSON.stringify(SUBST)),SUBORD0=[...SUBORD],STEPCOL0={...STEPCOL},M_WFLOG=-9.4e9,WF_ON=!1;
+var WF_Z={E:"ตึก Engineer (เรา)",V:"Supplier",P:"จัดซื้อ",C:"ลูกค้า",S:"Sales"};
+var WF_TRIG={approved:"อนุมัติคำขอ",rejected:"ไม่อนุมัติคำขอ",pstat:"เปลี่ยนสถานะโครงการ",sub:"เปลี่ยนขั้นตอนย่อย",stuck:"ค้างในขั้นตอนเกิน N วัน",new:"มีคำขอใหม่"};
+var WF_ACT={teams:"โพสต์ข้อความใน Teams Channel",sub:"ตั้งขั้นตอนย่อย",assign:"มอบหมาย Engineer",mail:"สร้างร่างอีเมล Outlook",notify:"แจ้งเตือนบนเว็บ"};
+var WF_VARS=["code","name","client","sales","engineer","step","status","days"];
+function mWfDefSteps(){return SUBORD0.map(k=>({k,t:SUBST0[k].t,tag:SUBST0[k].tag||"",who:SUBST0[k].who||"",z:SUBST0[k].z||"E",warn:SUBST0[k].warn||0,color:STEPCOL0[k]||"#005CB9"}))}
+function mWfSteps(s){let w=s?.workflow;return Array.isArray(w?.steps)&&w.steps.length?w.steps:mWfDefSteps()}
+function mWfApply(s){let w=s?.workflow,on=Array.isArray(w?.steps)&&w.steps.length>0;
+ for(let k of Object.keys(SUBST))delete SUBST[k];Object.assign(SUBST,JSON.parse(JSON.stringify(SUBST0)));for(let k of Object.keys(STEPCOL))delete STEPCOL[k];Object.assign(STEPCOL,STEPCOL0);SUBORD.length=0;
+ if(!on){SUBORD.push(...SUBORD0);WF_ON=!1;return}
+ for(let k of SUBORD0)SUBST[k].hidden=1;let seen=new Set();
+ for(let x of w.steps){let k=String(x?.k||"");if(!/^[a-z0-9_]{1,24}$/.test(k)||seen.has(k))continue;seen.add(k);
+  SUBST[k]={t:String(x.t||k).slice(0,80),tag:String(x.tag||"").trim().slice(0,40),who:String(x.who||"").slice(0,60),z:WF_Z[x.z]?x.z:"E",warn:Math.max(0,Math.min(365,Number(x.warn)||0)),...(k==="recv"?{dflt:1}:{})};
+  if(/^#[0-9a-f]{6}$/i.test(x.color||""))STEPCOL[k]=x.color;SUBORD.push(k)}
+ if(!seen.has("recv")){SUBST.recv={...SUBST0.recv};SUBORD.unshift("recv")}WF_ON=!0}
+function mWfTagHit(s,hit){for(let[k,m]of Object.entries(SUBST)){if(m.hidden){hit.delete(k);continue}if(!m.tag)continue;let t=m.tag.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,"\\$&");if(new RegExp(t+"(?![a-z0-9\\u0E00-\\u0E7F])").test(s))hit.add(k)}}
+function mWfFill(t,v){return String(t||"").replace(/\{(\w+)\}/g,(m,k)=>v[k]??m)}
+function mWfSalesEmail(p){return String(p.accountId||"").replace(/^acc-/,"").toLowerCase()}
+function mWfVars(p,st){let acc=(st?.accounts||[]).find(a=>a.id===p.accountId)||{},sb=mSubOf(p);return{code:p.code,name:p.name,client:p.client,sales:acc.name||mWfSalesEmail(p).split("@")[0],engineer:p.engineer||"—",step:sb?mCardName(sb.sub).label:mPStatName(mPStat(p)),status:mPStatName(mPStat(p)),days:sb?String(sb.days):"0"}}
+function mWfCond(r,p){let c=r.cond||{},sr=p.serviceRequest||{},has=(a,v)=>!v||(a||[]).some(x=>String(x).toLowerCase().includes(String(v).toLowerCase().trim()));
+ if(c.sales&&p.accountId!==c.sales)return!1;return has(sr.brands,c.brand)&&has([sr.urgency],c.urgency)&&has(sr.workTypes,c.type)}
+function mWfEvent(r,p){let tg=r.trigger||{},since=mT(r.since||0),sb;
+ switch(tg.type){
+  case"new":return mT(p.createdAt)>=since?"new":"";
+  case"approved":{if(p.listApproval!=="approved")return"";let at=mApprovedAt(p);return mT(at)>=since?"ap:"+at:""}
+  case"rejected":{if(p.listApproval!=="rejected")return"";let a=(M.alog?.[p.listItemId]||[]).filter(x=>x.d==="rejected").pop(),at=a?.at||p.updatedAt;return mT(at)>=since?"rj:"+at:""}
+  case"pstat":{let x=p.pstat;if(p.listApproval!=="approved"||!x?.s||(tg.to&&x.s!==tg.to)||mT(x.at)<since)return"";return"ps:"+x.s+":"+x.at}
+  case"sub":{sb=mSubOf(p);if(!sb||sb.dflt||(tg.step&&sb.sub!==tg.step)||mT(sb.at)<since)return"";return"sb:"+sb.sub+":"+sb.at}
+  case"stuck":{sb=mSubOf(p);let n=Math.max(1,Number(tg.days)||7);if(!sb||(tg.step&&sb.sub!==tg.step)||sb.days<n)return"";return"st:"+sb.sub+":"+sb.at}}return""}
+function mWfDone(p,key){return!!M.cache?.track?.[Number(p.listItemId)]?.wfDone?.[key]}
+function mWfPlan(st,rules){let out=[];for(let r of rules)for(let p of st.projects){if(p.demo||!String(p.id).startsWith("sp-")||!mWfCond(r,p))continue;let sig=mWfEvent(r,p);if(!sig)continue;let key=r.id+"|"+sig;out.push({r,p,key,done:mWfDone(p,key),v:mWfVars(p,st)})}return out}
+function mWfActText(a,v){let e=WF_ACT[a.type]||a.type;if(a.type==="teams")return e+(a.mention&&a.mention!=="none"?" (แท็ก "+({sales:"เซลส์",eng:"Engineer",both:"เซลส์ + Engineer"}[a.mention]||"")+")":"")+": "+mWfFill(a.text,v).slice(0,120);
+ if(a.type==="sub")return e+" → "+(SUBST[a.step]?mCardName(a.step).label:a.step);if(a.type==="assign")return e+" → "+(a.eng||"—");if(a.type==="mail")return e+" ถึง "+({sales:"เซลส์",eng:"Engineer"}[a.to]||a.addr||"—")+": "+mWfFill(a.subject,v);if(a.type==="notify")return e+": "+mWfFill(a.text,v);return e}
+async function mWfDo(a,p,v){let t=a.type;
+ if(t==="teams"){if(!p.channelId||!p.teamId)return"ข้าม Teams (ยังไม่มี Channel)";let ments=[],pre="";
+  if(a.mention&&a.mention!=="none"){let mem=[];try{mem=(await G(`/teams/${p.teamId}/channels/${p.channelId}/members`)).value||[]}catch(e){}
+   let want=[],em=mWfSalesEmail(p),en=mEngName(p.engineer||"");if(a.mention==="sales"||a.mention==="both"){let m=mem.find(x=>(x.email||"").toLowerCase()===em);if(m)want.push(m)}
+   if((a.mention==="eng"||a.mention==="both")&&en){let m=mem.find(x=>mEngName(x.displayName||"")===en);if(m&&!want.includes(m))want.push(m)}
+   want.filter(m=>m.userId).forEach((m,i)=>{ments.push({id:i,mentionText:m.displayName,mentioned:{user:{id:m.userId,displayName:m.displayName,userIdentityType:"aadUser"}}});pre+=`<at id="${i}">${mEsc(m.displayName)}</at> `})}
+  await mChanPost(p.teamId,p.channelId,`<p>${pre}<b>[9D] ${mEsc(p.code)} · ${mEsc(mWfFill(a.title||"แจ้งเตือนอัตโนมัติ",v))}</b></p><p>${mEsc(mWfFill(a.text,v)).replace(/\n/g,"<br>")}</p><p><small>Workflow อัตโนมัติ · 9D Integrated Operations</small></p>`,null,ments);return"โพสต์ Teams แล้ว"+(ments.length?" (แท็ก "+ments.length+" คน)":"")}
+ if(t==="sub"){if(!SUBST[a.step]||SUBST[a.step].hidden)return"ข้าม (ไม่มีขั้นตอนนี้แล้ว)";if(p.listApproval!=="approved"||mPStat(p)!=="active")return"ข้ามตั้งขั้นตอน (ไม่ใช่งานที่กำลังทำ)";if(mSubOf(p)?.sub===a.step)return"อยู่ขั้นตอนนี้แล้ว";
+  await mSetSub(p.id,a.step,{by:M.profile.name+" (Workflow)",via:"workflow"});return"ตั้งขั้นตอน "+mCardName(a.step).label}
+ if(t==="assign"){if(!a.eng)return"ข้าม (ไม่ได้เลือก Engineer)";p.engineer=a.eng;await mSaveTrack(p,[{id:"act-"+pvUid(),actor:M.profile.name,action:"มอบหมาย Engineer: "+a.eng,note:"Workflow อัตโนมัติ",createdAt:pvNow()}]);return"มอบหมาย "+a.eng}
+ if(t==="mail"){let to=a.to==="sales"?mWfSalesEmail(p):a.to==="eng"?(CFG.engineers?.[mEngName(p.engineer||"")]||""):String(a.addr||"");if(!/@/.test(to))return"ข้ามอีเมล (ไม่มีผู้รับ)";
+  try{await mHttp(`${M_GRAPH}/me/messages`,{method:"POST",json:{subject:mWfFill(a.subject,v),body:{contentType:"Text",content:mWfFill(a.text,v)},toRecipients:[{emailAddress:{address:to}}]}},"mailw")}catch(e){if(mNeedConsent(e)||e.status===401||e.status===403)return"✗ ยังไม่ได้ให้สิทธิ์สร้างร่างอีเมล Outlook (Mail.ReadWrite)";throw e}return"สร้างร่างอีเมลใน Outlook แล้ว"}
+ if(t==="notify"){let m=mWfFill(a.text,v);M.wfNotes=[{at:pvNow(),code:p.code,t:m},...(M.wfNotes||[])].slice(0,30);mToast("🔔 "+m);return"แจ้งเตือนบนเว็บ"}
+ return"ข้าม (ไม่รู้จักการกระทำ)"}
+/* จองก่อนทำ: อ่านแถวติดตามล่าสุดจาก SharePoint ถ้าอีกเครื่องจองไปแล้วจะข้าม */
+async function mWfClaim(x){let id=Number(x.p.listItemId),tr=M.cache?.track?.[id]||{},cur=tr.wfDone||{};
+ if(tr.itemId){try{let r=await G(`/sites/${M.sid}/lists/${M.tl}/items/${tr.itemId}?$expand=fields($select=Payload)`);cur=JSON.parse(r.fields?.Payload||"{}").wfDone||{}}catch(e){}}
+ if(cur[x.key])return!1;let done={...cur,[x.key]:pvNow()},ks=Object.keys(done);if(ks.length>80)ks.slice(0,ks.length-80).forEach(k=>delete done[k]);
+ await mSaveTrack({...x.p,wfDone:done},[{id:"act-"+pvUid(),actor:M.profile.name,action:"Workflow: "+x.r.name,note:x.r.actions.map(a=>WF_ACT[a.type]).join(" · "),createdAt:pvNow()}]);return!0}
+function mWfRules(s=M.cache?.settings){return(s?.workflow?.rules||[]).filter(r=>r&&r.on!==!1&&WF_TRIG[r.trigger?.type]&&(r.actions||[]).length)}
+async function mWfRun(){let rules=mWfRules();if(!rules.length||!M.tl)return[];let st=await mState(),plan=mWfPlan(st,rules).filter(x=>!x.done).slice(0,15),log=[];
+ for(let x of plan){try{if(!await mWfClaim(x))continue}catch(e){console.warn("[9D] workflow claim",e);continue}let res=[];
+  for(let a of x.r.actions){try{res.push(await mWfDo(a,x.p,x.v))}catch(e){res.push("✗ "+(WF_ACT[a.type]||a.type)+": "+(e.message||e))}}
+  log.push({rule:x.r.id,name:x.r.name,code:x.p.code,pid:x.p.listItemId,ev:x.key.split("|")[1].split(":")[0],by:M.profile.name,at:pvNow(),res})}
+ if(log.length){try{await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:"__workflow_log__",ProjectItemId:M_WFLOG,TrackVersion:0,Payload:JSON.stringify({at:pvNow(),by:M.profile.name,runs:log})}}});M.wfLog=[{at:pvNow(),by:M.profile.name,runs:log},...(M.wfLog||[])]}catch(e){console.warn("[9D] workflow log",e)}M.cacheAt=0}
+ return log}
+async function mWfAuto(){if(M.role==="sales"||M.role==="viewer"||M.wfBusy||!M.tl)return;if(!mWfRules().length)return;M.wfBusy=1;let rel=await mPvLock();
+ try{await mLoad(!0);let l=await mWfRun();if(l.length){DV.stAt=0;if(DV.page==="workflow"||DV.page==="status")dvRender()}}catch(e){console.warn("[9D] workflow",e)}finally{rel();M.wfBusy=0}}
+async function mWfSave(w){if(!mWorkspaceAdmin())throw new PvErr("เฉพาะ Admin",403);let keys=new Set();
+ for(let x of w.steps){x.k=String(x.k||"").trim();x.t=String(x.t||"").trim();if(!x.t)throw new PvErr("กรอกชื่อขั้นตอนให้ครบ",400);if(!/^[a-z0-9_]{1,24}$/.test(x.k)||keys.has(x.k))throw new PvErr("รหัสขั้นตอนซ้ำหรือไม่ถูกต้อง: "+x.k,400);keys.add(x.k);if(x.tag&&!/^#\S{2,39}$/.test(x.tag))throw new PvErr("แฮชแท็กต้องขึ้นต้นด้วย # และไม่มีช่องว่าง: "+x.tag,400)}
+ let tags=w.steps.map(x=>String(x.tag||"").toLowerCase()).filter(Boolean);if(new Set(tags).size!==tags.length)throw new PvErr("แฮชแท็กซ้ำกัน",400);if(!keys.has("recv"))throw new PvErr("ต้องมีขั้นตอน \"รับงานแล้ว\" (recv) เสมอ",400);
+ for(let r of w.rules){r.name=String(r.name||"").trim()||"กฎไม่มีชื่อ";if(!WF_TRIG[r.trigger?.type])throw new PvErr("เลือกตัวกระตุ้นของกฎ \""+r.name+"\"",400);if(!(r.actions||[]).length)throw new PvErr("กฎ \""+r.name+"\" ยังไม่มีการกระทำ",400)}
+ await mLoad(!0);let s=JSON.parse(JSON.stringify(M.cache?.settings||{}));s.workflow={v:1,steps:w.steps,rules:w.rules,at:pvNow(),by:M.profile.name};await mSaveSettings(s);if(M.cache)M.cache.settings=s;mWfApply(s);DV.stAt=0;return s.workflow}
+
+var WFD=null;
+async function dvWorkflowPage(host,id){if(!mWorkspaceAdmin())return wsDenied(host);await mLoad();let st=await mState();if(!dvRenderCurrent(id,"workflow"))return;DV.sig=dvSig();
+ let s=M.cache?.settings||{};if(!WFD||WFD.src!==(s.workflow?.at||"")){WFD={src:s.workflow?.at||"",tab:WFD?.tab||"steps",steps:JSON.parse(JSON.stringify(mWfSteps(s))),rules:JSON.parse(JSON.stringify(s.workflow?.rules||[])),dirty:!1,dry:null}}
+ let accs=(st.accounts||[]).filter(a=>!a.demo),engs=[...Hd],E=mEsc,opt=(v,l,sel)=>`<option value="${E(v)}"${sel?" selected":""}>${E(l)}</option>`,
+  stepOpts=(cur,any)=>(any?opt("",any,!cur):"")+WFD.steps.map(x=>opt(x.k,x.t,cur===x.k)).join(""),
+  used=k=>st.projects.filter(p=>mPStat(p)==="active"&&mSubOf(p)?.sub===k).length;
+ let tabs=[["steps","ขั้นตอนย่อย"],["rules","กฎอัตโนมัติ"],["log","ประวัติการทำงาน"]];
+ let stepsHtml=()=>`<div class="wf-steps">${WFD.steps.map((x,i)=>`<div class="wf-step" data-i="${i}" style="--c:${E(x.color||"#005CB9")}">
+   <div class="wf-step-n"><span>${i+1}</span><div class="wf-mv"><button type="button" class="dv-xbtn" data-mv="-1" aria-label="เลื่อนขึ้น"${i?"":" disabled"}>▲</button><button type="button" class="dv-xbtn" data-mv="1" aria-label="เลื่อนลง"${i<WFD.steps.length-1?"":" disabled"}>▼</button></div></div>
+   <label class="wf-f wide">ชื่อขั้นตอน<input data-f="t" value="${E(x.t)}" maxlength="80"></label>
+   <label class="wf-f">แฮชแท็กใน Teams<input data-f="tag" value="${E(x.tag||"")}" placeholder="${x.k==="recv"?"(ค่าเริ่มต้นหลังอนุมัติ)":"#รอราคา"}" maxlength="40"${x.k==="recv"?" disabled":""}></label>
+   <label class="wf-f">งานอยู่ที่ใคร<input data-f="who" value="${E(x.who||"")}" maxlength="60"></label>
+   <label class="wf-f sm">เตือนเมื่อค้าง (วัน)<input data-f="warn" type="number" min="0" max="365" value="${Number(x.warn)||0}"></label>
+   <label class="wf-f sm">สี<input data-f="color" type="color" value="${E(x.color||"#005CB9")}"></label>
+   <label class="wf-f">โซนเมืองจำลอง<select data-f="z">${Object.entries(WF_Z).map(([k,l])=>opt(k,l,x.z===k)).join("")}</select></label>
+   <div class="wf-step-x"><code>${E(x.k)}</code>${x.k==="recv"?`<small>จำเป็น</small>`:`<button type="button" class="dv-btn dv-del" data-del${used(x.k)?` disabled title="มีงานอยู่ในขั้นตอนนี้ ${used(x.k)} งาน ย้ายงานก่อนจึงลบได้"`:""}>ลบ</button>`}${used(x.k)?`<small>${used(x.k)} งาน</small>`:""}</div></div>`).join("")}</div>
+   <div class="wf-bar"><button type="button" class="dv-btn" data-add-step>+ เพิ่มขั้นตอน</button><button type="button" class="dv-btn" data-reset-steps>คืนค่าเริ่มต้น</button></div>
+   <p class="ws-help">ลบขั้นตอนแล้ว ข้อมูลเก่าที่บันทึกขั้นตอนนั้นยังอ่านได้ (แสดงเป็น "${E(SUBST0.recv.t)}") · ชื่อขั้นตอนที่ตั้งตรงนี้ใช้แทนชื่อการ์ดในหน้าสถานะ</p>`;
+ let actHtml=(a,ri,ai)=>{let f=(k,l,ph,ta)=>`<label class="wf-f wide">${l}${ta?`<textarea data-a="${k}" rows="2" placeholder="${E(ph||"")}">${E(a[k]||"")}</textarea>`:`<input data-a="${k}" value="${E(a[k]||"")}" placeholder="${E(ph||"")}">`}</label>`,body="";
+  if(a.type==="teams")body=`<label class="wf-f">แท็ก<select data-a="mention">${[["none","ไม่แท็ก"],["sales","เซลส์เจ้าของงาน"],["eng","Engineer ที่รับผิดชอบ"],["both","เซลส์ + Engineer"]].map(([k,l])=>opt(k,l,(a.mention||"none")===k)).join("")}</select></label>${f("title","หัวข้อ","แจ้งเตือนอัตโนมัติ")}${f("text","ข้อความ","งาน {code} ค้างที่ {step} มา {days} วันแล้ว",1)}`;
+  else if(a.type==="sub")body=`<label class="wf-f">ขั้นตอน<select data-a="step">${stepOpts(a.step)}</select></label>`;
+  else if(a.type==="assign")body=`<label class="wf-f">Engineer<select data-a="eng">${opt("","— เลือก —",!a.eng)}${engs.map(n=>opt(n,n,a.eng===n)).join("")}</select></label>`;
+  else if(a.type==="mail")body=`<label class="wf-f">ถึง<select data-a="to">${[["sales","เซลส์เจ้าของงาน"],["eng","Engineer ที่รับผิดชอบ"],["addr","ระบุอีเมล"]].map(([k,l])=>opt(k,l,(a.to||"sales")===k)).join("")}</select></label>${(a.to==="addr")?f("addr","อีเมลผู้รับ","name@company.com"):""}${f("subject","หัวข้อ","ติดตามงาน {code}")}${f("text","เนื้อความ","เรียนคุณ {sales} …",1)}`;
+  else if(a.type==="notify")body=f("text","ข้อความ","งาน {code} ได้รับอนุมัติแล้ว");
+  return`<div class="wf-act" data-ai="${ai}"><div class="wf-act-h"><b>ให้ทำ</b><select data-a="type">${Object.entries(WF_ACT).map(([k,l])=>opt(k,l,a.type===k)).join("")}</select><button type="button" class="dv-xbtn" data-act-del aria-label="ลบการกระทำ">✕</button></div><div class="wf-row">${body}</div></div>`};
+ let rulesHtml=()=>`<p class="ws-help">ตัวแปรในข้อความ: ${WF_VARS.map(v=>`<code>{${v}}</code>`).join(" ")} · กฎทำงานจากเว็บของ Engineer/Admin ที่เปิดอยู่ ทุกครั้งที่ซิงค์ (ทำกับเหตุการณ์ที่เกิดหลังสร้างกฎ ยกเว้น "ค้างเกิน N วัน" ดูงานที่ค้างอยู่ทั้งหมด) · แต่ละกฎทำกับแต่ละงานครั้งเดียวต่อเหตุการณ์</p>
+  ${WFD.rules.length?"":`<p class="dv-empty">ยังไม่มีกฎ — กด "+ เพิ่มกฎ" หรือเลือกจากตัวอย่าง</p>`}
+  ${WFD.rules.map((r,ri)=>{let tg=r.trigger||{},c=r.cond||{};return`<section class="wf-rule${r.on===!1?" off":""}" data-ri="${ri}">
+   <div class="wf-rule-h"><label class="ws-switch"><input type="checkbox" data-r="on"${r.on===!1?"":" checked"}><span>${r.on===!1?"ปิด":"เปิด"}</span></label><input class="wf-name" data-r="name" value="${E(r.name||"")}" placeholder="ชื่อกฎ" maxlength="80"><button type="button" class="dv-btn" data-dry-one>ทดลองกฎ</button><button type="button" class="dv-btn dv-del" data-rule-del>ลบกฎ</button></div>
+   <div class="wf-when"><b>เมื่อ</b><select data-t="type">${opt("","— เลือกตัวกระตุ้น —",!tg.type)}${Object.entries(WF_TRIG).map(([k,l])=>opt(k,l,tg.type===k)).join("")}</select>
+    ${tg.type==="pstat"?`<select data-t="to">${opt("","ทุกสถานะ",!tg.to)}${Object.keys(PSTAT).map(k=>opt(k,mPStatName(k),tg.to===k)).join("")}</select>`:""}
+    ${tg.type==="sub"||tg.type==="stuck"?`<select data-t="step">${stepOpts(tg.step,"ทุกขั้นตอน")}</select>`:""}
+    ${tg.type==="stuck"?`<label class="wf-inl">เกิน <input type="number" data-t="days" min="1" max="365" value="${Number(tg.days)||7}"> วัน</label>`:""}</div>
+   <div class="wf-if"><b>ถ้า</b><select data-c="sales">${opt("","เซลส์ทุกคน",!c.sales)}${accs.map(a=>opt(a.id,a.name||a.id,c.sales===a.id)).join("")}</select><input data-c="brand" value="${E(c.brand||"")}" placeholder="Brand (เว้นว่าง = ทุก Brand)"><input data-c="urgency" value="${E(c.urgency||"")}" placeholder="ความเร่งด่วน"><input data-c="type" value="${E(c.type||"")}" placeholder="ประเภทงาน"></div>
+   ${(r.actions||[]).map((a,ai)=>actHtml(a,ri,ai)).join("")}
+   <button type="button" class="dv-btn" data-act-add>+ เพิ่มการกระทำ</button>
+   <div class="wf-dry" data-dry-out></div></section>`}).join("")}
+  <div class="wf-bar"><button type="button" class="dv-btn" data-rule-add>+ เพิ่มกฎ</button><select data-tpl><option value="">+ จากตัวอย่าง…</option><option value="stuck">เตือนเซลส์เมื่อรอราคาเกิน 7 วัน</option><option value="appr">อนุมัติแล้ว → แจ้งเซลส์ใน Channel</option><option value="deliv">ส่งงานแล้ว → ร่างอีเมลติดตามลูกค้า</option></select><button type="button" class="dv-btn" data-dry-all>ทดลองทุกกฎ</button></div>`;
+ let logHtml=()=>{let runs=(M.wfLog||[]).flatMap(x=>(x.runs||[]).map(r=>({...r,by:r.by||x.by}))).sort((a,b)=>mT(b.at)-mT(a.at)).slice(0,200);
+  return runs.length?`<div class="wf-tbl"><table><thead><tr><th>เวลา</th><th>กฎ</th><th>งาน</th><th>โดย (เว็บของ)</th><th>ผล</th></tr></thead><tbody>${runs.map(r=>`<tr><td>${E(new Date(r.at).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"}))}</td><td>${E(r.name||r.rule)}</td><td><code>${E(r.code)}</code></td><td>${E(r.by||"")}</td><td>${(r.res||[]).map(x=>`<span class="wf-res${String(x).startsWith("✗")?" bad":/^ข้าม/.test(x)?" skip":""}">${E(x)}</span>`).join(" ")}</td></tr>`).join("")}</tbody></table></div>`:`<p class="dv-empty">ยังไม่มีประวัติ — เมื่อกฎทำงานจะบันทึกที่นี่ (ใคร / กฎไหน / งานไหน / ผล)</p>`};
+ let dryHtml=list=>!list.length?`<p class="wf-none">ตอนนี้ไม่มีงานที่เข้าเงื่อนไข</p>`:`<p class="wf-none">จะทำกับ ${list.filter(x=>!x.done).length} งาน${list.some(x=>x.done)?` (ทำไปแล้ว ${list.filter(x=>x.done).length} งาน — จะไม่ทำซ้ำ)`:""} · ยังไม่ได้ทำจริง</p><ul class="wf-drylist">${list.slice(0,40).map(x=>`<li class="${x.done?"done":""}"><code>${E(x.p.code)}</code> ${E(x.p.name)} <small>${E(x.v.sales)} · ${E(x.v.step)}</small>${x.done?" <em>ทำแล้ว</em>":""}<ul>${x.r.actions.map(a=>`<li>${E(mWfActText(a,x.v))}</li>`).join("")}</ul></li>`).join("")}</ul>`;
+ let paint=()=>{let t=WFD.tab;host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">ADMIN</p><h1>ตั้งค่า Workflow</h1><p class="dv-sub">ตั้งขั้นตอนการทำงานและกฎอัตโนมัติ "เมื่อ … ถ้า … ให้ทำ …" โดยไม่ต้องแก้โค้ด</p></div></header>
+  <div class="dv-seg wf-tabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" class="${t===k?"on":""}" aria-selected="${t===k}" data-tab="${k}">${l}${k==="rules"&&WFD.rules.length?` <small>${WFD.rules.filter(r=>r.on!==!1).length}/${WFD.rules.length}</small>`:""}</button>`).join("")}</div>
+  <div class="dv-card wf-card">${t==="steps"?stepsHtml():t==="rules"?rulesHtml():logHtml()}</div>
+  ${t!=="log"?`<div class="wf-savebar${WFD.dirty?" dirty":""}"><span>${WFD.dirty?"มีการแก้ไขที่ยังไม่บันทึก":s.workflow?.at?"บันทึกล่าสุด "+E(new Date(s.workflow.at).toLocaleString("th-TH"))+" โดย "+E(s.workflow.by||""):"ใช้ค่าเริ่มต้นของระบบ"}</span><button type="button" class="dv-btn" data-cancel${WFD.dirty?"":" disabled"}>ยกเลิกการแก้ไข</button><button type="button" class="dv-btn dv-save" data-save${WFD.dirty?"":" disabled"}>บันทึกและเผยแพร่</button></div>`:""}`;bind()};
+ let dirty=()=>{WFD.dirty=!0;let sb=host.querySelector(".wf-savebar");if(sb){sb.classList.add("dirty");sb.querySelector("span").textContent="มีการแก้ไขที่ยังไม่บันทึก";sb.querySelectorAll("button").forEach(b=>b.disabled=!1)}};
+ let uid=()=>"r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+ let bind=()=>{host.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{WFD.tab=b.dataset.tab;paint()});
+  host.querySelectorAll(".wf-step").forEach(row=>{let i=Number(row.dataset.i),x=WFD.steps[i];
+   row.querySelectorAll("[data-f]").forEach(el=>el.oninput=el.onchange=()=>{let f=el.dataset.f;x[f]=f==="warn"?Math.max(0,Number(el.value)||0):el.value;if(f==="color")row.style.setProperty("--c",el.value);dirty()});
+   row.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{let j=i+Number(b.dataset.mv);if(j<0||j>=WFD.steps.length)return;[WFD.steps[i],WFD.steps[j]]=[WFD.steps[j],WFD.steps[i]];WFD.dirty=!0;paint()});
+   let d=row.querySelector("[data-del]");if(d)d.onclick=()=>{if(!confirm("ลบขั้นตอน \""+x.t+"\" ?"))return;WFD.steps.splice(i,1);WFD.dirty=!0;paint()}});
+  let q=s=>host.querySelector(s);
+  if(q("[data-add-step]"))q("[data-add-step]").onclick=()=>{let n=1;while(WFD.steps.some(x=>x.k==="s"+n)||SUBST0["s"+n])n++;WFD.steps.push({k:"s"+n,t:"ขั้นตอนใหม่",tag:"",who:"เรา",z:"E",warn:7,color:"#00A9B4"});WFD.dirty=!0;paint()};
+  if(q("[data-reset-steps]"))q("[data-reset-steps]").onclick=()=>{if(!confirm("คืนขั้นตอนทั้งหมดเป็นค่าเริ่มต้นของระบบ?"))return;WFD.steps=mWfDefSteps();WFD.dirty=!0;paint()};
+  host.querySelectorAll(".wf-rule").forEach(sec=>{let ri=Number(sec.dataset.ri),r=WFD.rules[ri];r.trigger=r.trigger||{};r.cond=r.cond||{};r.actions=r.actions||[];
+   sec.querySelectorAll("[data-r]").forEach(el=>el.onchange=el.oninput=()=>{if(el.dataset.r==="on"){r.on=el.checked;sec.classList.toggle("off",!el.checked);el.nextElementSibling.textContent=el.checked?"เปิด":"ปิด"}else r.name=el.value;dirty()});
+   sec.querySelectorAll("[data-t]").forEach(el=>el.onchange=()=>{r.trigger[el.dataset.t]=el.dataset.t==="days"?Number(el.value)||7:el.value;WFD.dirty=!0;if(el.dataset.t==="type")paint();else dirty()});
+   sec.querySelectorAll("[data-c]").forEach(el=>el.onchange=el.oninput=()=>{r.cond[el.dataset.c]=el.value.trim();dirty()});
+   sec.querySelectorAll(".wf-act").forEach(box=>{let a=r.actions[Number(box.dataset.ai)];box.querySelectorAll("[data-a]").forEach(el=>el.onchange=el.oninput=()=>{let k=el.dataset.a;if(k==="type"){r.actions[Number(box.dataset.ai)]={type:el.value};WFD.dirty=!0;paint();return}a[k]=el.value;if(k==="to"){WFD.dirty=!0;paint();return}dirty()});
+    box.querySelector("[data-act-del]").onclick=()=>{r.actions.splice(Number(box.dataset.ai),1);WFD.dirty=!0;paint()}});
+   sec.querySelector("[data-act-add]").onclick=()=>{r.actions.push({type:"teams",mention:"sales",text:""});WFD.dirty=!0;paint()};
+   sec.querySelector("[data-rule-del]").onclick=()=>{if(!confirm("ลบกฎ \""+(r.name||"")+"\" ?"))return;WFD.rules.splice(ri,1);WFD.dirty=!0;paint()};
+   sec.querySelector("[data-dry-one]").onclick=async()=>{let out=sec.querySelector("[data-dry-out]");if(!WF_TRIG[r.trigger.type]){out.innerHTML=`<p class="wf-none">เลือกตัวกระตุ้นก่อน</p>`;return}out.innerHTML=`<p class="wf-none">กำลังตรวจ…</p>`;
+    let rr={...r,since:r.since||pvNow()};out.innerHTML=`<h4>ผลทดลอง (ยังไม่ทำจริง)</h4>`+dryHtml(mWfPlan(await mState(),[rr]))+(r.since?"":`<p class="ws-help">กฎใหม่จะเริ่มนับเหตุการณ์ตั้งแต่ตอนบันทึก</p>`)}});
+  if(q("[data-rule-add]"))q("[data-rule-add]").onclick=()=>{WFD.rules.push({id:uid(),name:"กฎใหม่",on:!0,trigger:{type:"approved"},cond:{},actions:[{type:"teams",mention:"sales",text:"งาน {code} ได้รับอนุมัติแล้ว"}]});WFD.dirty=!0;paint()};
+  if(q("[data-tpl]"))q("[data-tpl]").onchange=e=>{let v=e.target.value,T={stuck:{name:"เตือนเซลส์เมื่อรอราคาเกิน 7 วัน",trigger:{type:"stuck",step:SUBST.price?"price":"",days:7},actions:[{type:"teams",mention:"sales",title:"ติดตามราคา",text:"งาน {code} {name} ({client}) อยู่ที่ขั้นตอน {step} มา {days} วันแล้ว รบกวนคุณ {sales} อัปเดตด้วยครับ"}]},
+   appr:{name:"อนุมัติแล้ว → แจ้งเซลส์ใน Channel",trigger:{type:"approved"},actions:[{type:"teams",mention:"sales",title:"อนุมัติแล้ว",text:"คำขอ {code} {name} ของลูกค้า {client} ได้รับอนุมัติแล้ว Engineer จะเริ่มดำเนินการ"}]},
+   deliv:{name:"ส่งงานแล้ว → ร่างอีเมลติดตามลูกค้า",trigger:{type:"pstat",to:"delivered"},actions:[{type:"mail",to:"sales",subject:"ติดตามผลงาน {code} {name}",text:"เรียนคุณ {sales}\n\nงาน {code} ({client}) ส่งให้ลูกค้าเรียบร้อยแล้ว รบกวนติดตามผลและอัปเดต #win / #loss ใน Channel\n\nขอบคุณครับ"}]}}[v];if(!T)return;
+   WFD.rules.push({id:uid(),on:!0,cond:{},...JSON.parse(JSON.stringify(T))});WFD.dirty=!0;paint()};
+  if(q("[data-dry-all]"))q("[data-dry-all]").onclick=async()=>{let rs=WFD.rules.filter(r=>r.on!==!1&&WF_TRIG[r.trigger?.type]).map(r=>({...r,since:r.since||pvNow()})),plan=mWfPlan(await mState(),rs);
+   host.querySelectorAll(".wf-rule").forEach(sec=>{let r=WFD.rules[Number(sec.dataset.ri)],mine=plan.filter(x=>x.r.id===r.id);sec.querySelector("[data-dry-out]").innerHTML=r.on===!1?`<p class="wf-none">กฎนี้ปิดอยู่</p>`:`<h4>ผลทดลอง (ยังไม่ทำจริง)</h4>`+dryHtml(mine)})};
+  if(q("[data-cancel]"))q("[data-cancel]").onclick=()=>{WFD=null;dvWorkflowPage(host,DV.renderId)};
+  if(q("[data-save]"))q("[data-save]").onclick=async e=>{let b=e.target;b.disabled=!0;b.textContent="กำลังบันทึก…";
+   try{let now=pvNow();WFD.rules.forEach(r=>{if(!r.id)r.id=uid();if(!r.since)r.since=now});let w=await mWfSave({steps:WFD.steps,rules:WFD.rules});WFD.src=w.at;WFD.dirty=!1;mToast("บันทึก Workflow แล้ว — ทุกคนจะเห็นขั้นตอนใหม่เมื่อโหลดข้อมูลรอบถัดไป");s=M.cache?.settings||s;paint()}
+   catch(err){b.disabled=!1;b.textContent="บันทึกและเผยแพร่";mToast(err.message||String(err),!0)}}};
+ paint()}
+
 /* v16.3: แก้รายการใน List ทำให้ "Approval status" เดิม (Lists Approvals) ถูกรีเซ็ตเป็น 0 → งานที่อนุมัติไปแล้วเด้งกลับมารออนุมัติ
    จึงใส่ Request Status = Approved ไปพร้อมกันทุกครั้งที่เขียนรายการที่อนุมัติแล้วแต่ Request Status ยังว่าง */
 var mKeepApproved=(p,f)=>{let c=M.cols.approval;if(c&&!c.readOnly&&p.listApproval==="approved"&&!/^approv/i.test(p.listReqStatus||""))f[c.name]=mReqChoice("approved");return f};
@@ -1377,8 +1530,8 @@ var WS_UI_VERSION=2;
 function wsDefaultStatus(){return{title:'สถานะโครงการ',description:'',activeTitle:'กำลังทำ',afterTitle:'หลังส่งงาน',activeOrder:[...SUBORD],afterOrder:['delivered','closed'],cards:Object.fromEntries([...SUBORD.map(k=>[k,{label:SUBST[k].t,who:SUBST[k].who}]),['delivered',{label:'ส่งงานแล้ว · รอลูกค้า',who:'ลูกค้า'}],['closed',{label:'ปิดแล้ว',who:''}]])}}
 function wsValidateStatus(input){let d=wsDefaultStatus();if(input===undefined)return d;if(!input||typeof input!=='object'||Array.isArray(input))throw new PvErr('รูปแบบหน้าสถานะไม่ถูกต้อง',400);
  for(let [k,max]of Object.entries({title:80,description:240,activeTitle:40,afterTitle:40})){if(input[k]!==undefined)d[k]=wsText(input[k],max,'ข้อความหน้าสถานะ');if(k!=='description'&&!d[k])throw new PvErr('กรอกหัวข้อหน้าสถานะให้ครบ',400)}
- for(let k of ['activeOrder','afterOrder'])if(input[k]!==undefined){let a=input[k],keys=d[k];if(!Array.isArray(a)||a.length!==keys.length||new Set(a).size!==keys.length||a.some(x=>!keys.includes(x)))throw new PvErr('ลำดับการ์ดสถานะไม่ถูกต้อง ต้องมีครบทุกขั้นตอน',400);d[k]=[...a]}
- if(input.cards!==undefined){if(!input.cards||typeof input.cards!=='object'||Array.isArray(input.cards))throw new PvErr('การ์ดสถานะไม่ถูกต้อง',400);for(let [k,c]of Object.entries(input.cards)){if(!Object.hasOwn(d.cards,k)||!c||typeof c!=='object'||Array.isArray(c))throw new PvErr('รหัสการ์ดสถานะไม่ถูกต้อง',400);for(let f of ['label','who'])if(c[f]!==undefined)d.cards[k][f]=wsText(c[f],80,'ข้อความการ์ด');if(!d.cards[k].label)throw new PvErr('กรอกชื่อการ์ดสถานะให้ครบ',400)}}return d}
+ for(let k of ['activeOrder','afterOrder'])if(input[k]!==undefined){let a=input[k],keys=d[k];if((typeof WF_ON!=="undefined"&&WF_ON)&&k==='activeOrder')continue;if(!Array.isArray(a)||a.length!==keys.length||new Set(a).size!==keys.length||a.some(x=>!keys.includes(x)))throw new PvErr('ลำดับการ์ดสถานะไม่ถูกต้อง ต้องมีครบทุกขั้นตอน',400);d[k]=[...a]}
+ if(input.cards!==undefined){if(!input.cards||typeof input.cards!=='object'||Array.isArray(input.cards))throw new PvErr('การ์ดสถานะไม่ถูกต้อง',400);for(let [k,c]of Object.entries(input.cards)){if((typeof WF_ON!=="undefined"&&WF_ON)&&!Object.hasOwn(d.cards,k))continue;if(!Object.hasOwn(d.cards,k)||!c||typeof c!=='object'||Array.isArray(c))throw new PvErr('รหัสการ์ดสถานะไม่ถูกต้อง',400);for(let f of ['label','who'])if(c[f]!==undefined)d.cards[k][f]=wsText(c[f],80,'ข้อความการ์ด');if(!d.cards[k].label)throw new PvErr('กรอกชื่อการ์ดสถานะให้ครบ',400)}}if((typeof WF_ON!=="undefined"&&WF_ON))for(let k of SUBORD)d.cards[k]={label:SUBST[k].t,who:SUBST[k].who||''};return d}
 function wsDefaultUi(){return{v:WS_UI_VERSION,theme:{preset:'nine',accent:'#005cb9',density:'compact',corners:'subtle',surface:'soft'},pages:Object.fromEntries(WS_MENU.map(([k])=>[k,{enabled:true,roles:[...WS_ROLES]}])),actions:{},custom:[],status:wsDefaultStatus()}}
 function wsText(x,max,label){if(typeof x!=='string'||x.length>max||/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(x))throw new PvErr(label+' ไม่ถูกต้องหรือยาวเกินกำหนด',400);return x.trim()}
 function wsSafeUrl(v){let s=wsText(v,500,'ลิงก์');if(!/^https:\/\//i.test(s))throw new PvErr('ลิงก์ต้องขึ้นต้นด้วย https://',400);let u;try{u=new URL(s)}catch{throw new PvErr('รูปแบบลิงก์ไม่ถูกต้อง',400)}if(u.username||u.password)throw new PvErr('ลิงก์ต้องไม่มีชื่อผู้ใช้หรือรหัสผ่าน',400);return u.href}
@@ -1396,7 +1549,7 @@ function wsMenuCatalog(ui=wsUi()){return[...WS_MENU,...ui.custom.map(p=>['custom
 function wsOrder(value,ui=wsUi()){let keys=wsMenuCatalog(ui).map(x=>x[0]);return[...new Set([...(Array.isArray(value)?value:[]).filter(k=>keys.includes(k)),...keys])]}
 function wsFingerprint(s=M.cache?.settings){return JSON.stringify([wsUi(s),wsOrder(s?.sidebarOrder,wsUi(s))])}
 function wsIsCurrentAdmin(s){let me=String(M.profile?.email||'').toLowerCase(),member=(s?.members||[]).find(m=>String(m.email).toLowerCase()===me);return !!M.profile&&(member?member.role==='admin':M.isAdmin===true)}
-function wsPageAllowed(key,role=M.role){if(key==='admin')return role==='admin';if(key==='home')return true;if(['loans','service'].includes(key)&&!(['admin','engineer'].includes(role)||(role===M.role&&M.isApprover)))return false;let ui=wsUi(),p=key.startsWith('custom-')?ui.custom.find(p=>'custom-'+p.id===key):ui.pages[key];return !!p&&p.enabled&&p.roles.includes(role)}
+function wsPageAllowed(key,role=M.role){if(key==='admin')return role==='admin';if(key==='workflow')return role==='admin'&&mWorkspaceAdmin();if(key==='home')return true;if(['loans','service'].includes(key)&&!(['admin','engineer'].includes(role)||(role===M.role&&M.isApprover)))return false;let ui=wsUi(),p=key.startsWith('custom-')?ui.custom.find(p=>'custom-'+p.id===key):ui.pages[key];return !!p&&p.enabled&&p.roles.includes(role)}
 function wsActionVisible(id){return wsUi().actions[id]!==false}
 /* บันทึกเฉพาะสาขาตั้งค่า UI หรือสมาชิก โดยตรวจ eTag และบทบาทจากข้อมูลล่าสุดอีกครั้ง */
 var WS_WRITE=new Map();
@@ -1524,7 +1677,7 @@ async function dvRender(){let host=document.getElementById("dashv");if(!host)ret
  if(page!=="city")dvCityStop();if(DV.busy&&DV.renderPage===page){DV.again=!0;return}
  let id=DV.renderId=(DV.renderId||0)+1;DV.renderPage=page;DV.busy=!0;DV.again=!1;
  if(host.dataset.page!==String(page)){host.dataset.page=String(page);host.innerHTML=`<p class="dv-empty dv-loading" role="status">กำลังโหลดข้อมูล…</p>`}
- try{if(!wsPageAllowed(page||"home")){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){await dvProjectsPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvCityPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
+ try{if(!wsPageAllowed(page||"home")){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="workflow"){await dvWorkflowPage(host,id);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){await dvProjectsPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvCityPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
   if(!dvRenderCurrent(id,page))return;DV.sig=dvSig();
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
   let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>แดชบอร์ด</h1><p class="dv-sub">${staff?"ความเคลื่อนไหวใน Teams Channel และคำขอจากเซลส์ที่รอพิจารณา":"คำขอ Service Request ของคุณและสถานะการพิจารณา"}</p></div>
@@ -1628,13 +1781,13 @@ function dvPrefixCard(st){let set=M.cache?.settings?.codePrefix||{},rows=(st.acc
 window.dvSavePrefix=async e=>{e.preventDefault();let map={};for(let el of e.target.querySelectorAll("input"))map[el.name]=el.value;try{await mSetCodePrefix(map);mToast("บันทึกตัวย่อ Project Code แล้ว");DV.stAt=0;dvRender()}catch(x){mToast("บันทึกไม่สำเร็จ: "+x.message,!0)}};
 
 /* ===== เมนูเพิ่ม: สถานะโครงการ (ทุกคน) · ยืมสินค้า (Engineer) ===== */
-var dvNavIcon={quotes:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>',service:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>',status:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>',
+var dvNavIcon={workflow:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/><path d="M9 6h4a3 3 0 0 1 3 3v6"/><path d="m13.5 12.5 2.5 2.5 2.5-2.5"/></svg>',quotes:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>',service:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>',status:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>',
  loans:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
  city:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l6-3v15"/><path d="M9 21V4l8 3v14"/><path d="M17 21v-9l4 2v7"/><path d="M2 21h20M12 9h2M12 13h2M12 17h2"/></svg>'};
 function dvNav(items){let ref=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim()))||items[1];if(!ref)return;
- let want=[["status","สถานะโครงการ"],["city","เมืองจำลอง"],...(mIsEng()?[["loans","ยืมสินค้า"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title])],prev=ref;
+ let want=[["status","สถานะโครงการ"],["city","เมืองจำลอง"],...(mIsEng()?[["loans","ยืมสินค้า"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title]),...(wsPageAllowed("workflow")?[["workflow","ตั้งค่า Workflow"]]:[])],prev=ref;
  for(let b of items)if(b.id?.startsWith("dvnav-custom-")&&!want.some(x=>b.id==="dvnav-"+x[0]))b.remove();
- for(let k of ["loans","quotes","service"])if(!want.some(x=>x[0]===k))document.getElementById("dvnav-"+k)?.remove();
+ for(let k of ["loans","quotes","service","workflow"])if(!want.some(x=>x[0]===k))document.getElementById("dvnav-"+k)?.remove();
  for(let[k,label]of want){let b=document.getElementById("dvnav-"+k);if(!b){b=document.createElement("button");b.type="button";b.id="dvnav-"+k;b.className="nav-item dv-nav";b.innerHTML=(dvNavIcon[k]||dvNavIcon.quotes)+"<span>"+mEsc(label)+"</span>";
    b.onclick=()=>{DV.page=k;let sb=document.querySelector(".sidebar.show .mobile-close");if(sb)sb.click();dvSync();dvRender();window.scrollTo(0,0)};}
   if(!b.parentElement)prev.after(b);if(b.querySelector("span")?.textContent!==label)b.querySelector("span").textContent=label;prev=b;b.classList.toggle("active",DV.page===k);b.setAttribute("aria-current",DV.page===k?"page":"false")}}
@@ -2879,7 +3032,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.45";
+var M_VER="v16.46";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -2933,7 +3086,7 @@ async function boot(){
  document.getElementById("gate").style.display="none";
  let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">💬 Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{try{await mCancelSync()}catch(e){console.warn(e)}try{let rb=await mChanRebind();if(rb.length){mToast("ย้ายลิงก์ Teams ตาม Project Code ใหม่แล้ว "+rb.length+" งาน: "+rb.slice(0,5).join(", ")+(rb.length>5?" …":""));DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] rebind",e)}try{if(await mChanVerify()){DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] channel verify",e)}try{await mDupNotify()}catch(e){console.warn(e)}if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(()=>boPoll(),10000);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(mUiSchedule).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{try{await mCancelSync()}catch(e){console.warn(e)}try{let rb=await mChanRebind();if(rb.length){mToast("ย้ายลิงก์ Teams ตาม Project Code ใหม่แล้ว "+rb.length+" งาน: "+rb.slice(0,5).join(", ")+(rb.length>5?" …":""));DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] rebind",e)}try{if(await mChanVerify()){DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] channel verify",e)}try{await mDupNotify()}catch(e){console.warn(e)}if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}try{await mWfAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(()=>boPoll(),10000);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(mUiSchedule).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 /* ---- PWA: ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ / คอมพิวเตอร์ (v16.4) ---- */
@@ -3773,6 +3926,7 @@ body .app-shell .sidebar .nav-item.active,body.dv-page .app-shell .sidebar .nav-
 .wf-savebar span{flex:1;font-size:13px;color:var(--ci-ink2)}.wf-savebar.dirty{border-color:#FF8000}.wf-savebar.dirty span{color:#8A4300;font-weight:600}
 .wf-tbl{overflow:auto}.wf-tbl table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}.wf-tbl td{padding:8px 10px;border-bottom:1px solid #EEF1F5;vertical-align:top}.wf-tbl th{padding:9px 10px;text-align:left}
 .wf-res{display:inline-block;margin:1px 2px;padding:1px 8px;border-radius:999px;background:#E0F6EC;color:#00663A;font-size:12px}.wf-res.bad{background:#FDE4E5;color:#B0151B}.wf-res.skip{background:#EEF1F5;color:#4A5468}
+#dashv .wf-step .dv-del,#dashv .wf-rule .dv-del{position:static!important;inset:auto!important}@media (max-width:640px){.wf-savebar span{flex:1 1 100%}}
 @media (max-width:1100px){.wf-step{grid-template-columns:48px 1fr 1fr}.wf-step .wf-f.wide{grid-column:2/4}.wf-step-x{flex-direction:row;align-items:center}}
 @media (max-width:640px){.wf-step{grid-template-columns:1fr 1fr}.wf-step .wf-f.wide,.wf-step-n{grid-column:1/3}.wf-savebar{bottom:70px}#dashv .wf-card{padding:10px}}
 </style>
