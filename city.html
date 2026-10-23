@@ -496,6 +496,8 @@ const carBody=new THREE.InstancedMesh(new THREE.BoxGeometry(1.05,.62,2.1),new TH
       carWheel=new THREE.InstancedMesh(new THREE.BoxGeometry(1.12,.3,1.7),new THREE.MeshPhongMaterial({color:0x1d2230}),MAXVIS);
 [carBody,carCab,carWheel].forEach(m=>{m.frustumCulled=false;m.count=0;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(m)});carBody.castShadow=true;carBody.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXVIS*3),3);
 pickMeshes.push(carBody);
+/* v16.47 งานค้างเกินวันเตือน: กรวยสีแดงลอยเหนือรถ */
+const carWarn=new THREE.InstancedMesh(new THREE.ConeGeometry(.42,.9,4),new THREE.MeshBasicMaterial({color:0xEC1C24}),MAXVIS);carWarn.frustumCulled=false;carWarn.count=0;carWarn.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(carWarn);
 const MAXC=70,MAXK=26,DROPX={W:Z.WON.cx-6.6,L:Z.LOST.cx-6.4};
 const goldM=new THREE.MeshPhongMaterial({color:0xe0ac2c,emissive:0x2e2000,specular:0xfff1a6,shininess:65});
 const coinI=new THREE.InstancedMesh(new THREE.CylinderGeometry(.55,.55,.14,20),goldM,MAXC);
@@ -531,6 +533,7 @@ function applyLive(d){
  if(!live){live=true;jobs.length=0;fx.length=0;thLoad.fill(0);document.documentElement.classList.add("live");if(sel&&sel.type==="job")closeCard()}
  liveAt=Date.now();
  if(d.closed){for(const k of["WON","LOST","CXL"])closed[k]=Math.max(0,Number(d.closed[k])||0)}
+ liveSteps=Array.isArray(d.steps)?d.steps.filter(x=>x&&Z[x.z]).slice(0,30):[];
  liveSales=Array.isArray(d.sales)?d.sales.filter(x=>x&&/^#[0-9a-fA-F]{6}$/.test(x.color||"")).slice(0,20):[];
  const seen=new Set(),used={};
  for(const r of(d.jobs||[]).slice(0,MAXJ)){let zone=r.stage==="active"&&SUB_ZONES.has(r.zone)?r.zone:STAGE_ZONE[r.stage];if(!zone||!r.id)continue;const id=String(r.id);seen.add(id);
@@ -544,15 +547,16 @@ function applyLive(d){
  for(const r of d.eng||[]){const e=engs[r.idx];if(!e)continue;if(r.name){ENG[r.idx]=String(r.name);e.name=ENG[r.idx];const c=chips["p"+r.idx];if(c)c.el.firstChild.textContent=ENG[r.idx]}
   e.connected=!!r.connected;e.hidden=!!r.hidden;e.locInfo=r.loc&&Z[r.loc.zone]?r.loc:null;e.want=e.locInfo&&e.locInfo.zone!=="E"?e.locInfo.zone:null}
 }
-let liveSales=[];
+let liveSales=[],liveSteps=[];
+const openInApp=code=>{try{parent.postMessage({t:"9d-city-open",code:String(code||"")},location.origin)}catch(e){}};
 function liveCard(j){const d=j.d||{};if(d.anon){ct.textContent="🚗 งานของเซลส์ท่านอื่น";cp.textContent=d.engName?"Engineer: "+d.engName:"";cl.textContent=(STAGE_T[d.stage]||d.stage)+" · อยู่ที่ "+Z[j.node].em+" "+Z[j.node].t+(j.node==="LOT"&&j.home&&Z[j.home]?" (รอคิว "+Z[j.home].t+" — หน้าอาคารเต็ม)":"")+" · ไม่แสดงรายละเอียดโครงการ";const x=$("cx2");x.textContent="";x.dataset.key="";return}
  ct.textContent="🚗 "+(d.code||j.code)+(d.name&&d.name!==d.code?" · "+d.name:"");
  cp.textContent=[d.client&&d.client!=="—"?d.client:"",d.sales?"Sales: "+d.sales:"",d.engName?"Engineer: "+d.engName:"ยังไม่ได้มอบหมาย Engineer"].filter(Boolean).join(" · ");
- cl.textContent=(STAGE_T[d.stage]||d.stage)+(d.subT?" · ⏳ "+d.subT:"")+" · อยู่ที่ "+Z[j.node].em+" "+Z[j.node].t+(j.node==="LOT"&&j.home&&Z[j.home]?" (รอคิว "+Z[j.home].t+" — หน้าอาคารเต็ม)":"")+(d.since?" · ตั้งแต่ "+d.since:"");
+ cl.textContent=(STAGE_T[d.stage]||d.stage)+(d.subT?" · ⏳ "+d.subT:"")+" · อยู่ที่ "+Z[j.node].em+" "+Z[j.node].t+(j.node==="LOT"&&j.home&&Z[j.home]?" (รอคิว "+Z[j.home].t+" — หน้าอาคารเต็ม)":"")+(d.since?" · ตั้งแต่ "+d.since:"")+(d.over?" · ⚠ ค้างเกินวันเตือน":"");
  const x=$("cx2"),key=j.id+"|"+(j.rev||0);if(x.dataset.key===key)return;x.dataset.key=key;x.textContent="";
  const add=(tag,txt,cls)=>{const n=document.createElement(tag);if(cls)n.className=cls;n.textContent=txt;x.appendChild(n);return n},ok=u=>/^https:\/\//.test(u||"");
  if(d.tags&&d.tags.length)add("p",d.tags.join(" · "),"tg");
- const lk=document.createElement("p");lk.className="lk";for(const[h,t]of[[d.channelUrl,"Teams ↗"],[d.listUrl,"รายการใน SharePoint ↗"]])if(ok(h)){const a=document.createElement("a");a.href=h;a.target="_blank";a.rel="noopener noreferrer";a.textContent=t;lk.appendChild(a);lk.appendChild(document.createTextNode("   "))}if(lk.childNodes.length)x.appendChild(lk);
+ const lk=document.createElement("p");lk.className="lk";for(const[h,t]of[[d.channelUrl,"Teams ↗"],[d.listUrl,"รายการใน SharePoint ↗"]])if(ok(h)){const a=document.createElement("a");a.href=h;a.target="_blank";a.rel="noopener noreferrer";a.textContent=t;lk.appendChild(a);lk.appendChild(document.createTextNode("   "))}if(window.parent!==window&&d.code){const b=document.createElement("a");b.href="#";b.textContent="ดูในหน้าสถานะ ↗";b.onclick=e=>{e.preventDefault();openInApp(d.code)};lk.appendChild(b)}if(lk.childNodes.length)x.appendChild(lk);
  const list=(title,arr,fn)=>{if(!arr||!arr.length)return;add("h4",title);arr.slice(0,4).forEach(m=>{const row=document.createElement("p");row.className="mx";const a=document.createElement(ok(m.url)?"a":"span");if(ok(m.url)){a.href=m.url;a.target="_blank";a.rel="noopener noreferrer"}a.textContent=m.subject||"(ไม่มีหัวข้อ)";row.appendChild(a);const sm=document.createElement("small");sm.textContent=" · "+fn(m);row.appendChild(sm);x.appendChild(row)})};
  list("📧 อีเมลของคุณที่เกี่ยวข้อง",d.mails,m=>[m.from,m.at].filter(Boolean).join(" · "));list("📅 นัดหมายของคุณที่เกี่ยวข้อง",d.events,m=>[m.when,m.where].filter(Boolean).join(" · "))}
 const nodeCount=id=>{let n=0;for(const j of jobs)if(j.state==="wait"&&j.node===id)n++;return n};
@@ -630,6 +634,10 @@ function ringFor(m,id){const z=Z[id],r=Math.max(z.w,z.dp)*.62+2;m.scale.set(r,r,
 function select(s,keep){sel=s;rel.forEach(m=>m.visible=false);
  if(s.type==="zone"){$("cx2").textContent="";$("cx2").dataset.key="";const z=Z[s.id],rl=[],ids=[];LINKS.forEach(([a,b,l,two])=>{if(a===s.id){rl.push((two?"↔ ":"→ ")+Z[b].em+" "+Z[b].t);ids.push(b)}if(b===s.id){rl.push((two?"↔ ":"← ")+Z[a].em+" "+Z[a].t);ids.push(a)}});
   const n=nodeCount(s.id);ct.textContent=`${z.em} ${z.t}`;cp.textContent=`${z.s} · ${z.d}`;cl.textContent=(z.kind==="win"||z.kind==="lost"||z.kind==="cxl"?`ปิดงานที่นี่แล้ว ${closed[s.id]} งาน`:(n?`ตอนนี้มีงานรออยู่ ${n} งาน`:"ตอนนี้ไม่มีงานค้าง"))+(rl.length?" · เชื่อมกับ: "+rl.join("  "):"");
+  if(live){const x=$("cx2"),here=jobs.filter(j=>j.live&&j.d&&!j.d.anon&&(j.node===s.id||(j.node==="LOT"&&j.home===s.id))),st=liveSteps.filter(q=>q.z===s.id),ov=here.filter(j=>j.d.over).length;
+   if(ov)cl.textContent+=" · ⚠ ค้างเกินวันเตือน "+ov+" งาน";
+   if(st.length){const h=document.createElement("h4");h.textContent="ขั้นตอนที่อยู่ตึกนี้";x.appendChild(h);st.forEach(q=>{const p=document.createElement("p");p.className="mx";p.innerHTML=`<i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${/^#[0-9a-f]{6}$/i.test(q.col||"")?q.col:"#888"};margin-right:6px"></i>`;p.appendChild(document.createTextNode(`${q.t} · ${Number(q.n)||0} งาน${q.ov?" · ⚠ ค้าง "+q.ov:""}`));x.appendChild(p)})}
+   if(here.length){const h=document.createElement("h4");h.textContent="งานที่ตึกนี้";x.appendChild(h);here.sort((a,b)=>(b.d.over?1:0)-(a.d.over?1:0)||(b.d.days||0)-(a.d.days||0)).slice(0,12).forEach(j=>{const b=document.createElement("button");b.className="it";b.style.cssText="width:100%;text-align:left";b.innerHTML=`<i style="background:${j.ty.c}"></i><span><b></b><small></small></span>`;b.querySelector("b").textContent=(j.d.over?"⚠ ":"")+j.d.code+(j.d.name&&j.d.name!==j.d.code?" · "+j.d.name:"");b.querySelector("small").textContent=[j.d.client&&j.d.client!=="—"?j.d.client:"",j.d.sales,j.d.subT].filter(Boolean).join(" · ");b.onclick=()=>{select({type:"job",id:j.id});follow=j.id};x.appendChild(b)});if(here.length>12){const m=document.createElement("p");m.className="mx";m.textContent="และอีก "+(here.length-12)+" งาน";x.appendChild(m)}}}
   if(!keep){ringFor(hi,s.id);ids.slice(0,8).forEach((id,i)=>ringFor(rel[i],id))}hi.visible=true;jmark.visible=false}
  else if(s.type==="eng"){$("cx2").textContent="";$("cx2").dataset.key="";const e=engs[s.idx],i=s.idx,n=live?jobs.filter(j=>j.live&&j.d&&j.d.eng===i&&j.d.stage==="active").length:thLoad[i];ct.textContent=`👷 ${ENG[i]}`;cp.textContent=i?"วิศวกร · รับโจทย์จาก Sales ประสานเทคนิคกับลูกค้า Supplier และงานร่วม Marketing":"Senior Engineer · ดูภาพรวมงานทั้งหมดของทีม Engineering และตัดสินใจเรื่องสำคัญ";
   const st=e.state==="out"?`กำลังเดินไป ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="there"?`กำลังทำงานที่ ${Z[e.dest].em} ${Z[e.dest].t}`:e.state==="back"?"กำลังเดินกลับ Engineering":(n?"กำลังทำงานที่โต๊ะ":"ว่างอยู่ — กำลังพัก 💤");const cal=live&&!e.hidden?(e.locInfo?` · ตามปฏิทิน: ${Z[e.locInfo.zone].em} ${Z[e.locInfo.zone].t}${e.locInfo.label?" ("+e.locInfo.label+")":""}`:e.connected?" · ปฏิทิน: ไม่มีนัดนอกสถานที่ตอนนี้":" · ยังไม่ได้เชื่อมปฏิทิน Outlook"):"";cl.textContent=st+(n?` · งานในมือ ${n} งาน`:"")+cal;hi.visible=true;jmark.visible=false}
@@ -652,7 +660,7 @@ function teamRows(){let h="";const top=a=>{const c={};a.forEach(j=>{const t=(j.d
  ENG.forEach((nm,i)=>{const mine=live?jobs.filter(j=>j.live&&j.d&&j.d.eng===i&&j.d.stage==="active"):null,n=live?mine.length:thLoad[i],x=live?top(mine):"";
   h+=`<button class="it" data-e="${i}"><i style="background:${ENGO[i].shirt}"></i><span><b>👷 ${mEsc(nm)}</b><small>${mEsc(engDoing(i))}${x?" · "+mEsc(x):""}</small></span><em>${n} งาน</em></button>`});
  if(live){const u=jobs.filter(j=>j.live&&j.d&&!(j.d.eng>=0)&&j.d.stage==="active").length;if(u)h+=`<button class="it" data-none="1"><i style="background:#8a94a8"></i><span><b>ยังไม่มอบหมาย Engineer</b><small>ตั้งผู้รับมอบหมายใน All Projects List</small></span><em>${u} งาน</em></button>`}return h}
-function renderMission(){let h="";if(mtab===3)h=salesRows();else if(mtab===2)h=teamRows();else if(mtab===0){const list=live?jobs.filter(j=>!(j.d&&j.d.anon)).sort((a,b)=>((b.d&&b.d.at)||0)-((a.d&&a.d.at)||0)).slice(0,4):jobs.filter(j=>j.ty.k==="proj").slice(-4).reverse();(list.length?list:jobs.slice(-4)).forEach((j,i)=>{const a=j.state==="move"?Z[j.path[j.leg+1]]:Z[j.node];h+=`<button class="it${i===0?" hot":""}" data-j="${mEsc(j.id)}"><i style="background:${j.ty.c}"></i><span><b>${mEsc(j.code)}</b><small>${j.live?"👷 "+mEsc(j.d.engName||"ยังไม่มอบหมาย")+" · "+mEsc(j.d.subT||STAGE_T[j.d.stage]||""):(j.state==="move"?"กำลังไป ":"รออยู่ที่ ")+a.em+" "+a.t}</small></span><span></span></button>`})}
+function renderMission(){let h="";if(mtab===3)h=salesRows();else if(mtab===2)h=teamRows();else if(mtab===0){const list=live?jobs.filter(j=>!(j.d&&j.d.anon)).sort((a,b)=>((b.d&&b.d.over)?1:0)-((a.d&&a.d.over)?1:0)||((b.d&&b.d.at)||0)-((a.d&&a.d.at)||0)).slice(0,6):jobs.filter(j=>j.ty.k==="proj").slice(-4).reverse();(list.length?list:jobs.slice(-4)).forEach((j,i)=>{const a=j.state==="move"?Z[j.path[j.leg+1]]:Z[j.node];h+=`<button class="it${i===0?" hot":""}" data-j="${mEsc(j.id)}"><i style="background:${j.ty.c}"></i><span><b>${j.live&&j.d.over?"⚠ ":""}${mEsc(j.code)}</b><small>${j.live?"👷 "+mEsc(j.d.engName||"ยังไม่มอบหมาย")+" · "+mEsc(j.d.subT||STAGE_T[j.d.stage]||""):(j.state==="move"?"กำลังไป ":"รออยู่ที่ ")+a.em+" "+a.t}</small></span><span></span></button>`})}
  else h=[["WON","#e0a800","🪙"],["LOST","#e5534b","⏰"],["CXL","#8a94a8","🚫"]].map(([k,c,e])=>`<button class="it" data-z="${k}"><i style="background:${c}"></i><span><b>${Z[k].t}</b><small>${Z[k].s}</small></span><em>${e} ${closed[k]}</em></button>`).join("");if(h!==mpH){mpH=h;mpb.innerHTML=h}}
 mpb.addEventListener("click",e=>{const b=e.target.closest("button");if(!b||b.dataset.none)return;stopAuto();if(b.dataset.e!==undefined){follow=null;select({type:"eng",idx:+b.dataset.e});return}if(b.dataset.j){const j=jobs.find(x=>String(x.id)===b.dataset.j);if(j){select({type:"job",id:j.id});follow=j.id}}else if(b.dataset.z){const z=Z[b.dataset.z];follow=null;select({type:"zone",id:b.dataset.z});goTo(z.cx,z.cz,Math.min(view.dist,58))}});
 const bN=$("bNorm"),bP=$("bPeak"),bS=$("bPause"),bNi=$("bNight"),bSp=$("bSpin");
@@ -684,7 +692,7 @@ function frame(now,dt){const t=now/1000;
    else{j.u+=dt*(peak?10:6.5)/Math.max(3,j.route.len);if(j.u>=1){j.leg++;arrive(j,j.path[j.leg]);if(j.live)liveArrived(j)}}}
   if(!live){coinAcc+=dt*(peak?5:3);while(coinAcc>1){coinAcc--;drop("W",1)}clockAcc+=dt*(peak?1.3:.7);while(clockAcc>1){clockAcc--;drop("L",1)}}}
  /* cars */
- const cnt={};let n=0;visJobs.length=0;
+ const cnt={};let n=0,nw=0;visJobs.length=0;
  for(const j of jobs){let tx,tz,yawT,hide=false;
   if(j.state==="move"){const p=j.route.at(j.u);tx=p[0];tz=p[1];if(p[2]||p[3])yawT=Math.atan2(p[2],p[3]);else yawT=j.yaw}
   else{const key=j.node==="E"?"E"+j.th:j.node,k=cnt[key]=(cnt[key]===undefined?0:cnt[key]+1),z=Z[j.node];if(k>=SLOT_CAP(z))hide=true;const s=slotPos(j.node,j.th||0,Math.min(k,SLOT_CAP(z)-1));tx=s[0];tz=s[1];yawT=Math.atan2(z.f[0],z.f[1])}
@@ -692,8 +700,8 @@ function frame(now,dt){const t=now/1000;
   let d=yawT-j.yaw;d=Math.atan2(Math.sin(d),Math.cos(d));j.yaw+=d*(j.state==="move"?.22:.14);
   if(hide||n>=MAXVIS)continue;
   const sy=Math.sin(j.yaw),cy=Math.cos(j.yaw);dm.position.set(j.pos[0],.62,j.pos[2]);dm.rotation.set(0,j.yaw,0);dm.updateMatrix();carBody.setMatrixAt(n,dm.matrix);carBody.setColorAt(n,j.col);
-  dm.position.set(j.pos[0]-sy*.1,1.05,j.pos[2]-cy*.1);dm.updateMatrix();carCab.setMatrixAt(n,dm.matrix);dm.position.set(j.pos[0],.28,j.pos[2]);dm.updateMatrix();carWheel.setMatrixAt(n,dm.matrix);visJobs[n]=j;n++}
- carBody.count=carCab.count=carWheel.count=n;carBody.instanceMatrix.needsUpdate=carCab.instanceMatrix.needsUpdate=carWheel.instanceMatrix.needsUpdate=true;if(carBody.instanceColor)carBody.instanceColor.needsUpdate=true;
+  dm.position.set(j.pos[0]-sy*.1,1.05,j.pos[2]-cy*.1);dm.updateMatrix();carCab.setMatrixAt(n,dm.matrix);dm.position.set(j.pos[0],.28,j.pos[2]);dm.updateMatrix();carWheel.setMatrixAt(n,dm.matrix);if(j.d&&j.d.over&&nw<MAXVIS){dm.position.set(j.pos[0],2.35+Math.sin(t*4+j.seed)*.15,j.pos[2]);dm.rotation.set(Math.PI,t*1.5,0);dm.updateMatrix();carWarn.setMatrixAt(nw++,dm.matrix)}visJobs[n]=j;n++}
+ carBody.count=carCab.count=carWheel.count=n;carWarn.count=nw;carWarn.instanceMatrix.needsUpdate=true;carBody.instanceMatrix.needsUpdate=carCab.instanceMatrix.needsUpdate=carWheel.instanceMatrix.needsUpdate=true;if(carBody.instanceColor)carBody.instanceColor.needsUpdate=true;
  /* falling coins and clocks */
  let nc=0,nk=0;for(let i=fx.length-1;i>=0;i--){const f=fx[i];if(!paused){f.y-=f.vy*dt*(f.k==="W"?1.6:1)}if(f.y<=f.fl){fx.splice(i,1);continue}
   if(f.k==="W"){dm.position.set(f.x,f.y,f.z);dm.rotation.set(t*6+f.ph,t*2+f.ph,t*4);dm.scale.set(1,1,1);dm.updateMatrix();coinI.setMatrixAt(nc++,dm.matrix)}
