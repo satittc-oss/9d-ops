@@ -1677,7 +1677,7 @@ async function dvRender(){let host=document.getElementById("dashv");if(!host)ret
  if(page!=="city")dvCityStop();if(DV.busy&&DV.renderPage===page){DV.again=!0;return}
  let id=DV.renderId=(DV.renderId||0)+1;DV.renderPage=page;DV.busy=!0;DV.again=!1;
  if(host.dataset.page!==String(page)){host.dataset.page=String(page);host.innerHTML=`<p class="dv-empty dv-loading" role="status">กำลังโหลดข้อมูล…</p>`}
- try{if(!wsPageAllowed(page||"home")){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="workflow"){await dvWorkflowPage(host,id);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){await dvProjectsPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvCityPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
+ try{if(!wsPageAllowed(page||"home")){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="workflow"){await dvWorkflowPage(host,id);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){await dvProjectsPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvRackPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
   if(!dvRenderCurrent(id,page))return;DV.sig=dvSig();
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
   let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>แดชบอร์ด</h1><p class="dv-sub">${staff?"ความเคลื่อนไหวใน Teams Channel และคำขอจากเซลส์ที่รอพิจารณา":"คำขอ Service Request ของคุณและสถานะการพิจารณา"}</p></div>
@@ -1774,7 +1774,7 @@ var dvNavIcon={workflow:'<svg width="20" height="20" viewBox="0 0 24 24" fill="n
  loans:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
  city:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l6-3v15"/><path d="M9 21V4l8 3v14"/><path d="M17 21v-9l4 2v7"/><path d="M2 21h20M12 9h2M12 13h2M12 17h2"/></svg>'};
 function dvNav(items){let ref=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim()))||items[1];if(!ref)return;
- let want=[["status","สถานะโครงการ"],["city","เมืองจำลอง"],...(mIsEng()?[["loans","ยืมสินค้า"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title]),...(wsPageAllowed("workflow")?[["workflow","ตั้งค่า Workflow"]]:[])],prev=ref;
+ let want=[["status","สถานะโครงการ"],["city","ศูนย์ข้อมูลงาน"],...(mIsEng()?[["loans","ยืมสินค้า"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title]),...(wsPageAllowed("workflow")?[["workflow","ตั้งค่า Workflow"]]:[])],prev=ref;
  for(let b of items)if(b.id?.startsWith("dvnav-custom-")&&!want.some(x=>b.id==="dvnav-"+x[0]))b.remove();
  for(let k of ["loans","quotes","service","workflow"])if(!want.some(x=>x[0]===k))document.getElementById("dvnav-"+k)?.remove();
  for(let[k,label]of want){let b=document.getElementById("dvnav-"+k);if(!b){b=document.createElement("button");b.type="button";b.id="dvnav-"+k;b.className="nav-item dv-nav";b.innerHTML=(dvNavIcon[k]||dvNavIcon.quotes)+"<span>"+mEsc(label)+"</span>";
@@ -1884,6 +1884,71 @@ function dvCityStop(){if(DV.cityTm){clearInterval(DV.cityTm);DV.cityTm=0}}
 window.addEventListener("message",e=>{if(e.origin!==location.origin||!e.data||e.data.t!=="9d-city-open")return;let fr=document.querySelector("#dashv .dv-cityf");if(!fr||e.source!==fr.contentWindow)return;document.body.classList.remove("dv-cityfull");DV.sf="all";DV.q=String(e.data.code||"").slice(0,40);dvGo("status")});
 window.addEventListener("message",e=>{if(e.origin!==location.origin||!e.data||e.data.t!=="9d-city-ready")return;let fr=document.querySelector("#dashv .dv-cityf");if(fr&&e.source===fr.contentWindow)dvCitySend()});
 /* ---- หน้า เมืองจำลอง (v16.14) — ฝัง city.html ในกรอบ (iframe) จึงไม่ปนกับสไตล์/สคริปต์ของแอป · ตอนนี้ยังเป็นข้อมูลจำลอง ---- */
+/* ===== v16.48 ศูนย์ข้อมูลงาน (แทนเมืองจำลอง) — ตู้แร็คของแต่ละแผนกส่งสัญญาณงานหากันตาม Flow งาน =====
+   ชั้นที่ 1 แผนกเซลส์: 1 ตู้ต่อเซลส์ (สีสัญญาณของเซลส์แต่ละคนไม่ซ้ำกัน)
+   ชั้นที่ 2 แผนกวิศวกรรม: ตู้ "รออนุมัติ" + 1 ตู้ต่อ Engineer + "ยังไม่มอบหมาย" → เห็นว่างานอยู่ที่ใคร
+   ชั้นที่ 3 สถานีตาม Flow งาน: ขั้นตอนย่อยรวมตามโซน (เรา / Supplier / จัดซื้อ / ลูกค้า / เซลส์) → ส่งงานแล้ว → ปิดงาน 30 วัน
+   ข้อมูลจาก dvState() เดียวกับหน้าสถานะ (เซลส์เห็นเฉพาะงานของตัวเองตามสิทธิ์เดิม) */
+var RK_ZONE={E:{t:"Engineering · ทำเอง",who:"เรา",c:"#005CB9"},V:{t:"รอ Supplier",who:"Supplier",c:"#6A1499"},P:{t:"ประสานจัดซื้อ",who:"จัดซื้อ",c:"#00A9B4"},C:{t:"รอลูกค้า",who:"ลูกค้า",c:"#FFC012"},S:{t:"รอเซลส์",who:"Sales",c:"#BC1A8C"}};
+function dvRackData(st){let acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a])),P=st.projects.filter(p=>String(p.id).startsWith("sp-")),ids=[...new Set(P.map(p=>p.accountId))].sort(),col=id=>CITYPAL[Math.max(0,ids.indexOf(id))%CITYPAL.length],now=Date.now(),jobs=[],closed=[];
+ for(let p of P){let s=mPStat(p);if(s==="rejected")continue;let sn=acc[p.accountId]?.name||String(p.accountId||"").replace(/^acc-/,"").split("@")[0]||"ไม่ระบุ";
+  let base={pid:p.id,code:p.code,name:p.name&&p.name!==p.code?p.name:"",client:p.client&&p.client!=="—"?p.client:"",sales:sn,sid:p.accountId,col:col(p.accountId),s,url:(typeof mChanUrl==="function"?mChanUrl(p):"")||p.channelUrl||"",brands:(p.serviceRequest?.brands||[]).slice(0,3)};
+  if(["won","lost","cancelled"].includes(s)){let at=mT(p.pstat?.at);if(at&&now-at<=30*864e5)closed.push({...base,st:"CLS",step:mPStatName(s),scol:s==="won"?"#00B259":s==="lost"?"#EC1C24":"#6B7486",days:Math.floor((now-at)/864e5),at});continue}
+  let sb=s==="active"?mSubOf(p):null,ei=s==="pending"?-2:dvCityEng(p),z=sb?(RK_ZONE[sb.m.z]?sb.m.z:"E"):"",since=sb?sb.at:s==="pending"?p.createdAt:p.pstat?.at;
+  jobs.push({...base,ei,eng:ei>=0?Hd[ei]:"",st:s==="pending"?"":s==="delivered"?"DLV":z,sub:sb?.sub||"",step:s==="pending"?"รออนุมัติ":sb?mCardName(sb.sub).label:mPStatName(s),scol:s==="pending"?"#FFC012":sb?STEPCOL[sb.sub]||"#005CB9":STEPCOL.delivered||"#00ADEF",days:Math.max(0,Math.floor((now-mT(since||p.createdAt))/864e5)),over:!!sb?.over,at:mT(since||p.createdAt)})}
+ let sales=ids.map(id=>({id,name:acc[id]?.name||String(id).replace(/^acc-/,"").split("@")[0],col:col(id),jobs:jobs.filter(j=>j.sid===id)})).filter(x=>x.jobs.length);
+ return{jobs,closed,sales}}
+function dvRackLayout(D,vert){let U=16,HD=46,CAP=vert?6:9,W=vert?360:1240,RW=vert?164:272,GX=vert?12:0,rh=n=>HD+Math.min(n,CAP)*U+(n>CAP?U:0)+12;
+ let mk=(id,kind,title,sub,col,jobs)=>({id,kind,title,sub,col,jobs:jobs.slice().sort((a,b)=>(b.over?1:0)-(a.over?1:0)||b.days-a.days),n:jobs.length,h:rh(jobs.length)});
+ let J=D.jobs,t1=D.sales.map(s=>mk("s:"+s.id,"sales",s.name,"เซลส์ · "+s.jobs.length+" งาน",s.col,s.jobs));
+ let t2=[mk("gate","gate","รออนุมัติ","คำขอเข้ามา รอ Engineer พิจารณา","#FFC012",J.filter(j=>j.s==="pending")),...Hd.map((n,i)=>mk("e"+i,"eng",dvTitle?dvTitle(n):n,"Engineer",["#272BA7","#6A1499","#00A9B4","#005CB9","#BC1A8C"][i%5],J.filter(j=>j.ei===i&&j.s!=="pending"))),mk("un","eng","ยังไม่มอบหมาย","ตั้ง Engineer ในรายการงาน","#6B7486",J.filter(j=>j.ei===-1))].filter(r=>r.n||r.kind==="eng"&&r.id!=="un");
+ let t3=[...Object.entries(RK_ZONE).map(([z,m])=>{let a=J.filter(j=>j.st===z),steps=SUBORD.filter(k=>(SUBST[k]?.z||"E")===z&&!SUBST[k]?.hidden);return mk("z:"+z,"zone",m.t,steps.map(k=>mCardName(k).label+" "+a.filter(j=>j.sub===k).length).join(" · ")||m.who,m.c,a)}),mk("z:DLV","zone",mPStatName("delivered"),"Engineer ส่งงานครบแล้ว รอผลจากลูกค้า",STEPCOL.delivered||"#00ADEF",J.filter(j=>j.st==="DLV")),mk("z:CLS","closed","ปิดงาน 30 วัน",`WIN ${D.closed.filter(j=>j.s==="won").length} · LOSS ${D.closed.filter(j=>j.s==="lost").length} · ยกเลิก ${D.closed.filter(j=>j.s==="cancelled").length}`,"#00B259",D.closed)];
+ let tiers=[t1,t2,t3],H=0;
+ if(!vert){let X=[16,16+RW+168,16+2*(RW+168)];tiers.forEach((t,ti)=>{let y=40;t.forEach(r=>{r.x=X[ti];r.y=y;r.w=RW;y+=r.h+14});H=Math.max(H,y)})}
+ else{let y=34;tiers.forEach((t,ti)=>{let cy=[y,y];t.forEach(r=>{let c=cy[0]<=cy[1]?0:1;r.x=GX+c*(RW+8);r.y=cy[c];r.w=RW;cy[c]+=r.h+10});y=Math.max(...cy)+(ti<2?70:0)});H=y+10}
+ return{tiers,W,H:Math.max(H,200),U,HD,CAP,vert,labels:vert?[]:[[16,"แผนกเซลส์"],[16+RW+168,"แผนกวิศวกรรม · งานอยู่ที่ใคร"],[16+2*(RW+168),"Flow งาน · สถานะ"]]}}
+function dvRackSvg(D,L){let E=mEsc,byId={},out=[],links={};L.tiers.flat().forEach(r=>byId[r.id]=r);
+ let add=(a,b,j)=>{if(!byId[a]||!byId[b])return;let k=a+">"+b+">"+j.sid;(links[k]=links[k]||{a,b,sid:j.sid,col:j.col,n:0,eis:new Set()}).n++;if(j.ei>=0)links[k].eis.add(j.ei)};
+ for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un";add("s:"+j.sid,mid,j);if(j.s!=="pending")add(mid,"z:"+j.st,j)}
+ let LS=Object.values(links),port={};LS.forEach(l=>{(port[l.a+">o"]=port[l.a+">o"]||[]).push(l);(port[l.b+">i"]=port[l.b+">i"]||[]).push(l)});
+ let pt=(r,side,l,list)=>{let i=list.indexOf(l),n=list.length,f=(i+1)/(n+1);if(!L.vert)return side==="o"?[r.x+r.w,r.y+18+f*(r.h-24)]:[r.x,r.y+18+f*(r.h-24)];return side==="o"?[r.x+10+f*(r.w-20),r.y+r.h]:[r.x+10+f*(r.w-20),r.y]};
+ let paths=LS.map((l,i)=>{let A=pt(byId[l.a],"o",l,port[l.a+">o"]),B=pt(byId[l.b],"i",l,port[l.b+">i"]),d=L.vert?`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${A[0].toFixed(1)},${(A[1]+40).toFixed(1)} ${B[0].toFixed(1)},${(B[1]-40).toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`:`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${(A[0]+80).toFixed(1)},${A[1].toFixed(1)} ${(B[0]-80).toFixed(1)},${B[1].toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`,w=Math.min(7,1.4+l.n*.7),dur=(2.2+(i%5)*.35).toFixed(2);
+  return`<g class="rk-link" data-sid="${E(l.sid)}" data-a="${E(l.a)}" data-b="${E(l.b)}" data-e="${[...l.eis].join(",")}"><path d="${d}" fill="none" stroke="${l.col}" stroke-width="${w.toFixed(1)}" stroke-opacity=".28" stroke-linecap="round"/><path class="rk-flow" d="${d}" fill="none" stroke="${l.col}" stroke-width="${Math.max(1.4,w*.5).toFixed(1)}" stroke-linecap="round"/>${i<70?`<circle class="rk-dot" r="${Math.min(4.5,2.4+l.n*.3).toFixed(1)}" fill="#fff" stroke="${l.col}" stroke-width="2"><animateMotion dur="${dur}s" repeatCount="indefinite" path="${d}"/></circle>`:""}<title>${E(byId[l.a].title)} → ${E(byId[l.b].title)}: ${l.n} งาน</title></g>`}).join("");
+ let rack=r=>{let u=r.jobs.slice(0,L.CAP),more=r.n-u.length,y0=r.y+L.HD;
+  return`<g class="rk-rack" data-rack="${E(r.id)}" tabindex="0" role="button" aria-label="${E(r.title)} ${r.n} งาน"><rect class="rk-body" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="8"/><rect x="${r.x}" y="${r.y}" width="${r.w}" height="4" rx="2" fill="${r.col}"/>
+   <circle cx="${r.x+14}" cy="${r.y+19}" r="4" fill="${r.col}" class="rk-pwr"/><text class="rk-t" x="${r.x+24}" y="${r.y+23}">${E(String(r.title).slice(0,L.vert?16:26))}</text><text class="rk-n" x="${r.x+r.w-10}" y="${r.y+23}" text-anchor="end">${r.n}</text><text class="rk-s" x="${r.x+12}" y="${r.y+38}">${E(String(r.sub||"").slice(0,L.vert?26:46))}</text>
+   ${u.map((j,i)=>{let y=y0+i*L.U;return`<g class="rk-u${j.over?" over":""}" data-pid="${E(j.pid)}" data-sid="${E(j.sid)}" data-e="${j.ei}"><rect x="${r.x+6}" y="${y}" width="${r.w-12}" height="${L.U-3}" rx="2" class="rk-ub"/><rect x="${r.x+6}" y="${y}" width="3" height="${L.U-3}" fill="${r.kind==="sales"?j.scol:j.col}"/><circle cx="${r.x+16}" cy="${y+6.5}" r="2.6" fill="${j.over?"#EC1C24":j.scol}" class="rk-led${j.over?" blink":""}"/><text class="rk-ut" x="${r.x+24}" y="${y+10}">${E(j.code)}${L.vert?"":" · "+E(String(j.step).slice(0,18))}</text><text class="rk-ud${j.over?" red":""}" x="${r.x+r.w-12}" y="${y+10}" text-anchor="end">${j.days}ว.</text><title>${E(j.code)} ${E(j.name)} · ${E(j.step)} · ${j.days} วัน${j.over?" · ค้างเกินวันเตือน":""}</title></g>`}).join("")}
+   ${more>0?`<text class="rk-more" x="${r.x+r.w/2}" y="${y0+u.length*L.U+11}" text-anchor="middle">+ อีก ${more} งาน</text>`:""}</g>`};
+ let labels=L.labels.map(([x,t])=>`<text class="rk-col" x="${x}" y="24">${E(t)}</text>`).join("");
+ return`<svg class="rk-svg" viewBox="0 0 ${L.W} ${L.H}" width="100%" role="img" aria-label="ตู้แร็คของแต่ละแผนกส่งงานหากันตาม Flow งาน"><defs><pattern id="rk-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#18233A" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#rk-grid)"/>${labels}<g class="rk-links">${paths}</g>${L.tiers.flat().map(rack).join("")}</svg>`}
+async function dvRackPage(host,id){document.body.classList.remove("rk-sheet");let st=await dvState();if(!dvRenderCurrent(id,"city"))return;DV.sig=dvSig();let D=dvRackData(st),vert=(host.clientWidth||1000)<760,L=dvRackLayout(D,vert),E=mEsc;DV.rk=D;
+ let J=D.jobs,act=J.filter(j=>j.s==="active"),kp=(t,v,s,c)=>`<div class="rk-kpi" style="--k:${c}"><span>${t}</span><b>${v}</b><small>${s}</small></div>`;
+ host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS · LIVE</p><h1>ศูนย์ข้อมูลงาน</h1><p class="dv-sub">ตู้แร็คแต่ละแผนกส่งสัญญาณงานหากันตาม Flow งาน · สีสัญญาณ = เซลส์แต่ละคน · ไฟแดงกะพริบ = ค้างเกินวันเตือน</p></div><div class="dv-hact"><button type="button" class="dv-sb pri" id="rk-all">☰ แสดงโครงการทั้งหมด</button></div></header>
+ <section class="rk-noc"><div class="rk-kpis">${kp("งานในระบบ",J.length,"ยังไม่ปิด","#00ADEF")}${kp("รออนุมัติ",J.filter(j=>j.s==="pending").length,"รอ Engineer พิจารณา","#FFC012")}${kp("กำลังทำ",act.length,"อยู่ในขั้นตอนต่าง ๆ","#005CB9")}${kp("ค้างเกินกำหนด",act.filter(j=>j.over).length,"ไฟแดงกะพริบ","#EC1C24")}${kp("ส่งงานแล้ว",J.filter(j=>j.s==="delivered").length,"รอลูกค้า","#00A9B4")}${kp("ปิด 30 วัน",D.closed.length,"WIN "+D.closed.filter(j=>j.s==="won").length,"#00B259")}</div>
+  <div class="rk-legend" role="group" aria-label="สีสัญญาณของเซลส์">${D.sales.map(s=>`<button type="button" data-hsid="${E(s.id)}"><i style="background:${s.col}"></i>${E(s.name)} <em>${s.jobs.length}</em></button>`).join("")}<button type="button" data-hsid="">ทั้งหมด</button></div>
+  <div class="rk-main"><div class="rk-stage${vert?" vert":""}">${J.length||D.closed.length?dvRackSvg(D,L):`<p class="rk-empty">ยังไม่มีงานในระบบ</p>`}</div><aside class="rk-side" id="rk-side" aria-live="polite"></aside></div>
+  <p class="rk-note">อัปเดตอัตโนมัติทุก 1 นาที · ข้อมูลชุดเดียวกับหน้าสถานะโครงการ · คลิกตู้หรือแถวงานเพื่อดูรายละเอียด · อัปเดต ${new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}</p></section>`;
+ let side=host.querySelector("#rk-side"),svg=host.querySelector(".rk-svg"),find=pid=>J.find(j=>j.pid===pid)||D.closed.find(j=>j.pid===pid);
+ let hl=(f)=>{if(!svg)return;svg.classList.toggle("hl",!!f);svg.querySelectorAll(".rk-link").forEach(g=>g.classList.toggle("on",!!f&&f(g)));svg.querySelectorAll(".rk-u").forEach(g=>g.classList.toggle("on",!!f&&f(g)))};
+ let jrow=j=>`<button type="button" class="rk-row${j.over?" over":""}" data-pid="${E(j.pid)}"><i style="background:${j.col}"></i><span><b>${E(j.code)}${j.name?" · "+E(j.name):""}</b><small>${E([j.client,j.sales,j.eng||(j.s==="pending"?"":"ยังไม่มอบหมาย")].filter(Boolean).join(" · "))}</small><small><em style="color:${j.scol}">●</em> ${E(j.step)} · ${j.days} วัน${j.over?" · ⚠ ค้าง":""}</small></span></button>`;
+ let open=html=>{side.innerHTML=`<button type="button" class="rk-x" aria-label="ปิด">✕</button>`+html;side.classList.add("open");document.body.classList.add("rk-sheet");side.querySelector(".rk-x").onclick=()=>{side.classList.remove("open");document.body.classList.remove("rk-sheet");side.innerHTML="";hl(null);DV.rkSel=null};
+  side.querySelectorAll(".rk-row").forEach(b=>b.onclick=()=>showJob(b.dataset.pid))};
+ let showJob=pid=>{let j=find(pid);if(!j)return;DV.rkSel={pid};hl(g=>g.dataset.pid?g.dataset.pid===pid:g.dataset.sid===j.sid&&(j.s==="pending"?g.dataset.b==="gate":(g.dataset.e||"").split(",").includes(String(j.ei))||g.dataset.b==="un"&&j.ei===-1));
+  open(`<h3>${E(j.code)}</h3><p class="rk-pn">${E(j.name||"")}</p><dl class="rk-dl"><div><dt>ลูกค้า</dt><dd>${E(j.client||"—")}</dd></div><div><dt>เซลส์</dt><dd><i style="background:${j.col}"></i>${E(j.sales)}</dd></div><div><dt>Engineer</dt><dd>${E(j.eng||(j.s==="pending"?"รอพิจารณา":"ยังไม่มอบหมาย"))}</dd></div><div><dt>สถานะ</dt><dd><em style="color:${j.scol}">●</em> ${E(j.step)}</dd></div><div><dt>ระยะเวลา</dt><dd>${j.days} วัน${j.over?` <b class="rk-red">ค้างเกินวันเตือน</b>`:""}</dd></div>${j.brands?.length?`<div><dt>Brand</dt><dd>${E(j.brands.join(", "))}</dd></div>`:""}</dl>
+   <div class="rk-act">${/^https:\/\//.test(j.url)?`<a class="dv-sb" href="${E(j.url)}" target="_blank" rel="noreferrer">Teams ↗</a>`:""}<button type="button" class="dv-sb pri" id="rk-go">ดูในหน้าสถานะ →</button></div>`);
+  side.querySelector("#rk-go").onclick=()=>{DV.sf="all";DV.q=j.code;dvGo("status")}};
+ let showRack=rid=>{let r=L.tiers.flat().find(x=>x.id===rid);if(!r)return;DV.rkSel={rack:rid};hl(g=>g.dataset.pid?r.jobs.some(j=>j.pid===g.dataset.pid):g.dataset.a===rid||g.dataset.b===rid);
+  open(`<h3><i class="rk-sw" style="background:${r.col}"></i>${E(r.title)}</h3><p class="rk-pn">${E(r.sub||"")} · ${r.n} งาน</p><div class="rk-list">${r.jobs.map(jrow).join("")||'<p class="rk-pn">ไม่มีงาน</p>'}</div>`)};
+ let showAll=(q="")=>{DV.rkSel={all:1};hl(null);let groups=[["รออนุมัติ",J.filter(j=>j.s==="pending")],["กำลังทำ",act],["ส่งงานแล้ว · รอลูกค้า",J.filter(j=>j.s==="delivered")],["ปิดงาน 30 วัน",D.closed]];
+  open(`<h3>โครงการทั้งหมด <small>${J.length+D.closed.length}</small></h3><input type="search" class="rk-q" placeholder="ค้นหาโค้ด / ชื่องาน / ลูกค้า / เซลส์ / Engineer" value="${E(q)}"><div class="rk-list">${groups.map(([t,a])=>{let w=String(q).toLowerCase().trim(),f=a.filter(j=>!w||[j.code,j.name,j.client,j.sales,j.eng,j.step].join(" ").toLowerCase().includes(w));return f.length?`<h4>${t} <em>${f.length}</em></h4>${f.map(jrow).join("")}`:""}).join("")||'<p class="rk-pn">ไม่พบโครงการ</p>'}</div>`);
+  let inp=side.querySelector(".rk-q");inp.oninput=()=>{let v=inp.value,pos=inp.selectionStart;showAll(v);let n=side.querySelector(".rk-q");n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}};
+ host.querySelector("#rk-all").onclick=()=>showAll();
+ host.querySelectorAll("[data-hsid]").forEach(b=>b.onclick=()=>{let s=b.dataset.hsid;host.querySelectorAll("[data-hsid]").forEach(x=>x.classList.toggle("on",x===b&&!!s));hl(s?g=>g.dataset.sid===s:null)});
+ if(svg){svg.addEventListener("click",e=>{let u=e.target.closest(".rk-u");if(u){showJob(u.dataset.pid);return}let r=e.target.closest(".rk-rack");if(r)showRack(r.dataset.rack)});
+  svg.addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;let r=e.target.closest(".rk-rack");if(r){e.preventDefault();showRack(r.dataset.rack)}})}
+ let S=DV.rkSel;if(S?.pid&&find(S.pid))showJob(S.pid);else if(S?.rack)showRack(S.rack);
+ dvCityStop();DV.cityTm=setInterval(()=>{if(DV.page!=="city"||document.hidden||side.classList.contains("open")&&DV.rkSel?.all)return;DV.stAt=0;dvRender()},6e4)}
+
 function dvGlOk(){try{let c=document.createElement("canvas");return!!(window.WebGLRenderingContext&&(c.getContext("webgl2")||c.getContext("webgl")))}catch(e){return!1}}
 async function dvCityTable(host){let d=await dvCitySnap(),E=mEsc;host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>เมืองจำลองการทำงาน</h1><p class="dv-sub">อุปกรณ์นี้แสดงภาพ 3 มิติ (WebGL) ไม่ได้ จึงแสดงเป็นตารางสรุปแทน</p></div></header>
  <div class="dv-card"><h3>งานที่กำลังทำ แยกตามขั้นตอน</h3><div class="wf-tbl"><table class="dv-ptab"><thead><tr><th>ขั้นตอน</th><th>งานอยู่ที่</th><th>จำนวน</th><th>ค้างเกินวันเตือน</th></tr></thead><tbody>${d.steps.map(s=>`<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.col};margin-right:6px"></i>${E(s.t)}</td><td>${E(s.who||"")}</td><td>${s.n}</td><td>${s.ov?dvIcon.warn+" "+s.ov:"—"}</td></tr>`).join("")}</tbody></table></div></div>
@@ -3095,7 +3160,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.47";
+var M_VER="v16.48";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4054,5 +4119,60 @@ body.dv-nosel{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .dv-modal-box label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#4A5468}.dv-modal-box textarea{font:inherit;padding:8px;border:1px solid #CDD4DE;border-radius:8px}
 .dv-modal-act{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.dv-modal .dv-save{background:#005CB9;color:#fff;border-color:#005CB9}.dv-modal .dv-save.dv-danger{background:#C4161C;border-color:#C4161C}
 @media(max-width:640px){#dashv .dv-board{grid-auto-columns:86%;scroll-snap-type:x mandatory}#dv-dropbar{gap:6px;bottom:calc(70px + env(safe-area-inset-bottom))}.dv-drop{min-height:56px;font-size:14px}}
+</style>
+<style id="v1648">
+/* v16.48 โลโก้บนพื้นขาว: เลิกบล็อกดำ · ตัวอักษร NINE DISTRIBUTION เป็นสีเข้ม (ไม่เปลี่ยนสัดส่วน/สีโลโก้ 9D) */
+.app-shell .sidebar .brand{background:linear-gradient(180deg,#F4F9FE 0%,#FFFFFF 100%)!important;margin:0 -17px 14px!important;padding:22px 17px 16px!important;border-bottom:1px solid #E6EAF0!important;position:relative}
+.app-shell .sidebar .brand::after{content:"";position:absolute;left:17px;right:17px;bottom:-1px;height:3px;border-radius:3px;background:linear-gradient(90deg,#00ADEF,#005CB9)}
+.app-shell .sidebar .brand-logo-frame::before{background:#141A26!important}
+.app-shell .sidebar .brand-caption strong{color:#141A26!important;letter-spacing:.18em}
+.app-shell .sidebar .brand-caption span{color:#4A5468!important}
+.app-shell .sidebar .mobile-close{color:#141A26!important}
+/* v16.48 ศูนย์ข้อมูลงาน (NOC) */
+.rk-noc{background:#0A1220;border-radius:14px;padding:14px;color:#DCE6F5;box-shadow:0 8px 26px rgba(10,18,32,.25)}
+.rk-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.rk-kpi{background:#101B2E;border:1px solid #1E2B44;border-radius:10px;padding:10px 12px;border-top:3px solid var(--k)}
+.rk-kpi span{display:block;font-size:11px;letter-spacing:.06em;color:#9FB0C8}.rk-kpi b{display:block;font-size:26px;font-weight:600;color:#fff;line-height:1.2}.rk-kpi small{font-size:11px;color:#9FB0C8}
+.rk-legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.rk-legend button{display:inline-flex;align-items:center;gap:6px;background:#101B2E;border:1px solid #24324D;color:#DCE6F5;border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+.rk-legend button.on,.rk-legend button:hover{border-color:#00ADEF;background:#13233D}.rk-legend i{width:10px;height:10px;border-radius:50%}.rk-legend em{font-style:normal;color:#9FB0C8}
+.rk-main{display:grid;grid-template-columns:1fr;gap:12px;position:relative}
+.rk-main:has(.rk-side.open){grid-template-columns:minmax(0,1fr) 320px}
+.rk-stage{overflow:auto;border-radius:10px;background:#0B1424;border:1px solid #1A2740}
+.rk-svg{display:block;min-width:900px;font-family:Roboto,"Noto Sans Thai",sans-serif}
+.rk-stage.vert .rk-svg{min-width:0}
+.rk-col{fill:#7F93B2;font-size:12px;letter-spacing:.14em;font-weight:600}
+.rk-body{fill:#0F1A2C;stroke:#2A3A58;stroke-width:1}
+.rk-rack{cursor:pointer;outline:none}.rk-rack:hover .rk-body,.rk-rack:focus-visible .rk-body{stroke:#00ADEF}
+.rk-t{fill:#fff;font-size:13px;font-weight:600}.rk-n{fill:#00ADEF;font-size:15px;font-weight:700}.rk-s{fill:#8EA0BC;font-size:10.5px}
+.rk-ub{fill:#15233A}.rk-u:hover .rk-ub{fill:#1E3352}.rk-ut{fill:#DCE6F5;font-size:10.5px}.rk-ud{fill:#8EA0BC;font-size:10px}.rk-ud.red{fill:#FF6B70;font-weight:700}
+.rk-more{fill:#8EA0BC;font-size:10.5px}
+.rk-pwr{animation:rkpulse 2.4s ease-in-out infinite}
+.rk-led.blink{animation:rkblink 1s steps(2,end) infinite}
+.rk-flow{stroke-dasharray:3 9;animation:rkdash 1.1s linear infinite}
+@keyframes rkdash{to{stroke-dashoffset:-24}}@keyframes rkblink{50%{opacity:.15}}@keyframes rkpulse{50%{opacity:.35}}
+.rk-link path:first-child{stroke-opacity:.4}.rk-svg.hl .rk-link{opacity:.08}.rk-svg.hl .rk-link.on{opacity:1}.rk-svg.hl .rk-u{opacity:.35}.rk-svg.hl .rk-u.on{opacity:1}.rk-u.on .rk-ub{fill:#1E3A5F;stroke:#00ADEF}
+.rk-link,.rk-u{transition:opacity .2s}
+@media (prefers-reduced-motion:reduce){.rk-flow,.rk-led.blink,.rk-pwr{animation:none}.rk-dot{display:none}}
+.rk-side{display:none;background:#101B2E;border:1px solid #24324D;border-radius:10px;padding:14px;max-height:78vh;overflow:auto;position:relative}
+.rk-side.open{display:block}
+.rk-side h3{margin:0 24px 4px 0;font-size:17px;color:#fff;display:flex;align-items:center;gap:8px}.rk-side h3 small{color:#9FB0C8;font-weight:400}
+.rk-side h4{margin:12px 0 4px;font-size:12px;color:#9FB0C8;letter-spacing:.06em}.rk-side h4 em{font-style:normal;color:#00ADEF}
+.rk-pn{margin:0 0 8px;color:#B8C6DA;font-size:13px}.rk-sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.rk-x{position:absolute;right:10px;top:10px;background:#1A2944;border:0;color:#DCE6F5;width:28px;height:28px;border-radius:50%;cursor:pointer}
+.rk-q{width:100%;box-sizing:border-box;margin:6px 0 4px;padding:9px 10px;border-radius:8px;border:1px solid #2A3A58;background:#0B1424;color:#fff;font:inherit;font-size:13px}
+.rk-list{display:grid;gap:4px}
+.rk-row{display:flex;gap:8px;align-items:flex-start;text-align:left;width:100%;background:#0F1A2C;border:1px solid #1E2B44;border-radius:8px;padding:8px;color:#DCE6F5;font:inherit;cursor:pointer}
+.rk-row:hover{border-color:#00ADEF}.rk-row.over{border-left:3px solid #EC1C24}.rk-row i{flex:0 0 auto;width:10px;height:10px;border-radius:50%;margin-top:4px}
+.rk-row span{display:flex;flex-direction:column;min-width:0}.rk-row b{font-size:13px;color:#fff}.rk-row small{font-size:11.5px;color:#9FB0C8}.rk-row em{font-style:normal}
+.rk-dl{display:grid;gap:6px;margin:8px 0}.rk-dl div{display:grid;grid-template-columns:84px 1fr;gap:8px;font-size:13px}.rk-dl dt{color:#9FB0C8}.rk-dl dd{margin:0;color:#fff;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.rk-dl dd i{width:10px;height:10px;border-radius:50%}.rk-dl em{font-style:normal}
+.rk-red{color:#FF6B70}.rk-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.rk-note{margin:10px 2px 0;font-size:12px;color:#8EA0BC}.rk-empty{padding:40px;text-align:center;color:#9FB0C8}
+@media(max-width:1100px){.rk-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.rk-noc{padding:10px;margin:0 -4px}.rk-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.rk-kpi b{font-size:22px}
+ .rk-main:has(.rk-side.open){grid-template-columns:1fr}
+ .rk-side.open{position:fixed;left:0;right:0;bottom:0;z-index:950;max-height:72vh;border-radius:16px 16px 0 0;padding-bottom:calc(76px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.4)}
+ body.rk-sheet #dashv .dv-head #rk-all{display:none}
+ #dashv .dv-head #rk-all{position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:940;border-radius:999px;box-shadow:0 8px 20px rgba(0,92,185,.4);padding:10px 16px}}
 </style>
 </body></html>
