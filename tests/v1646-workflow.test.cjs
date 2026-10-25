@@ -31,7 +31,7 @@ function setup(settings={}){
  c.mWfApply(settings);return c}
 const proj=(id,o={})=>({id:'sp-'+id,listItemId:String(id),code:'T'+id,name:'งาน '+id,client:'ลูกค้า',accountId:'acc-sales1@example.invalid',listApproval:'approved',createdAt:iso(30),teamId:'tm',channelId:'ch'+id,serviceRequest:{brands:['CommScope'],workTypes:['ออกแบบ'],urgency:'ด่วน'},...o});
 
-test('ไม่มี settings.workflow = ค่าเดิมทุกอย่าง (SUBST/SUBORD/แฮชแท็กเดิม)',()=>{let c=setup();assert.equal(c.WF_ON,false);assert.deepEqual([...c.SUBORD],['recv','design','buy','sup','price','sales','quote','cust']);assert.equal(c.mSub('#รอราคา ครับ'),'price');assert.equal(c.mSub('#ทำBOM'),'design')});
+test('ไม่มี settings.workflow = ค่าเดิมทุกอย่าง (SUBST/SUBORD/แฮชแท็กเดิม)',()=>{let c=setup();assert.equal(c.WF_ON,false);assert.deepEqual([...c.SUBORD],['recv','design','buy','sup','price','quote','cust','sales']);assert.equal(c.mSub('#รอราคา ครับ'),'price');assert.equal(c.mSub('#ทำBOM'),'design')});
 
 test('แก้ชื่อ/เรียง/เพิ่มขั้นตอน + แฮชแท็กใหม่ + ลบขั้นตอนแล้วข้อมูลเก่ายังอ่านได้',()=>{
  let c=setup({workflow:{steps:[{k:'recv',t:'รับงาน',who:'เรา',z:'E',warn:0},{k:'price',t:'รอราคา (ใหม่)',tag:'#รอราคา',who:'Supplier',z:'V',warn:5,color:'#FF8000'},{k:'s1',t:'รอทดสอบ',tag:'#รอทดสอบ',who:'ลูกค้า',z:'C',warn:3,color:'#00B259'}],rules:[]}});
