@@ -1999,7 +1999,7 @@ async function dvRack3D(box,D,L,api){let T=await dvThree();if(!box.isConnected)r
  let pick=e=>{let b=cv.getBoundingClientRect();v2.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);ray.setFromCamera(v2,cam);
   let h=ray.intersectObject(srv)[0];if(h&&h.instanceId!==undefined&&slots[h.instanceId]){api.showJob(slots[h.instanceId].j.pid);return}
   let r=ray.intersectObjects(picks)[0];if(r)api.showRack(r.object.userData.rack)};
- let hl=f=>{flows.forEach(F=>{F.ln.material.opacity=f?(f(F)?.95:.04):.16})};
+ let hl=f=>{flows.forEach(F=>{let on=!f||f(F);F.ln.visible=on;F.ln.material.opacity=f?.95:.16})};
  let tubes=[],tDots=[],gPkt=new T.SphereGeometry(.03,10,8),tube=f=>{tubes.forEach(m=>{S.remove(m);m.geometry.dispose()});tDots.forEach(m=>S.remove(m));tubes=[];tDots=[];if(!f)return;flows.filter(F=>f(F)).forEach(F=>{let m=new T.Mesh(new T.TubeGeometry(F.cu,36,.016,8,!1),new T.MeshBasicMaterial({color:F.col}));S.add(m);tubes.push(m);let d=new T.Mesh(gPkt,new T.MeshBasicMaterial({color:0xffffff}));d.userData.cu=F.cu;d.userData.ph=Math.random();S.add(d);tDots.push(d)})};
  let views={"3d":{th:.72,ph:.82},top:{th:.001,ph:.2},front:{th:.001,ph:1.3}};
  let api3={view:m=>{let v=views[m]||views["3d"];C.th=v.th;C.ph=v.ph;C.r=Math.max(8.5,half*1.85*fit0*(m==="top"?1.1:1));C.tx=0;C.ty=1.25;C.tz=.35;auto=!1;DV.rkAuto=!1;place()},selJob:j=>{let s=slots.find(x=>x.j.pid===j.pid);sel.visible=!!s;rsel.visible=!1;if(s){sel.position.set(s.x,DC_RH-.08-(s.k+.5)*DC_SU*DC_U,s.z+DC_RD/2+.012);focus(s.x,s.z)}
@@ -2023,7 +2023,7 @@ async function dvRackPage(host,id){try{DV.rk3Stop?.()}catch(e){}DV.rk3=null;if(!
   <div class="rk-main"><div class="rk-stage${vert&&!is3?" vert":""}${is3?" is3":""}">${!(J.length||D.closed.length)?`<p class="rk-empty">ยังไม่มีงานในระบบ</p>`:is3?`<div class="rk-3d" id="rk-3d"><p class="rk-load">กำลังโหลดห้องเซิร์ฟเวอร์ 3 มิติ…</p><p class="rk-hint">ลากเพื่อหมุน · ล้อเมาส์ / ถ่างนิ้วเพื่อซูม · Shift+ลาก เลื่อน · แตะเครื่องหรือตู้เพื่อดูงาน · ตู้ 600×1200 มม. 42U · 1 งาน = 2U</p></div>`:dvRackSvg(D,L)}</div><aside class="rk-side" id="rk-side" aria-live="polite"></aside></div>
   <p class="rk-note">อัปเดตอัตโนมัติทุก 1 นาที · ข้อมูลชุดเดียวกับหน้าสถานะโครงการ · คลิกตู้หรือแถวงานเพื่อดูรายละเอียด · อัปเดต ${new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}</p></section>`;
  let side=host.querySelector("#rk-side"),svg=host.querySelector(".rk-svg"),find=pid=>J.find(j=>j.pid===pid)||D.closed.find(j=>j.pid===pid);
- let hl=(f)=>{if(!svg)return;svg.classList.toggle("hl",!!f);svg.querySelectorAll(".rk-link").forEach(g=>g.classList.toggle("on",!!f&&f(g)));svg.querySelectorAll(".rk-u").forEach(g=>g.classList.toggle("on",!!f&&f(g)))};
+ let hl=(f)=>{if(!svg)return;svg.classList.toggle("hl",!!f);svg.querySelectorAll(".rk-link").forEach(g=>g.classList.toggle("on",!!f&&f(g)));svg.querySelectorAll(".rk-dot2").forEach(x=>x.remove());if(f&&!matchMedia("(prefers-reduced-motion: reduce)").matches){let NS="http://www.w3.org/2000/svg",on=[...svg.querySelectorAll(".rk-link.on")].slice(0,40);on.forEach((g,i)=>{let d=g.querySelector("path")?.getAttribute("d"),col=g.querySelector("path")?.getAttribute("stroke")||"#00ADEF";if(!d)return;for(let q=0;q<2;q++){let c=document.createElementNS(NS,"circle");c.setAttribute("class","rk-dot2");c.setAttribute("r","4.5");c.setAttribute("fill","#fff");c.setAttribute("stroke",col);c.setAttribute("stroke-width","2.5");let m=document.createElementNS(NS,"animateMotion");m.setAttribute("dur","1.8s");m.setAttribute("begin",(q*.9+i*.12).toFixed(2)+"s");m.setAttribute("repeatCount","indefinite");m.setAttribute("path",d);c.appendChild(m);g.appendChild(c)}});try{svg.setCurrentTime?.(0)}catch(e){}}svg.querySelectorAll(".rk-u").forEach(g=>g.classList.toggle("on",!!f&&f(g)))};
  let jrow=j=>`<button type="button" class="rk-row${j.over?" over":""}" data-pid="${E(j.pid)}"><i style="background:${j.col}"></i><span><b>${E(j.code)}${j.name?" · "+E(j.name):""}</b><small>${E([j.client,j.sales,j.eng||(j.s==="pending"?"":"ยังไม่มอบหมาย")].filter(Boolean).join(" · "))}</small><small><em style="color:${j.scol}">●</em> ${E(j.step)} · ${j.days} วัน${j.over?" · ⚠ ค้าง":""}</small></span></button>`;
  let open=html=>{side.innerHTML=`<button type="button" class="rk-x" aria-label="ปิด">✕</button>`+html;side.classList.add("open");document.body.classList.add("rk-sheet");side.querySelector(".rk-x").onclick=()=>{side.classList.remove("open");document.body.classList.remove("rk-sheet");DV.rk3?.clear();side.innerHTML="";hl(null);DV.rkSel=null};
   side.querySelectorAll(".rk-row").forEach(b=>b.onclick=()=>showJob(b.dataset.pid))};
@@ -3277,7 +3277,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.53";
+var M_VER="v16.54";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4328,7 +4328,7 @@ body.dv-nosel{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .rk-find:focus{outline:none;border-color:#00ADEF}
 .rk-find-n{font-size:12px;color:#8EA0BC;white-space:nowrap}
 .rk-svg .rk-flow{stroke-dasharray:4 8;opacity:0}
-.rk-svg.hl .rk-link{opacity:.07}
+.rk-svg.hl .rk-link:not(.on){display:none}
 .rk-svg.hl .rk-link.on{opacity:1}
 .rk-link.on .rk-flow{opacity:1;animation:rkdash 1s linear infinite}
 .rk-link.on path:first-child{stroke-opacity:.9!important;stroke-width:3!important}
