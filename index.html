@@ -1898,21 +1898,21 @@ function dvRackData(st){let acc=Object.fromEntries((st.accounts||[]).map(a=>[a.i
   jobs.push({...base,ei,eng:ei>=0?Hd[ei]:"",st:s==="pending"?"":s==="delivered"?"DLV":(sb?sb.sub:"recv"),sub:sb?.sub||"",step:s==="pending"?"รออนุมัติ":sb?mCardName(sb.sub).label:mPStatName(s),who:s==="pending"?"Engineer (พิจารณา)":sb?mCardName(sb.sub).who:s==="delivered"?"ลูกค้า":"",scol:s==="pending"?"#FFC012":sb?STEPCOL[sb.sub]||"#005CB9":STEPCOL.delivered||"#00ADEF",days:Math.max(0,Math.floor((now-mT(since||p.createdAt))/864e5)),over:!!sb?.over,at:mT(since||p.createdAt)})}
  let sales=ids.map(id=>({id,name:acc[id]?.name||String(id).replace(/^acc-/,"").split("@")[0],col:col(id),jobs:jobs.filter(j=>j.sid===id)})).filter(x=>x.jobs.length);
  return{jobs,closed,sales}}
-function dvRackLayout(D,vert){let U=16,HD=46,CAP=vert?6:9,W=vert?360:1240,RW=vert?164:272,GX=vert?12:0,rh=n=>HD+Math.min(n,CAP)*U+(n>CAP?U:0)+12;
+function dvRackLayout(D,vert){let U=16,HD=46,CAP=vert?6:9,W=vert?360:1330,RW=vert?164:236,GX=vert?12:0,rh=n=>HD+Math.min(n,CAP)*U+(n>CAP?U:0)+12;
  let mk=(id,kind,title,sub,col,jobs)=>({id,kind,title,sub,col,jobs:jobs.slice().sort((a,b)=>(b.over?1:0)-(a.over?1:0)||b.days-a.days),n:jobs.length,h:rh(jobs.length)});
  let J=D.jobs,t1=D.sales.map(s=>({...mk("s:"+s.id,"sales",s.name,"เซลส์ · "+s.jobs.length+" งาน",s.col,s.jobs),short:String(s.name).replace(/@.*/,"")}));
  let t2=[mk("gate","gate","รออนุมัติ","คำขอเข้ามา รอ Engineer พิจารณา","#FFC012",J.filter(j=>j.s==="pending")),...Hd.map((n,i)=>mk("e"+i,"eng",dvTitle?dvTitle(n):n,"Engineer",["#272BA7","#6A1499","#00A9B4","#005CB9","#BC1A8C"][i%5],J.filter(j=>j.ei===i&&j.s!=="pending"))),mk("un","eng","ยังไม่มอบหมาย","ตั้ง Engineer ในรายการงาน","#6B7486",J.filter(j=>j.ei===-1))].filter(r=>r.n||r.kind==="eng"&&r.id!=="un");
  let t3=[...SUBORD.filter(k=>!SUBST[k]?.hidden).map(k=>mk("z:"+k,"zone",mCardName(k).label,mCardName(k).who||(RK_ZONE[SUBST[k]?.z]?.who||""),STEPCOL[k]||"#005CB9",J.filter(j=>j.st===k))),mk("z:DLV","zone",mPStatName("delivered"),"Engineer ส่งงานครบแล้ว รอผลจากลูกค้า",STEPCOL.delivered||"#00ADEF",J.filter(j=>j.st==="DLV")),mk("z:CLS","closed","ปิดงาน 30 วัน",`WIN ${D.closed.filter(j=>j.s==="won").length} · LOSS ${D.closed.filter(j=>j.s==="lost").length} · ยกเลิก ${D.closed.filter(j=>j.s==="cancelled").length}`,"#00B259",D.closed)];
- let tiers=[t1,t2,t3],H=0;
- if(!vert){let X=[16,16+RW+168,16+2*(RW+168)];tiers.forEach((t,ti)=>{let y=40;t.forEach(r=>{r.x=X[ti];r.y=y;r.w=RW;y+=r.h+14});H=Math.max(H,y)})}
- else{let y=34;tiers.forEach((t,ti)=>{let cy=[y,y];t.forEach(r=>{let c=cy[0]<=cy[1]?0:1;r.x=GX+c*(RW+8);r.y=cy[c];r.w=RW;cy[c]+=r.h+10});y=Math.max(...cy)+(ti<2?70:0)});H=y+10}
- return{tiers,W,H:Math.max(H,200),U,HD,CAP,vert,labels:vert?[]:[[16,"แผนกเซลส์"],[16+RW+168,"แผนกวิศวกรรม · งานอยู่ที่ใคร"],[16+2*(RW+168),"Flow งาน · สถานะ"]]}}
+ let hub=t3.find(r=>r.id==="z:recv");if(hub)hub.sub="Top of Rack · กระจายงานไปทุกสถานะ";let tiers=[t1,t2,hub?[hub]:[],t3.filter(r=>r!==hub)],H=0;
+ if(!vert){let X=[16,16+RW+116,16+2*(RW+116),16+3*(RW+116)];tiers.forEach((t,ti)=>{let y=40;t.forEach(r=>{r.x=X[ti];r.y=y;r.w=RW;y+=r.h+14});H=Math.max(H,y)})}
+ else{let y=34;tiers.forEach((t,ti)=>{let cy=[y,y];t.forEach(r=>{let c=cy[0]<=cy[1]?0:1;r.x=GX+c*(RW+8);r.y=cy[c];r.w=RW;cy[c]+=r.h+10});y=Math.max(...cy)+(ti<3?70:0)});H=y+10}
+ return{tiers,W,H:Math.max(H,200),U,HD,CAP,vert,labels:vert?[]:[[16,"แผนกเซลส์"],[16+RW+116,"แผนกวิศวกรรม"],[16+2*(RW+116),"Top of Rack"],[16+3*(RW+116),"Flow งาน · สถานะ"]]}}
 function dvRackSvg(D,L){let E=mEsc,byId={},out=[],links={};L.tiers.flat().forEach(r=>byId[r.id]=r);
  let cellIdx={};L.tiers.flat().forEach(r=>r.jobs.slice(0,L.CAP).forEach((j,i)=>cellIdx[r.id+"|"+j.pid]=i));
  let anc=(rid,pid,side)=>{let r=byId[rid];if(!r)return null;let i=cellIdx[rid+"|"+pid];
-  if(!L.vert){let y=i!=null?r.y+L.HD+i*L.U+(L.U-3)/2:r.y+r.h/2;return side==="o"?[r.x+r.w,y]:[r.x,y]}
+  if(!L.vert){let y=i!=null?r.y+L.HD+i*L.U+(L.U-3)/2:rid==="z:recv"?r.y+22:r.y+r.h/2;return side==="o"?[r.x+r.w,y]:[r.x,y]}
   let x=r.x+r.w/2;return side==="o"?[x,r.y+r.h]:[x,r.y]};
- let segs=[];for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un",ch=[["s:"+j.sid,mid]];if(j.s!=="pending")ch.push([mid,"z:"+j.st]);
+ let segs=[];for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un",ch=[["s:"+j.sid,mid]];if(j.s!=="pending"){ch.push([mid,"z:recv"]);if(j.st!=="recv")ch.push(["z:recv","z:"+j.st])}
   ch.forEach(([a,b])=>{if(!byId[a]||!byId[b])return;let A=anc(a,j.pid,"o"),B=anc(b,j.pid,"i");if(A&&B)segs.push({A,B,pid:j.pid,sid:j.sid,col:j.col})})}
  let paths=segs.map(g=>{let A=g.A,B=g.B,d=L.vert?`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${A[0].toFixed(1)},${(A[1]+34).toFixed(1)} ${B[0].toFixed(1)},${(B[1]-34).toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`:`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${(A[0]+70).toFixed(1)},${A[1].toFixed(1)} ${(B[0]-70).toFixed(1)},${B[1].toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`;
   return`<g class="rk-link" data-pid="${E(g.pid)}" data-sid="${E(g.sid)}"><path d="${d}" fill="none" stroke="${g.col}" stroke-width="2" stroke-opacity=".2" stroke-linecap="round"/><path class="rk-flow" d="${d}" fill="none" stroke="${g.col}" stroke-width="2.4" stroke-linecap="round"/></g>`}).join("");
@@ -1940,7 +1940,7 @@ async function dvRack3D(box,D,L,api){let T=await dvThree();if(!box.isConnected)r
  R.setPixelRatio(Math.min(2,window.devicePixelRatio||1));R.setClearColor(0x070d18);
  let S=new T.Scene();S.fog=new T.Fog(0x070d18,14,34);let cam=new T.PerspectiveCamera(42,1,.05,80);
  S.add(new T.HemisphereLight(0xcfe2ff,0x1a2436,1.05));let dl=new T.DirectionalLight(0xffffff,.7);dl.position.set(4,9,7);S.add(dl);let dl2=new T.DirectionalLight(0x6fb6ff,.25);dl2.position.set(-6,5,-6);S.add(dl2);
- let rows=L.tiers.map((t,i)=>({racks:t,z:(i-1)*3.0,name:["แผนกเซลส์","แผนกวิศวกรรม · งานอยู่ที่ใคร","Flow งาน · สถานะ"][i]})),maxN=Math.max(...rows.map(r=>r.racks.length)),half=Math.max(4,maxN*(DC_RW+.02)/2+1.2);
+ let rows=L.tiers.map((t,i)=>({racks:t,z:[-3.4,0,2.1,4.3][i]??(i-1)*3,name:["แผนกเซลส์","แผนกวิศวกรรม · งานอยู่ที่ใคร","Top of Rack · รับงานแล้ว","Flow งาน · สถานะ"][i]||""})).filter(r=>r.racks.length),maxN=Math.max(...rows.map(r=>r.racks.length)),half=Math.max(4,maxN*(DC_RW+.02)/2+1.2);
  /* พื้นยก (raised floor) */
  let fcv=document.createElement("canvas");fcv.width=fcv.height=256;let fg=fcv.getContext("2d"),fgr=fg.createRadialGradient(128,128,40,128,128,128);fgr.addColorStop(0,"rgba(255,255,255,1)");fgr.addColorStop(.75,"rgba(255,255,255,.65)");fgr.addColorStop(1,"rgba(255,255,255,0)");fg.fillStyle=fgr;fg.fillRect(0,0,256,256);
  let fTex=new T.CanvasTexture(fcv),fl=new T.Mesh(new T.CircleGeometry(Math.max(half+3,9),48),new T.MeshStandardMaterial({color:0x111a2b,roughness:.92,metalness:.08,transparent:!0,alphaMap:fTex,opacity:1}));fl.rotation.x=-Math.PI/2;fl.position.y=-.001;S.add(fl);
@@ -1956,6 +1956,9 @@ async function dvRack3D(box,D,L,api){let T=await dvThree();if(!box.isConnected)r
    for(let sz of[-1,1])for(let yy of[DC_RH-.011,.011]){let m=new T.Mesh(gRailX,mFrame);m.position.set(0,yy,sz*(DC_RD/2-.012));g.add(m)}
    for(let sx of[-1,1]){let m=new T.Mesh(gMount,mMount);m.position.set(sx*(DC_RW/2-.04),DC_RH/2,DC_RD/2-.05);g.add(m)}
    let st=new T.Mesh(gStrip,new T.MeshBasicMaterial({color:r.col}));st.position.set(0,DC_RH+.018,DC_RD/2-.02);g.add(st);
+   if(r.id==="z:recv"){let sw=new T.Mesh(new T.BoxGeometry(DC_RW+.04,.07,DC_RD*.92),new T.MeshStandardMaterial({color:0x0b2a4a,emissive:0x00517a,roughness:.4,metalness:.6}));sw.position.set(0,DC_RH+.07,0);g.add(sw);
+    for(let q=0;q<12;q++){let p=new T.Mesh(new T.BoxGeometry(.03,.02,.01),new T.MeshBasicMaterial({color:q%3?0x00ff9c:0x00ADEF}));p.position.set(-DC_RW/2+.05+q*(DC_RW-.08)/11,DC_RH+.07,DC_RD*.46+.006);g.add(p)}
+    let gl=new T.Mesh(new T.PlaneGeometry(1.6,1.6),new T.MeshBasicMaterial({color:0x00ADEF,transparent:!0,opacity:.14,depthWrite:!1}));gl.rotation.x=-Math.PI/2;gl.position.y=.006;g.add(gl)}
    let pk=new T.Mesh(gPick,mPick);pk.position.y=DC_RH/2;pk.userData.rack=r.id;g.add(pk);picks.push(pk);
    let lt=String(r.short||r.title);if(lt.length>12)lt=lt.slice(0,12)+"\u2026";let lb=dvDcLabel(T,lt,r.n>DC_MAX?"\u0e41\u0e2a\u0e14\u0e07 "+DC_MAX+"/"+r.n:"",r.n,r.col,.9);lb.position.set(0,DC_RH+.3,0);g.add(lb);
    S.add(g);rackAt[r.id]={x,z,r};r.jobs.slice(0,DC_MAX).forEach((j,k)=>slots.push({j,r,x,z,k}))});
@@ -1973,13 +1976,13 @@ async function dvRack3D(box,D,L,api){let T=await dvThree();if(!box.isConnected)r
  srv.count=led.count=tag.count=bar.count=slots.length;[srv,led,tag,bar].forEach(m=>{m.instanceMatrix.needsUpdate=!0;if(m.instanceColor)m.instanceColor.needsUpdate=!0;S.add(m)});
  /* v16.52 สายงานระดับเซลล์: เซลล์งานในตู้เซลส์ → ตู้ Engineer → ตู้สถานะปัจจุบัน (สีเซลส์) */
  let cellByJob={};slots.forEach(s2=>{let y=DC_RH-.08-(s2.k+.5)*DC_SU*DC_U;(cellByJob[s2.j.pid]=cellByJob[s2.j.pid]||{})[s2.r.id]={x:s2.x,y,z:s2.z}});
- let anchorF=(id,pid)=>{let cc=cellByJob[pid]?.[id];if(cc)return new T.Vector3(cc.x,cc.y,cc.z+DC_RD/2+.02);let a=rackAt[id];return a?new T.Vector3(a.x,DC_RH*.5,a.z+DC_RD/2+.02):null};
- let flows=[];for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un",ch=[["s:"+j.sid,mid]];if(j.s!=="pending")ch.push([mid,"z:"+j.st]);
+ let anchorF=(id,pid)=>{let cc=cellByJob[pid]?.[id];if(cc)return new T.Vector3(cc.x,cc.y,cc.z+DC_RD/2+.02);let a=rackAt[id];if(!a)return null;return id==="z:recv"?new T.Vector3(a.x,DC_RH+.07,a.z+DC_RD*.46+.02):new T.Vector3(a.x,DC_RH*.5,a.z+DC_RD/2+.02)};
+ let flows=[];for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un",ch=[["s:"+j.sid,mid]];if(j.s!=="pending"){ch.push([mid,"z:recv"]);if(j.st!=="recv")ch.push(["z:recv","z:"+j.st])}
   ch.forEach(([a,b])=>{let A=anchorF(a,j.pid),B=anchorF(b,j.pid);if(!A||!B)return;let m2=A.clone().add(B).multiplyScalar(.5);m2.y+=.3+Math.abs(B.x-A.x)*.1;m2.z+=.45;
    let cu=new T.CatmullRomCurve3([A,new T.Vector3(A.x,A.y+.1,A.z+.3),m2,new T.Vector3(B.x,B.y+.1,B.z+.3),B],!1,"catmullrom",.5);
    let ln=new T.Line(new T.BufferGeometry().setFromPoints(cu.getPoints(36)),new T.LineBasicMaterial({color:j.col,transparent:!0,opacity:.16}));S.add(ln);flows.push({pid:j.pid,sid:j.sid,col:j.col,cu,ln})})}
  /* กล้องหมุนรอบห้อง */
- let asp0=(box.clientWidth||600)/(box.clientHeight||440),fit0=Math.min(2.4,Math.max(1,1.35/Math.max(.4,asp0)));let C=DV.rkCam||{th:.72,ph:.82,r:Math.max(8.5,half*1.85*fit0),tx:0,ty:1.25,tz:.2},auto=DV.rkAuto!==!1;
+ let asp0=(box.clientWidth||600)/(box.clientHeight||440),fit0=Math.min(2.4,Math.max(1,1.35/Math.max(.4,asp0)));let C=DV.rkCam||{th:.72,ph:.82,r:Math.max(8.5,half*1.85*fit0),tx:0,ty:1.25,tz:.55},auto=DV.rkAuto!==!1;
  let place=()=>{C.ph=Math.max(.25,Math.min(1.45,C.ph));C.r=Math.max(2.5,Math.min(30,C.r));cam.position.set(C.tx+C.r*Math.sin(C.ph)*Math.sin(C.th),C.ty+C.r*Math.cos(C.ph),C.tz+C.r*Math.sin(C.ph)*Math.cos(C.th));cam.lookAt(C.tx,C.ty,C.tz);DV.rkCam=C};
  let size=()=>{let w=box.clientWidth||600,h=box.clientHeight||420;R.setSize(w,h,!1);cam.aspect=w/h;cam.updateProjectionMatrix()};size();place();
  let ro=window.ResizeObserver?new ResizeObserver(size):null;ro?.observe(box);
@@ -2057,6 +2060,7 @@ async function dvRackPage(host,id){try{DV.rk3Stop?.()}catch(e){}DV.rk3=null;if(!
 function dvRkSeg(cur){return`<div class="dv-seg rk-vw" role="group" aria-label="มุมมอง">${[["3d","ห้องเซิร์ฟเวอร์ 3D"],["city","เมืองจำลอง 3D"],["2d","ผังสายงาน"]].map(([k,l])=>`<button type="button" class="${cur===k?"on":""}" data-rkv="${k}" aria-pressed="${cur===k}">${l}</button>`).join("")}</div>`}
 function dvRkChain(j){let E=mEsc,st=j.s,steps=SUBORD.filter(k=>!SUBST[k]?.hidden),nodes=[{t:j.sales,s:"เซลส์ · ส่งคำขอ",c:j.col,done:1},{t:"รออนุมัติ",s:"Engineer พิจารณา",c:"#FFC012",done:st!=="pending",cur:st==="pending"}];
  if(st!=="pending")nodes.push({t:j.eng||"ยังไม่มอบหมาย",s:"Engineer รับผิดชอบ",c:"#6A1499",done:1});
+ if(st!=="pending"&&j.sub!=="recv")nodes.push({t:mCardName("recv").label,s:"Top of Rack · กระจายงานไปยังสถานะ",c:STEPCOL.recv||"#005CB9",done:1});
  if(st==="active")nodes.push({t:j.step,s:"งานอยู่ที่ "+(j.who||"—")+" · "+j.days+" วัน",c:j.scol,cur:1,over:j.over});
  nodes.push({t:mPStatName("delivered"),s:"Engineer ส่งงานครบ",c:STEPCOL.delivered||"#00ADEF",done:["delivered","won","lost","cancelled"].includes(st),cur:st==="delivered"});
  nodes.push({t:["won","lost","cancelled"].includes(st)?mPStatName(st):"ปิดงาน",s:"WIN / LOSS / ยกเลิก",c:st==="lost"?"#EC1C24":st==="cancelled"?"#6B7486":"#00B259",done:["won","lost","cancelled"].includes(st),cur:["won","lost","cancelled"].includes(st)});
@@ -3273,7 +3277,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.52";
+var M_VER="v16.53";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
