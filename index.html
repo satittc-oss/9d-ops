@@ -1908,12 +1908,14 @@ function dvRackLayout(D,vert){let U=16,HD=46,CAP=vert?6:9,W=vert?360:1240,RW=ver
  else{let y=34;tiers.forEach((t,ti)=>{let cy=[y,y];t.forEach(r=>{let c=cy[0]<=cy[1]?0:1;r.x=GX+c*(RW+8);r.y=cy[c];r.w=RW;cy[c]+=r.h+10});y=Math.max(...cy)+(ti<2?70:0)});H=y+10}
  return{tiers,W,H:Math.max(H,200),U,HD,CAP,vert,labels:vert?[]:[[16,"แผนกเซลส์"],[16+RW+168,"แผนกวิศวกรรม · งานอยู่ที่ใคร"],[16+2*(RW+168),"Flow งาน · สถานะ"]]}}
 function dvRackSvg(D,L){let E=mEsc,byId={},out=[],links={};L.tiers.flat().forEach(r=>byId[r.id]=r);
- let add=(a,b,j)=>{if(!byId[a]||!byId[b])return;let k=a+">"+b+">"+j.sid;(links[k]=links[k]||{a,b,sid:j.sid,col:j.col,n:0,eis:new Set()}).n++;if(j.ei>=0)links[k].eis.add(j.ei)};
- for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un";add("s:"+j.sid,mid,j);if(j.s!=="pending")add(mid,"z:"+j.st,j)}
- let LS=Object.values(links),port={};LS.forEach(l=>{(port[l.a+">o"]=port[l.a+">o"]||[]).push(l);(port[l.b+">i"]=port[l.b+">i"]||[]).push(l)});
- let pt=(r,side,l,list)=>{let i=list.indexOf(l),n=list.length,f=(i+1)/(n+1);if(!L.vert)return side==="o"?[r.x+r.w,r.y+18+f*(r.h-24)]:[r.x,r.y+18+f*(r.h-24)];return side==="o"?[r.x+10+f*(r.w-20),r.y+r.h]:[r.x+10+f*(r.w-20),r.y]};
- let paths=LS.map((l,i)=>{let A=pt(byId[l.a],"o",l,port[l.a+">o"]),B=pt(byId[l.b],"i",l,port[l.b+">i"]),d=L.vert?`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${A[0].toFixed(1)},${(A[1]+40).toFixed(1)} ${B[0].toFixed(1)},${(B[1]-40).toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`:`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${(A[0]+80).toFixed(1)},${A[1].toFixed(1)} ${(B[0]-80).toFixed(1)},${B[1].toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`,w=Math.min(7,1.4+l.n*.7),dur=(2.2+(i%5)*.35).toFixed(2);
-  return`<g class="rk-link" data-sid="${E(l.sid)}" data-a="${E(l.a)}" data-b="${E(l.b)}" data-e="${[...l.eis].join(",")}"><path d="${d}" fill="none" stroke="${l.col}" stroke-width="${w.toFixed(1)}" stroke-opacity=".28" stroke-linecap="round"/><path class="rk-flow" d="${d}" fill="none" stroke="${l.col}" stroke-width="${Math.max(1.4,w*.5).toFixed(1)}" stroke-linecap="round"/>${i<70?`<circle class="rk-dot" r="${Math.min(4.5,2.4+l.n*.3).toFixed(1)}" fill="#fff" stroke="${l.col}" stroke-width="2"><animateMotion dur="${dur}s" repeatCount="indefinite" path="${d}"/></circle>`:""}<title>${E(byId[l.a].title)} → ${E(byId[l.b].title)}: ${l.n} งาน</title></g>`}).join("");
+ let cellIdx={};L.tiers.flat().forEach(r=>r.jobs.slice(0,L.CAP).forEach((j,i)=>cellIdx[r.id+"|"+j.pid]=i));
+ let anc=(rid,pid,side)=>{let r=byId[rid];if(!r)return null;let i=cellIdx[rid+"|"+pid];
+  if(!L.vert){let y=i!=null?r.y+L.HD+i*L.U+(L.U-3)/2:r.y+r.h/2;return side==="o"?[r.x+r.w,y]:[r.x,y]}
+  let x=r.x+r.w/2;return side==="o"?[x,r.y+r.h]:[x,r.y]};
+ let segs=[];for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un",ch=[["s:"+j.sid,mid]];if(j.s!=="pending")ch.push([mid,"z:"+j.st]);
+  ch.forEach(([a,b])=>{if(!byId[a]||!byId[b])return;let A=anc(a,j.pid,"o"),B=anc(b,j.pid,"i");if(A&&B)segs.push({A,B,pid:j.pid,sid:j.sid,col:j.col})})}
+ let paths=segs.map(g=>{let A=g.A,B=g.B,d=L.vert?`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${A[0].toFixed(1)},${(A[1]+34).toFixed(1)} ${B[0].toFixed(1)},${(B[1]-34).toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`:`M${A[0].toFixed(1)},${A[1].toFixed(1)} C${(A[0]+70).toFixed(1)},${A[1].toFixed(1)} ${(B[0]-70).toFixed(1)},${B[1].toFixed(1)} ${B[0].toFixed(1)},${B[1].toFixed(1)}`;
+  return`<g class="rk-link" data-pid="${E(g.pid)}" data-sid="${E(g.sid)}"><path d="${d}" fill="none" stroke="${g.col}" stroke-width="2" stroke-opacity=".2" stroke-linecap="round"/><path class="rk-flow" d="${d}" fill="none" stroke="${g.col}" stroke-width="2.4" stroke-linecap="round"/></g>`}).join("");
  let rack=r=>{let u=r.jobs.slice(0,L.CAP),more=r.n-u.length,y0=r.y+L.HD;
   return`<g class="rk-rack" data-rack="${E(r.id)}" tabindex="0" role="button" aria-label="${E(r.title)} ${r.n} งาน"><rect class="rk-body" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="8"/><rect x="${r.x}" y="${r.y}" width="${r.w}" height="4" rx="2" fill="${r.col}"/>
    <circle cx="${r.x+14}" cy="${r.y+19}" r="4" fill="${r.col}" class="rk-pwr"/><text class="rk-t" x="${r.x+24}" y="${r.y+23}">${E(String(r.title).slice(0,L.vert?16:26))}</text><text class="rk-n" x="${r.x+r.w-10}" y="${r.y+23}" text-anchor="end">${r.n}</text><text class="rk-s" x="${r.x+12}" y="${r.y+38}">${E(String(r.sub||"").slice(0,L.vert?26:46))}</text>
@@ -1944,22 +1946,20 @@ async function dvRack3D(box,D,L,api){let T=await dvThree();if(!box.isConnected)r
  let fTex=new T.CanvasTexture(fcv),fl=new T.Mesh(new T.CircleGeometry(Math.max(half+3,9),48),new T.MeshStandardMaterial({color:0x111a2b,roughness:.92,metalness:.08,transparent:!0,alphaMap:fTex,opacity:1}));fl.rotation.x=-Math.PI/2;fl.position.y=-.001;S.add(fl);
  let gr=new T.GridHelper(Math.max(half*2+2,13),Math.round(Math.max(half*2+2,13)/.6),0x1d2b44,0x152036);gr.material.transparent=!0;gr.material.opacity=.5;gr.position.y=.002;S.add(gr);
  let mBody=new T.MeshStandardMaterial({color:0x2a3446,roughness:.55,metalness:.6}),mBack=new T.MeshStandardMaterial({color:0x0d131f,roughness:.8,metalness:.3}),mGlass=new T.MeshStandardMaterial({color:0x8fc8ff,transparent:!0,opacity:.08,roughness:.1,metalness:.2,depthWrite:!1}),mPick=new T.MeshBasicMaterial({transparent:!0,opacity:0,depthWrite:!1});
- let gSide=new T.BoxGeometry(.02,DC_RH,DC_RD),gTop=new T.BoxGeometry(DC_RW,.03,DC_RD),gBack=new T.BoxGeometry(DC_RW,DC_RH,.02),gDoor=new T.PlaneGeometry(DC_RW-.04,DC_RH-.06),gPick=new T.BoxGeometry(DC_RW,DC_RH,DC_RD),gStrip=new T.BoxGeometry(DC_RW,.03,.03);
+ let gPost=new T.BoxGeometry(.022,DC_RH,.022),gRailX=new T.BoxGeometry(DC_RW,.02,.02),gMount=new T.BoxGeometry(.016,DC_RH-.03,.03),gPick=new T.BoxGeometry(DC_RW,DC_RH,DC_RD),gStrip=new T.BoxGeometry(DC_RW-.05,.02,.02),mFrame=new T.MeshStandardMaterial({color:0x44536e,roughness:.45,metalness:.75}),mMount=new T.MeshStandardMaterial({color:0x1e2636,roughness:.6,metalness:.5});
  let picks=[],rackAt={},slots=[];
  /* v16.51 สตูดิโอโล่ง (ไม่มีผนัง/ฝ้า/containment) — เก็บแสงใต้แถว + รางเคเบิลแบบเบา */
  {rows.forEach(row=>{let w=row.racks.length*(DC_RW+.02);
    let glow=new T.Mesh(new T.PlaneGeometry(w+.5,1.7),new T.MeshBasicMaterial({color:0x00ADEF,transparent:!0,opacity:.06,depthWrite:!1}));glow.rotation.x=-Math.PI/2;glow.position.set(0,.004,row.z);S.add(glow)})}
  rows.forEach(row=>{let n=row.racks.length;row.racks.forEach((r,i)=>{let x=(i-(n-1)/2)*(DC_RW+.02),z=row.z,g=new T.Group();g.position.set(x,0,z);
-   for(let sx of[-1,1]){let m=new T.Mesh(gSide,mBody);m.position.set(sx*(DC_RW/2-.01),DC_RH/2,0);g.add(m)}
-   let tp=new T.Mesh(gTop,mBody);tp.position.y=DC_RH-.015;g.add(tp);let bt=new T.Mesh(gTop,mBack);bt.position.y=.015;g.add(bt);let bk=new T.Mesh(gBack,mBack);bk.position.set(0,DC_RH/2,-DC_RD/2+.01);g.add(bk);
-   let dr=new T.Mesh(gDoor,mGlass);dr.position.set(0,DC_RH/2,DC_RD/2+.005);g.add(dr);
-   let st=new T.Mesh(gStrip,new T.MeshBasicMaterial({color:r.col}));st.position.set(0,DC_RH-.03,DC_RD/2+.012);g.add(st);
+   for(let sx of[-1,1])for(let sz of[-1,1]){let m=new T.Mesh(gPost,mFrame);m.position.set(sx*(DC_RW/2-.012),DC_RH/2,sz*(DC_RD/2-.012));g.add(m)}
+   for(let sz of[-1,1])for(let yy of[DC_RH-.011,.011]){let m=new T.Mesh(gRailX,mFrame);m.position.set(0,yy,sz*(DC_RD/2-.012));g.add(m)}
+   for(let sx of[-1,1]){let m=new T.Mesh(gMount,mMount);m.position.set(sx*(DC_RW/2-.04),DC_RH/2,DC_RD/2-.05);g.add(m)}
+   let st=new T.Mesh(gStrip,new T.MeshBasicMaterial({color:r.col}));st.position.set(0,DC_RH+.018,DC_RD/2-.02);g.add(st);
    let pk=new T.Mesh(gPick,mPick);pk.position.y=DC_RH/2;pk.userData.rack=r.id;g.add(pk);picks.push(pk);
-   let lt=String(r.short||r.title);if(lt.length>12)lt=lt.slice(0,12)+"…";let lb=dvDcLabel(T,lt,r.n>DC_MAX?"แสดง "+DC_MAX+"/"+r.n:"",r.n,r.col,.9);lb.position.set(0,DC_RH+.3,0);g.add(lb);
+   let lt=String(r.short||r.title);if(lt.length>12)lt=lt.slice(0,12)+"\u2026";let lb=dvDcLabel(T,lt,r.n>DC_MAX?"\u0e41\u0e2a\u0e14\u0e07 "+DC_MAX+"/"+r.n:"",r.n,r.col,.9);lb.position.set(0,DC_RH+.3,0);g.add(lb);
    S.add(g);rackAt[r.id]={x,z,r};r.jobs.slice(0,DC_MAX).forEach((j,k)=>slots.push({j,r,x,z,k}))});
-  let rl=dvDcLabel(T,row.name,"",""," #00ADEF".trim(),1.8);rl.scale.multiplyScalar(.8);rl.position.set(-(n*(DC_RW+.02))/2-1.05,.32,row.z+.9);S.add(rl);
-  /* รางเคเบิลเหนือแถว */
-  let tr=new T.Mesh(new T.BoxGeometry(n*(DC_RW+.02)+.4,.025,.16),new T.MeshStandardMaterial({color:0x8a7424,roughness:.6,metalness:.5,transparent:!0,opacity:.75}));tr.position.set(0,DC_RH+.75,row.z);S.add(tr)});
+  let rl=dvDcLabel(T,row.name,"","","#00ADEF",1.8);rl.scale.multiplyScalar(.8);rl.position.set(-(n*(DC_RW+.02))/2-1.05,.32,row.z+.9);S.add(rl)});
  /* เซิร์ฟเวอร์ 2U ต่องาน (instanced) */
  let N=Math.max(1,slots.length),gSrv=new T.BoxGeometry(DC_RW-.07,DC_SU*DC_U-.006,DC_RD-.25),mSrv=new T.MeshStandardMaterial({color:0x232c3d,roughness:.5,metalness:.5}),srv=new T.InstancedMesh(gSrv,mSrv,N);
  let gLed=new T.BoxGeometry(.035,.018,.01),led=new T.InstancedMesh(gLed,new T.MeshBasicMaterial({color:0xffffff}),N),gTag=new T.BoxGeometry(.018,DC_SU*DC_U-.012,.012),tag=new T.InstancedMesh(gTag,new T.MeshBasicMaterial({color:0xffffff}),N);
@@ -1971,23 +1971,13 @@ async function dvRack3D(box,D,L,api){let T=await dvThree();if(!box.isConnected)r
   o.position.set(s.x-DC_RW/2+.05,y,fz);o.updateMatrix();tag.setMatrixAt(i,o.matrix);tag.setColorAt(i,c.set(s.r.kind==="sales"?s.j.scol:s.j.col));
   o.position.set(s.x-.02,y,fz-.004);o.updateMatrix();bar.setMatrixAt(i,o.matrix)});
  srv.count=led.count=tag.count=bar.count=slots.length;[srv,led,tag,bar].forEach(m=>{m.instanceMatrix.needsUpdate=!0;if(m.instanceColor)m.instanceColor.needsUpdate=!0;S.add(m)});
- /* สายสัญญาณ: เซลส์ → วิศวกรรม → สถานี (สีเซลส์) */
- let links={};for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un";let add=(a,b)=>{if(!rackAt[a]||!rackAt[b])return;let k=a+">"+b+">"+j.sid;(links[k]=links[k]||{a,b,sid:j.sid,col:j.col,n:0,eis:new Set()}).n++;if(j.ei>=0)links[k].eis.add(j.ei)};add("s:"+j.sid,mid);if(j.s!=="pending")add(mid,"z:"+j.st)}
- let gPkt=new T.SphereGeometry(.035,10,8),flows=[],LS=Object.values(links);
- LS.forEach((l,i)=>{let A=rackAt[l.a],B=rackAt[l.b],off=((i%7)-3)*.035,h=DC_RH+.75,p=[new T.Vector3(A.x+off,DC_RH,A.z),new T.Vector3(A.x+off,h,A.z+off),new T.Vector3((A.x+B.x)/2,h+.35+(i%4)*.06,(A.z+B.z)/2),new T.Vector3(B.x+off,h,B.z-off),new T.Vector3(B.x+off,DC_RH,B.z)],cu=new T.CatmullRomCurve3(p,!1,"catmullrom",.4);
-  let ln=new T.Line(new T.BufferGeometry().setFromPoints(cu.getPoints(48)),new T.LineBasicMaterial({color:l.col,transparent:!0,opacity:.55}));S.add(ln);
-  let pm=new T.MeshBasicMaterial({color:l.col}),pk=[];for(let q=0;q<Math.min(3,l.n);q++){let m=new T.Mesh(gPkt,pm);S.add(m);pk.push(m)}
-  flows.push({l,cu,ln,pk,sp:.12+(i%5)*.02,ph:Math.random()})});
- /* v16.51 สายพาน Flow: ส่งงาน Rack→Rack ตามลำดับขั้นตอน (เส้นกลางสีฟ้า CI ทิศเดียว) */
- let flowRow=L.tiers[2]||[],flowIds=flowRow.map(r=>r.id).filter(id=>rackAt[id]),pipeDots=[],pipeCurve=null;
- if(flowIds.length>1){let fz=rackAt[flowIds[0]].z+DC_RD/2+.42,h=DC_RH+.95,np=flowIds.map(id=>new T.Vector3(rackAt[id].x,h,fz));
-  pipeCurve=new T.CatmullRomCurve3(np,!1,"catmullrom",0);
-  S.add(new T.Mesh(new T.TubeGeometry(pipeCurve,Math.max(24,flowIds.length*8),.012,8,!1),new T.MeshBasicMaterial({color:0x00ADEF,transparent:!0,opacity:.5})));
-  let gNode=new T.SphereGeometry(.028,10,8),mNode=new T.MeshBasicMaterial({color:0x8fd6ff}),gArr=new T.ConeGeometry(.045,.11,10),mArr=new T.MeshBasicMaterial({color:0x00ADEF});
-  flowIds.forEach((id,k)=>{let a=rackAt[id],nd=new T.Mesh(gNode,mNode);nd.position.set(a.x,h,fz);S.add(nd);
-   S.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(a.x,DC_RH,a.z+DC_RD/2),new T.Vector3(a.x,h,fz)]),new T.LineBasicMaterial({color:0x00ADEF,transparent:!0,opacity:.3})));
-   if(k<flowIds.length-1){let b=rackAt[flowIds[k+1]],ar=new T.Mesh(gArr,mArr);ar.position.set((a.x+b.x)/2,h,fz);ar.rotation.z=-Math.PI/2*Math.sign(b.x-a.x||1);S.add(ar)}});
-  let gD=new T.SphereGeometry(.03,8,6),mD=new T.MeshBasicMaterial({color:0xffffff}),ND=Math.min(6,flowIds.length);for(let q=0;q<ND;q++){let m=new T.Mesh(gD,mD);S.add(m);pipeDots.push({m,ph:q/ND})}}
+ /* v16.52 สายงานระดับเซลล์: เซลล์งานในตู้เซลส์ → ตู้ Engineer → ตู้สถานะปัจจุบัน (สีเซลส์) */
+ let cellByJob={};slots.forEach(s2=>{let y=DC_RH-.08-(s2.k+.5)*DC_SU*DC_U;(cellByJob[s2.j.pid]=cellByJob[s2.j.pid]||{})[s2.r.id]={x:s2.x,y,z:s2.z}});
+ let anchorF=(id,pid)=>{let cc=cellByJob[pid]?.[id];if(cc)return new T.Vector3(cc.x,cc.y,cc.z+DC_RD/2+.02);let a=rackAt[id];return a?new T.Vector3(a.x,DC_RH*.5,a.z+DC_RD/2+.02):null};
+ let flows=[];for(let j of D.jobs){let mid=j.s==="pending"?"gate":j.ei>=0?"e"+j.ei:"un",ch=[["s:"+j.sid,mid]];if(j.s!=="pending")ch.push([mid,"z:"+j.st]);
+  ch.forEach(([a,b])=>{let A=anchorF(a,j.pid),B=anchorF(b,j.pid);if(!A||!B)return;let m2=A.clone().add(B).multiplyScalar(.5);m2.y+=.3+Math.abs(B.x-A.x)*.1;m2.z+=.45;
+   let cu=new T.CatmullRomCurve3([A,new T.Vector3(A.x,A.y+.1,A.z+.3),m2,new T.Vector3(B.x,B.y+.1,B.z+.3),B],!1,"catmullrom",.5);
+   let ln=new T.Line(new T.BufferGeometry().setFromPoints(cu.getPoints(36)),new T.LineBasicMaterial({color:j.col,transparent:!0,opacity:.16}));S.add(ln);flows.push({pid:j.pid,sid:j.sid,col:j.col,cu,ln})})}
  /* กล้องหมุนรอบห้อง */
  let asp0=(box.clientWidth||600)/(box.clientHeight||440),fit0=Math.min(2.4,Math.max(1,1.35/Math.max(.4,asp0)));let C=DV.rkCam||{th:.72,ph:.82,r:Math.max(8.5,half*1.85*fit0),tx:0,ty:1.25,tz:.2},auto=DV.rkAuto!==!1;
  let place=()=>{C.ph=Math.max(.25,Math.min(1.45,C.ph));C.r=Math.max(2.5,Math.min(30,C.r));cam.position.set(C.tx+C.r*Math.sin(C.ph)*Math.sin(C.th),C.ty+C.r*Math.cos(C.ph),C.tz+C.r*Math.sin(C.ph)*Math.cos(C.th));cam.lookAt(C.tx,C.ty,C.tz);DV.rkCam=C};
@@ -2006,17 +1996,17 @@ async function dvRack3D(box,D,L,api){let T=await dvThree();if(!box.isConnected)r
  let pick=e=>{let b=cv.getBoundingClientRect();v2.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);ray.setFromCamera(v2,cam);
   let h=ray.intersectObject(srv)[0];if(h&&h.instanceId!==undefined&&slots[h.instanceId]){api.showJob(slots[h.instanceId].j.pid);return}
   let r=ray.intersectObjects(picks)[0];if(r)api.showRack(r.object.userData.rack)};
- let hl=f=>{flows.forEach(F=>{let on=!f||f(F.l);F.ln.material.opacity=on?(f?.95:.55):.06;F.pk.forEach(m=>m.visible=on)})};
- let tubes=[],tube=f=>{tubes.forEach(m=>{S.remove(m);m.geometry.dispose()});tubes=[];if(!f)return;flows.filter(F=>f(F.l)).forEach(F=>{let m=new T.Mesh(new T.TubeGeometry(F.cu,60,.018,8,!1),new T.MeshBasicMaterial({color:F.l.col}));S.add(m);tubes.push(m)})};
+ let hl=f=>{flows.forEach(F=>{F.ln.material.opacity=f?(f(F)?.95:.04):.16})};
+ let tubes=[],tDots=[],gPkt=new T.SphereGeometry(.03,10,8),tube=f=>{tubes.forEach(m=>{S.remove(m);m.geometry.dispose()});tDots.forEach(m=>S.remove(m));tubes=[];tDots=[];if(!f)return;flows.filter(F=>f(F)).forEach(F=>{let m=new T.Mesh(new T.TubeGeometry(F.cu,36,.016,8,!1),new T.MeshBasicMaterial({color:F.col}));S.add(m);tubes.push(m);let d=new T.Mesh(gPkt,new T.MeshBasicMaterial({color:0xffffff}));d.userData.cu=F.cu;d.userData.ph=Math.random();S.add(d);tDots.push(d)})};
  let views={"3d":{th:.72,ph:.82},top:{th:.001,ph:.2},front:{th:.001,ph:1.3}};
  let api3={view:m=>{let v=views[m]||views["3d"];C.th=v.th;C.ph=v.ph;C.r=Math.max(8.5,half*1.85*fit0*(m==="top"?1.1:1));C.tx=0;C.ty=1.25;C.tz=.35;auto=!1;DV.rkAuto=!1;place()},selJob:j=>{let s=slots.find(x=>x.j.pid===j.pid);sel.visible=!!s;rsel.visible=!1;if(s){sel.position.set(s.x,DC_RH-.08-(s.k+.5)*DC_SU*DC_U,s.z+DC_RD/2+.012);focus(s.x,s.z)}
-   hl(l=>l.sid===j.sid&&(j.s==="pending"?l.b==="gate":l.a===("s:"+j.sid)?(l.b===(j.ei>=0?"e"+j.ei:"un")):l.b==="z:"+j.st&&l.a===(j.ei>=0?"e"+j.ei:"un")));tube(l=>l.sid===j.sid&&(j.s==="pending"?l.b==="gate":l.a===("s:"+j.sid)?(l.b===(j.ei>=0?"e"+j.ei:"un")):l.b==="z:"+j.st&&l.a===(j.ei>=0?"e"+j.ei:"un")))},
-  selRack:id=>{let a=rackAt[id];tube(null);sel.visible=!1;rsel.visible=!!a;if(a){rsel.position.set(a.x,DC_RH/2,a.z);focus(a.x,a.z)}hl(l=>l.a===id||l.b===id)},
-  selSales:sid=>{tube(null);let a=rackAt["s:"+sid];if(a)focus(a.x,a.z);sel.visible=rsel.visible=!1;hl(sid?l=>l.sid===sid:null)},clear:()=>{tube(null);sel.visible=rsel.visible=!1;hl(null)},reset:()=>{DV.rkCam=null;C.th=.72;C.ph=.82;C.r=Math.max(8.5,half*1.85*fit0);C.tx=0;C.ty=1.25;C.tz=.35;auto=!0;DV.rkAuto=!0;place()}};
+   hl(F=>F.pid===j.pid);tube(F=>F.pid===j.pid)},
+  selRack:id=>{let a=rackAt[id],ps=new Set((a?.r.jobs||[]).map(j=>j.pid));tube(null);sel.visible=!1;rsel.visible=!!a;if(a){rsel.position.set(a.x,DC_RH/2,a.z);focus(a.x,a.z)}hl(F=>ps.has(F.pid))},
+  selSales:sid=>{tube(null);let a=rackAt["s:"+sid];if(a)focus(a.x,a.z);sel.visible=rsel.visible=!1;hl(sid?F=>F.sid===sid:null)},selQuery:pids=>{let has=pids&&pids.size;tube(has?F=>pids.has(F.pid):null);sel.visible=rsel.visible=!1;hl(has?F=>pids.has(F.pid):null)},clear:()=>{tube(null);sel.visible=rsel.visible=!1;hl(null)},reset:()=>{DV.rkCam=null;C.th=.72;C.ph=.82;C.r=Math.max(8.5,half*1.85*fit0);C.tx=0;C.ty=1.25;C.tz=.35;auto=!0;DV.rkAuto=!0;place()}};
  let t0=performance.now(),raf=0,stop=()=>{cancelAnimationFrame(raf);ro?.disconnect();try{R.dispose();R.forceContextLoss?.()}catch(e){}};
  let loop=now=>{if(!cv.isConnected){stop();return}raf=requestAnimationFrame(loop);if(document.hidden)return;let t=(now-t0)/1e3;
   if(auto&&!matchMedia("(prefers-reduced-motion: reduce)").matches){C.th+=.0009;place()}
-  try{flows.forEach(F=>F.pk.forEach((m,q)=>{let u=(t*F.sp+F.ph+q/F.pk.length)%1;m.position.copy(F.cu.getPointAt(u))}));if(pipeCurve&&!matchMedia("(prefers-reduced-motion: reduce)").matches)pipeDots.forEach(d=>{let u=(t*.14+d.ph)%1;d.m.position.copy(pipeCurve.getPointAt(u))})}catch(e){}
+  try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)tDots.forEach(d=>{let u=(t*.25+d.userData.ph)%1;d.position.copy(d.userData.cu.getPointAt(u))})}catch(e){}
   if(blink.length&&led.instanceColor){let on=Math.floor(t*2)%2===0;blink.forEach(i=>led.setColorAt(i,c.set(on?"#FF2A30":"#3a0a0c")));led.instanceColor.needsUpdate=!0}
   R.render(S,cam)};raf=requestAnimationFrame(loop);
  DV.rk3Stop=stop;return api3}
@@ -2026,7 +2016,7 @@ async function dvRackPage(host,id){try{DV.rk3Stop?.()}catch(e){}DV.rk3=null;if(!
  let J=D.jobs,act=J.filter(j=>j.s==="active"),kp=(t,v,s,c)=>`<div class="rk-kpi" style="--k:${c}"><span>${t}</span><b>${v}</b><small>${s}</small></div>`;
  host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS · LIVE</p><h1>ศูนย์ข้อมูลงาน</h1><p class="dv-sub">ตู้แร็คแต่ละแผนกส่งสัญญาณงานหากันตาม Flow งาน · สีสัญญาณ = เซลส์แต่ละคน · ไฟแดงกะพริบ = ค้างเกินวันเตือน</p></div><div class="dv-hact"><button type="button" class="dv-sb pri" id="rk-all">☰ แสดงโครงการทั้งหมด</button></div></header>
  <section class="rk-noc"><div class="rk-kpis">${kp("งานในระบบ",J.length,"ยังไม่ปิด","#00ADEF")}${kp("รออนุมัติ",J.filter(j=>j.s==="pending").length,"รอ Engineer พิจารณา","#FFC012")}${kp("กำลังทำ",act.length,"อยู่ในขั้นตอนต่าง ๆ","#005CB9")}${kp("ค้างเกินกำหนด",act.filter(j=>j.over).length,"ไฟแดงกะพริบ","#EC1C24")}${kp("ส่งงานแล้ว",J.filter(j=>j.s==="delivered").length,"รอลูกค้า","#00A9B4")}${kp("ปิด 30 วัน",D.closed.length,"WIN "+D.closed.filter(j=>j.s==="won").length,"#00B259")}</div>
-  <div class="rk-bar">${dvRkSeg(is3?"3d":"2d")}${is3?'<div class="dv-seg rk-vw rk-cam" role="group" aria-label="มุมกล้อง"><button type="button" data-cam="3d">3D</button><button type="button" data-cam="top">มุมบน</button><button type="button" data-cam="front">ด้านหน้า</button></div><button type="button" class="rk-reset" id="rk-reset">⟲ เริ่มต้น</button>':""}</div><div class="rk-legend" role="group" aria-label="สีสัญญาณของเซลส์">${D.sales.map(s=>`<button type="button" data-hsid="${E(s.id)}"><i style="background:${s.col}"></i>${E(s.name)} <em>${s.jobs.length}</em></button>`).join("")}<button type="button" data-hsid="">ทั้งหมด</button></div>
+  <div class="rk-bar">${dvRkSeg(is3?"3d":"2d")}${is3?'<div class="dv-seg rk-vw rk-cam" role="group" aria-label="มุมกล้อง"><button type="button" data-cam="3d">3D</button><button type="button" data-cam="top">มุมบน</button><button type="button" data-cam="front">ด้านหน้า</button></div><button type="button" class="rk-reset" id="rk-reset">⟲ เริ่มต้น</button>':""}</div><div class="rk-find-w"><input type="search" id="rk-find" class="rk-find" placeholder="🔎 ค้นหา Project Code / ชื่องาน / ลูกค้า / เซลส์ / Engineer" autocomplete="off"><span id="rk-find-n" class="rk-find-n"></span></div><div class="rk-legend" role="group" aria-label="สีสัญญาณของเซลส์">${D.sales.map(s=>`<button type="button" data-hsid="${E(s.id)}"><i style="background:${s.col}"></i>${E(s.name)} <em>${s.jobs.length}</em></button>`).join("")}<button type="button" data-hsid="">ทั้งหมด</button></div>
   <div class="rk-main"><div class="rk-stage${vert&&!is3?" vert":""}${is3?" is3":""}">${!(J.length||D.closed.length)?`<p class="rk-empty">ยังไม่มีงานในระบบ</p>`:is3?`<div class="rk-3d" id="rk-3d"><p class="rk-load">กำลังโหลดห้องเซิร์ฟเวอร์ 3 มิติ…</p><p class="rk-hint">ลากเพื่อหมุน · ล้อเมาส์ / ถ่างนิ้วเพื่อซูม · Shift+ลาก เลื่อน · แตะเครื่องหรือตู้เพื่อดูงาน · ตู้ 600×1200 มม. 42U · 1 งาน = 2U</p></div>`:dvRackSvg(D,L)}</div><aside class="rk-side" id="rk-side" aria-live="polite"></aside></div>
   <p class="rk-note">อัปเดตอัตโนมัติทุก 1 นาที · ข้อมูลชุดเดียวกับหน้าสถานะโครงการ · คลิกตู้หรือแถวงานเพื่อดูรายละเอียด · อัปเดต ${new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}</p></section>`;
  let side=host.querySelector("#rk-side"),svg=host.querySelector(".rk-svg"),find=pid=>J.find(j=>j.pid===pid)||D.closed.find(j=>j.pid===pid);
@@ -2034,7 +2024,7 @@ async function dvRackPage(host,id){try{DV.rk3Stop?.()}catch(e){}DV.rk3=null;if(!
  let jrow=j=>`<button type="button" class="rk-row${j.over?" over":""}" data-pid="${E(j.pid)}"><i style="background:${j.col}"></i><span><b>${E(j.code)}${j.name?" · "+E(j.name):""}</b><small>${E([j.client,j.sales,j.eng||(j.s==="pending"?"":"ยังไม่มอบหมาย")].filter(Boolean).join(" · "))}</small><small><em style="color:${j.scol}">●</em> ${E(j.step)} · ${j.days} วัน${j.over?" · ⚠ ค้าง":""}</small></span></button>`;
  let open=html=>{side.innerHTML=`<button type="button" class="rk-x" aria-label="ปิด">✕</button>`+html;side.classList.add("open");document.body.classList.add("rk-sheet");side.querySelector(".rk-x").onclick=()=>{side.classList.remove("open");document.body.classList.remove("rk-sheet");DV.rk3?.clear();side.innerHTML="";hl(null);DV.rkSel=null};
   side.querySelectorAll(".rk-row").forEach(b=>b.onclick=()=>showJob(b.dataset.pid))};
- let showJob=pid=>{let j=find(pid);if(!j)return;DV.rkSel={pid};DV.rk3?.selJob(j);hl(g=>g.dataset.pid?g.dataset.pid===pid:g.dataset.sid===j.sid&&(j.s==="pending"?g.dataset.b==="gate":(g.dataset.e||"").split(",").includes(String(j.ei))||g.dataset.b==="un"&&j.ei===-1));
+ let showJob=pid=>{let j=find(pid);if(!j)return;DV.rkSel={pid};DV.rk3?.selJob(j);hl(g=>g.dataset.pid===pid);
   open(`<h3>${E(j.code)}</h3><p class="rk-pn">${E(j.name||"")}</p><dl class="rk-dl"><div><dt>ลูกค้า</dt><dd>${E(j.client||"—")}</dd></div><div><dt>เซลส์</dt><dd><i style="background:${j.col}"></i>${E(j.sales)}</dd></div><div><dt>Engineer</dt><dd>${E(j.eng||(j.s==="pending"?"รอพิจารณา":"ยังไม่มอบหมาย"))}</dd></div><div><dt>สถานะ</dt><dd><em style="color:${j.scol}">●</em> ${E(j.step)}</dd></div><div><dt>ระยะเวลา</dt><dd>${j.days} วัน${j.over?` <b class="rk-red">ค้างเกินวันเตือน</b>`:""}</dd></div>${j.brands?.length?`<div><dt>Brand</dt><dd>${E(j.brands.join(", "))}</dd></div>`:""}</dl>
    ${dvRkChain(j)}<div class="rk-act">${/^https:\/\//.test(j.url)?`<a class="dv-sb" href="${E(j.url)}" target="_blank" rel="noreferrer">Teams ↗</a>`:""}<button type="button" class="dv-sb pri" id="rk-go">ดูในหน้าสถานะ →</button></div>`);
   side.querySelector("#rk-go").onclick=()=>{DV.sf="all";DV.q=j.code;dvGo("status")}};
@@ -2045,13 +2035,18 @@ async function dvRackPage(host,id){try{DV.rk3Stop?.()}catch(e){}DV.rk3=null;if(!
    <div class="rk-sk">${g.map(([t,x])=>`<div><b>${x.length}</b><span>${t}</span></div>`).join("")}</div>
    <h4>ส่งงานไปหาใคร</h4><div class="rk-to">${Object.entries(engs).sort((x,y)=>y[1]-x[1]).map(([k,n])=>`<span><i style="background:${col}"></i>${E(k)} <b>${n}</b></span>`).join("")||'<span>—</span>'}</div>
    <p class="rk-pn" style="margin-top:8px">เลือกงานเพื่อดูเส้นทาง Flow</p><div class="rk-list">${g.map(([t,x])=>x.length?`<h4>${t} <em>${x.length}</em></h4>${x.map(jrow).join("")}`:"").join("")}</div>`)};
- let showRack=rid=>{let r=L.tiers.flat().find(x=>x.id===rid);if(!r)return;DV.rkSel={rack:rid};DV.rk3?.selRack(rid);hl(g=>g.dataset.pid?r.jobs.some(j=>j.pid===g.dataset.pid):g.dataset.a===rid||g.dataset.b===rid);
+ let showRack=rid=>{let r=L.tiers.flat().find(x=>x.id===rid);if(!r)return;DV.rkSel={rack:rid};DV.rk3?.selRack(rid);let ps=new Set(r.jobs.map(j=>j.pid));hl(g=>ps.has(g.dataset.pid));
   open(`<h3><i class="rk-sw" style="background:${r.col}"></i>${E(r.title)}</h3><p class="rk-pn">${E(r.sub||"")} · ${r.n} งาน</p><div class="rk-list">${r.jobs.map(jrow).join("")||'<p class="rk-pn">ไม่มีงาน</p>'}</div>`)};
  let showAll=(q="")=>{DV.rkSel={all:1};hl(null);let groups=[["รออนุมัติ",J.filter(j=>j.s==="pending")],["กำลังทำ",act],["ส่งงานแล้ว · รอลูกค้า",J.filter(j=>j.s==="delivered")],["ปิดงาน 30 วัน",D.closed]];
   open(`<h3>โครงการทั้งหมด <small>${J.length+D.closed.length}</small></h3><input type="search" class="rk-q" placeholder="ค้นหาโค้ด / ชื่องาน / ลูกค้า / เซลส์ / Engineer" value="${E(q)}"><div class="rk-list">${groups.map(([t,a])=>{let w=String(q).toLowerCase().trim(),f=a.filter(j=>!w||[j.code,j.name,j.client,j.sales,j.eng,j.step].join(" ").toLowerCase().includes(w));return f.length?`<h4>${t} <em>${f.length}</em></h4>${f.map(jrow).join("")}`:""}).join("")||'<p class="rk-pn">ไม่พบโครงการ</p>'}</div>`);
   let inp=side.querySelector(".rk-q");inp.oninput=()=>{let v=inp.value,pos=inp.selectionStart;showAll(v);let n=side.querySelector(".rk-q");n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}};
  host.querySelector("#rk-all").onclick=()=>showAll();
  host.querySelectorAll("[data-hsid]").forEach(b=>b.onclick=()=>{let s=b.dataset.hsid;host.querySelectorAll("[data-hsid]").forEach(x=>x.classList.toggle("on",x===b&&!!s));if(s)showSales(s);else{hl(null);DV.rk3?.clear();side.classList.remove("open");document.body.classList.remove("rk-sheet");DV.rkSel=null}});
+ let allJ=()=>[...J,...D.closed],fnd=host.querySelector("#rk-find"),fndN=host.querySelector("#rk-find-n");
+ if(fnd)fnd.oninput=()=>{let q=fnd.value.trim().toLowerCase();if(!q){fndN.textContent="";hl(null);DV.rk3?.clear();return}
+  let m=allJ().filter(j=>[j.code,j.name,j.client,j.sales,j.eng,j.step].join(" ").toLowerCase().includes(q)),ps=new Set(m.map(j=>j.pid));
+  fndN.textContent=m.length?"พบ "+m.length+" งาน":"ไม่พบ";host.querySelectorAll("[data-hsid]").forEach(x=>x.classList.remove("on"));
+  hl(g=>ps.has(g.dataset.pid));DV.rk3?.selQuery(ps);if(m.length===1)showJob(m[0].pid)};
  host.querySelectorAll("[data-rkv]").forEach(b=>b.onclick=()=>{DV.rkv=b.dataset.rkv;host.innerHTML="";try{localStorage.setItem("9d-rkv",DV.rkv)}catch(e){}dvRender()});host.querySelector("#rk-reset")?.addEventListener("click",()=>DV.rk3?.reset());host.querySelectorAll("[data-cam]").forEach(b=>b.onclick=()=>{host.querySelectorAll("[data-cam]").forEach(x=>x.classList.toggle("on",x===b));DV.rk3?.view(b.dataset.cam)});
  let S0=DV.rkSel,box3=host.querySelector("#rk-3d");if(box3){try{let L3=vert?dvRackLayout(D,!1):L;DV.rk3=await dvRack3D(box3,D,L3,{showJob:p=>showJob(p),showRack:r=>showRack(r)});box3.querySelector(".rk-load")?.remove();if(S0?.pid)DV.rk3?.selJob(find(S0.pid)||{});else if(S0?.rack)DV.rk3?.selRack(S0.rack)}catch(e){console.warn("[9D] 3D",e);DV.rkv="2d";mToast("แสดง 3 มิติไม่ได้บนเครื่องนี้ — เปลี่ยนเป็นผังสายงาน",!0);dvRender();return}}
  if(svg){svg.addEventListener("click",e=>{let u=e.target.closest(".rk-u");if(u){showJob(u.dataset.pid);return}let r=e.target.closest(".rk-rack");if(r)showRack(r.dataset.rack)});
@@ -3278,7 +3273,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.51";
+var M_VER="v16.52";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4323,4 +4318,15 @@ body.dv-nosel{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .rk-chain span{display:flex;flex-direction:column}.rk-chain b{color:#fff;font-size:13px}.rk-chain small{color:#9FB0C8;font-size:11.5px}.rk-chain li.todo b{color:#7F93B2}
 .rk-steps{display:flex;flex-wrap:wrap;gap:4px}.rk-steps span{border:1px solid var(--c);border-radius:8px;padding:3px 8px;font-size:11.5px;color:#DCE6F5;display:flex;flex-direction:column}.rk-steps span small{color:#8EA0BC;font-size:10px}.rk-steps span.on{background:var(--c);color:#fff;text-shadow:0 0 2px rgba(0,0,0,.6)}.rk-steps span.on small{color:#fff}
 </style>
-</body></html>
+<style id="v1652">
+.rk-find-w{display:flex;align-items:center;gap:8px;flex:1 1 260px;min-width:200px}
+.rk-find{flex:1;min-width:0;background:#0F1A2C;border:1px solid #24324D;color:#DCE6F5;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px}
+.rk-find:focus{outline:none;border-color:#00ADEF}
+.rk-find-n{font-size:12px;color:#8EA0BC;white-space:nowrap}
+.rk-svg .rk-flow{stroke-dasharray:4 8;opacity:0}
+.rk-svg.hl .rk-link{opacity:.07}
+.rk-svg.hl .rk-link.on{opacity:1}
+.rk-link.on .rk-flow{opacity:1;animation:rkdash 1s linear infinite}
+.rk-link.on path:first-child{stroke-opacity:.9!important;stroke-width:3!important}
+@media(max-width:760px){.rk-find-w{order:3;flex-basis:100%}}
+</style></body></html>
