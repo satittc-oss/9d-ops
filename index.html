@@ -2109,6 +2109,15 @@ function dvRegistryResults(){let model=DV.registry,host=document.querySelector("
 window.dvProjectSearch=v=>{DV.pq=v;DV.plim=200;dvRegistryResults()};
 window.dvStatusSearch=v=>{DV.q=v;DV.slim=200;DV.statusPaint?.()};
 window.dvSMore=()=>{DV.slim=(DV.slim||200)+200;DV.statusPaint?.()};
+/* v16.58 ไอคอนแอ็กชันในทะเบียน: โลโก้แบรนด์แอป (Teams/SharePoint/Outlook) + ไอคอน SVG สำหรับคำสั่งอื่น — ชี้เมาส์ขึ้นรายละเอียด (title) */
+var dvRIco={
+ teams:'<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="#5059C9"/><circle cx="16.3" cy="8" r="2.1" fill="#fff" opacity=".9"/><rect x="13.4" y="10.3" width="6" height="6.2" rx="1.6" fill="#fff" opacity=".9"/><circle cx="9" cy="8.2" r="2.6" fill="#fff"/><path d="M4.4 16.4c0-2.4 2-3.8 4.6-3.8s4.6 1.4 4.6 3.8z" fill="#fff"/></svg>',
+ sharepoint:'<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="#036C70"/><text x="12" y="16.6" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-weight="700" font-size="12.5" fill="#fff">S</text></svg>',
+ outlook:'<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="#0F6CBD"/><rect x="6.3" y="8.2" width="11.4" height="7.6" rx="1.2" fill="#fff"/><path d="M6.8 9l5.2 3.8L17.2 9" fill="none" stroke="#0F6CBD" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ status:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V5M16 20v-8M3 20h18"/></svg>',
+ reopen:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.2-9.3L3 6"/></svg>',
+ cancel:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6 18.4 18.4"/></svg>',
+ trash:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/></svg>'};
 async function dvProjectsPage(host,id){let st=await dvState();if(!dvRenderCurrent(id,"projects"))return;let me=String(M.profile.email||"").toLowerCase();DV.sig=dvSig();DV.plim=DV.plim||200;
  let acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a])),stl={pending:"รออนุมัติ",rejected:"ไม่อนุมัติ",active:"กำลังทำ",delivered:"ส่งงานแล้ว · รอลูกค้า",won:"ปิด · WIN",lost:"ปิด · LOSS",cancelled:"ปิด · ยกเลิก"};
  let ps=st.projects.filter(p=>String(p.id).startsWith("sp-")).map(p=>{let s=mPStat(p),sb=s==="active"?mSubOf(p):null,ix=dvCityEng(p);let eng=ix>=0?Hd[ix]:"",sales=acc[p.accountId]?.name||"";return{p,s,sb,eng,sales,searchText:[p.code,p.name,p.client,sales,eng].join(" ").toLowerCase(),grp:["won","lost","cancelled"].includes(s)?"closed":s}});
@@ -2118,8 +2127,8 @@ async function dvProjectsPage(host,id){let st=await dvState();if(!dvRenderCurren
  let stc=x=>x.s==="active"?`<span class="dv-st sub${x.sb?.dflt?" dflt":""}${x.sb?.over?" over":""}" style="--c:${STEPCOL[x.sb?.sub]||"#005CB9"}">${mEsc(x.sb?.m.t||"กำลังทำ")}</span><small>อยู่ที่ ${mEsc(x.sb?.m.who||"เรา")} · ${x.sb?.days??0} วัน</small>`:["pending","rejected"].includes(x.s)?`<span class="dv-st ${x.s==="rejected"?"no":"gry"}">${x.s==="rejected"&&M.cache?.track?.[Number(x.p.listItemId)]?.reqCancel?"ยกเลิกคำขอ":stl[x.s]}</span>`:dvPChip(x.s);
  let DP=mDups(st),DUPS=new Set([...DP.sp.map(z=>z[0]),...DP.tm.map(z=>z[0])]),engU=mIsEng();
  let row=x=>{let p=x.p,q=[p.code,p.name,p.client,x.sales,x.eng].join(" ").toLowerCase(),ch=mChanUrl(p),dup=DUPS.has(mCodeClean(p.code));
-  return`<tr class="dv-preg" data-q="${mEsc(q)}"><td><b class="dv-code">${mEsc(p.code)}</b>${dup?'<span class="dv-dupb" title="Project Code นี้ซ้ำ — ดูกล่องแจ้งเตือนด้านบน">ซ้ำ</span>':""}</td><td><b>${mEsc(p.name!==p.code?p.name:"")||"—"}</b><small>${mEsc(p.client&&p.client!=="—"?p.client:"")}</small></td><td>${mEsc(x.sales)}</td><td>${mEsc(x.eng||"—")}</td><td class="st">${stc(x)}</td><td>${p.createdAt?dvTH2(dvDay(Date.parse(p.createdAt))):""}</td>
-   <td class="lk">${ch?`<a class="dv-ico" href="${mEsc(ch)}" target="_blank" rel="noreferrer" title="เปิด Teams Channel ของโครงการนี้" aria-label="เปิด Teams Channel">💬</a>`:""}${p.listItemUrl?`<a class="dv-ico" href="${mEsc(p.listItemUrl)}" target="_blank" rel="noreferrer" title="เปิดรายการใน SharePoint" aria-label="เปิดใน SharePoint">📄</a>`:""}<button type="button" class="dv-ico" onclick="dvMailForCode('${mEsc(String(p.code).replace(/['\\]/g,""))}')" title="เปิดอีเมลล่าสุดของ ${mEsc(p.code)} ใน Outlook" aria-label="เปิดอีเมลล่าสุดใน Outlook">✉️</button>${x.s==="active"||x.s==="delivered"?`<button type="button" class="dv-ico" onclick="dvToStatus('${mEsc(String(p.code).replace(/['\\]/g,""))}','${x.s}')" title="ไปหน้าสถานะ / เปลี่ยนขั้นตอนของโครงการนี้" aria-label="ไปหน้าสถานะ">📊</button>`:""}${x.s==="pending"&&(engU||p.accountId==="acc-"+me)?`<button type="button" class="dv-ico warn" onclick="dvCancelReq('${mEsc(p.id)}')" title="ยกเลิกคำขอนี้" aria-label="ยกเลิกคำขอ">🚫</button>`:""}${engU&&!["pending"].includes(x.s)?`<button type="button" class="dv-ico" onclick="dvReopen('${mEsc(p.id)}')" title="อนุมัติผิด? ถอยกลับไปรอพิจารณา" aria-label="ถอยกลับไปรอพิจารณา">↩️</button>`:""}${dvArchiveButton(p)}${engU?`<button type="button" class="dv-ico del" onclick="dvDelProject('${mEsc(p.id)}')" title="ลบโครงการ / Teams Channel" aria-label="ลบโครงการ">🗑️</button>`:""}</td></tr>`};
+  return`<tr class="dv-preg" data-q="${mEsc(q)}"><td><b class="dv-code">${mEsc(p.code)}</b>${dup?'<span class="dv-dupb" title="Project Code นี้ซ้ำ — ดูกล่องแจ้งเตือนด้านบน">ซ้ำ</span>':""}</td><td><b>${mEsc(p.name!==p.code?p.name:"")||"—"}</b><small>${mEsc(p.client&&p.client!=="—"?p.client:"")}</small></td><td>${mEsc(x.sales)}</td><td>${mEsc(x.eng||"—")}</td><td class="st">${stc(x)}</td><td class="dt">${p.createdAt?dvTH2(dvDay(Date.parse(p.createdAt))):""}</td>
+   <td class="lk">${ch?`<a class="dv-ico" href="${mEsc(ch)}" target="_blank" rel="noreferrer" title="เปิด Teams Channel ของโครงการนี้" aria-label="เปิด Teams Channel">${dvRIco.teams}</a>`:""}${p.listItemUrl?`<a class="dv-ico" href="${mEsc(p.listItemUrl)}" target="_blank" rel="noreferrer" title="เปิดรายการใน SharePoint" aria-label="เปิดใน SharePoint">${dvRIco.sharepoint}</a>`:""}<button type="button" class="dv-ico" onclick="dvMailForCode('${mEsc(String(p.code).replace(/['\\]/g,""))}')" title="เปิดอีเมลล่าสุดของ ${mEsc(p.code)} ใน Outlook" aria-label="เปิดอีเมลล่าสุดใน Outlook">${dvRIco.outlook}</button>${x.s==="active"||x.s==="delivered"?`<button type="button" class="dv-ico" onclick="dvToStatus('${mEsc(String(p.code).replace(/['\\]/g,""))}','${x.s}')" title="ไปหน้าสถานะ / เปลี่ยนขั้นตอนของโครงการนี้" aria-label="ไปหน้าสถานะ">${dvRIco.status}</button>`:""}${x.s==="pending"&&(engU||p.accountId==="acc-"+me)?`<button type="button" class="dv-ico warn" onclick="dvCancelReq('${mEsc(p.id)}')" title="ยกเลิกคำขอนี้" aria-label="ยกเลิกคำขอ">${dvRIco.cancel}</button>`:""}${engU&&!["pending"].includes(x.s)?`<button type="button" class="dv-ico" onclick="dvReopen('${mEsc(p.id)}')" title="อนุมัติผิด? ถอยกลับไปรอพิจารณา" aria-label="ถอยกลับไปรอพิจารณา">${dvRIco.reopen}</button>`:""}${dvArchiveButton(p)}${engU?`<button type="button" class="dv-ico del" onclick="dvDelProject('${mEsc(p.id)}')" title="ลบโครงการ / Teams Channel" aria-label="ลบโครงการ">${dvRIco.trash}</button>`:""}</td></tr>`};
  let canNew=M.role!=="viewer",focus=dvSearchFocus(host);
  host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>ทะเบียนโครงการ</h1><p class="dv-sub">ทุกโครงการใน All Projects List พร้อมสถานะและขั้นตอนล่าสุด · เปลี่ยนสถานะได้ที่หน้า สถานะโครงการ</p></div>
   <div class="dv-hact">${canNew?`<button type="button" class="dv-sb pri" onclick="dvNewProject()">+ สร้างโครงการ</button>`:""}<button type="button" class="dv-sb" id="dv-pcsv">ดาวน์โหลด CSV</button></div></header>
@@ -3314,7 +3323,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.57";
+var M_VER="v16.58";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4380,5 +4389,23 @@ body.dv-nosel{-webkit-user-select:none;user-select:none;cursor:grabbing}
 #dashv .dv-pregt td.lk .dv-ico.warn:hover{background:#fdf4e3;border-color:#e6c788}
 #dashv .dv-pregt td.lk .dv-ico:focus-visible{outline:2px solid var(--dv-blue);outline-offset:1px}
 @media(max-width:680px){#dashv .dv-pregt td.lk .dv-ico{width:44px;height:44px;font-size:18px}}
+</style>
+<style id="v1658">
+/* v16.58 ทะเบียนโครงการ: ไอคอนเป็นโลโก้แอป + สแกนง่ายขึ้น (หัวตารางติดบน แถวแน่น แถบสลับสี วันที่ไม่ตัดบรรทัด) */
+#dashv .dv-pregt td.lk .dv-ico{color:var(--dv-ink2)}
+#dashv .dv-pregt td.lk .dv-ico svg{display:block}
+#dashv .dv-pregt td.lk .dv-ico.del{color:#ab3d35}
+#dashv .dv-pregt td.lk .dv-ico.warn{color:#b0790f}
+/* ไอคอนอยู่บรรทัดเดียวบนจอใหญ่ และแถวแน่นขึ้น */
+#dashv .dv-pregt td{padding:7px 12px}
+#dashv .dv-pregt td.dt{white-space:nowrap}
+#dashv .dv-pregt tbody tr:nth-child(even) td{background:#fafbfd}
+#dashv .dv-pregt tbody tr:hover td{background:#eef4fc}
+@media(min-width:761px){
+ #dashv .dv-pregt td.lk{flex-wrap:nowrap}
+ /* กล่องตารางเลื่อนในตัวเอง หัวตารางติดด้านบนเวลาเลื่อนดูโครงการจำนวนมาก */
+ #dashv .dv-pregw{max-height:72vh;overflow:auto}
+ #dashv .dv-pregt thead th{position:sticky;top:0;z-index:3}
+}
 </style>
 </body></html>
