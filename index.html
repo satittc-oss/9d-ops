@@ -780,6 +780,9 @@ async function mAutoChannel(projectId){try{let r=await mRun("channel",{projectId
 async function mAutoChannels(){if(M.role==="sales"||M.role==="viewer"||M.autoBusy||!TS.at||TS.err||!M.tl)return[];M.autoBusy=!0;let done=[];try{
  let since=new Date(CFG.autoChannelSince||"2026-10-16T00:00:00+07:00").toISOString();await mLoad(!0);let st=await mState(),tr=M.cache.track;
  let todo=st.projects.filter(p=>String(p.id).startsWith("sp-")&&p.listApproval==="approved"&&!p.channelId&&!TS.channels[p.id]&&!(TS.all||[]).some(x=>x.pid===p.id)&&!["closed","rejected"].includes(p.stage)&&!/finish|loss/i.test(p.listLatest||"")&&!/win|loss/i.test(p.listWinLoss||"")&&(p.createdAt||"")>=since)
+  .filter(p=>{/* v16.56 สร้าง Channel อัตโนมัติเฉพาะเว็บของ Engineer ผู้รับมอบหมาย · ถ้าเขาไม่ได้เปิดเว็บเกิน 30 นาที คนอื่นสร้างแทนได้ · ยังไม่มอบหมาย = ผู้อนุมัติ หรือรอ 15 นาที */
+   let a=mEngName(p.engineer||""),meE=mEngName(M.profile.name||"")||mEngName(String(M.profile.email||"").split("@")[0]),age=Date.now()-(mT(mApprovedAt(p))||mT(p.createdAt)),g=(Number(CFG.autoChannelGraceMin)||30)*6e4;
+   return a?(a===meE||age>g):(!!M.isApprover||age>Math.min(g,15*6e4))})
   .filter(p=>{let t=tr[Number(p.listItemId)];return!t?.chanGone&&!(t?.chanClaim&&Date.now()-Date.parse(t.chanClaim.at)<5*60e3)&&!(t?.autoChanAt&&t.autoChanErr&&Date.now()-Date.parse(t.autoChanAt)<36e5)}).slice(0,5);
  for(let p of todo){let r=await mAutoChannel(p.id);done.push({code:p.code,...r})}
  try{await mSetupCatchUp(since)}catch(e){console.warn("[9D] setup catch-up",e)}}finally{M.autoBusy=!1}return done}
@@ -920,9 +923,11 @@ async function mChannelSetup(p,ch,acc,creator){let notes=[],copied=[];if(!ch.mem
  let cur=ch.members||[],ce=String(creator?.email||"").toLowerCase(),cm=creator?cur.find(m=>ce&&(m.email||"").toLowerCase()===ce||mNorm(m.displayName)===mNorm(creator.name)):null,me=creator?{name:cm?.displayName||creator.name,oid:cm?.userId||""}:M.profile,ae=(acc?.email||"").toLowerCase(),sm=cur.find(m=>(m.email||"").toLowerCase()===ae),sr=p.serviceRequest||{};
  let ments=me.oid?[{id:0,mentionText:me.name,mentioned:{user:{id:me.oid,displayName:me.name,userIdentityType:"aadUser"}}}]:[];
  if(sm?.userId&&sm.userId!==me.oid){let nm=sm.displayName||acc?.name||ae;ments.push({id:ments.length?1:0,mentionText:nm,mentioned:{user:{id:sm.userId,displayName:nm,userIdentityType:"aadUser"}}})}
- let cM=me.oid?ments.find(m=>m.mentioned.user.id===me.oid):null,sM=ments.find(m=>m!==cM);
+ let en=mEngName(p.engineer||""),ee=String(CFG.engineers?.[en]||"").toLowerCase(),am=en?cur.find(m=>(ee&&(m.email||"").toLowerCase()===ee)||mEngName(m.displayName||"")===en):null,aM=null;
+ if(am?.userId&&am.userId!==me.oid&&am.userId!==sm?.userId){aM={id:ments.length,mentionText:am.displayName||en,mentioned:{user:{id:am.userId,displayName:am.displayName||en,userIdentityType:"aadUser"}}};ments.push(aM)}
+ let cM=me.oid?ments.find(m=>m.mentioned.user.id===me.oid):null,sM=ments.find(m=>m!==cM&&m!==aM),selfAssigned=en&&am&&am.userId===me.oid;
  let html=`<p><b>[9D] เปิดงาน ${mEsc(p.code)}${p.name&&p.name!==p.code?" · "+mEsc(p.name):""}</b></p>`+
-  `<p>สร้าง Channel โดย ${cM?`<at id="${cM.id}">${mEsc(me.name)}</at>`:mEsc(me.name)}${sM?` · ผู้ขอ (Sales) <at id="${sM.id}">${mEsc(sM.mentionText)}</at>`:(acc?.name?" · ผู้ขอ (Sales) "+mEsc(acc.name):"")}</p>`+
+  `<p>${en?`Engineer ผู้รับผิดชอบ: ${aM?`<at id="${aM.id}">${mEsc(aM.mentionText)}</at>`:selfAssigned&&cM?`<at id="${cM.id}">${mEsc(me.name)}</at>`:mEsc(am?.displayName||en)}`+(selfAssigned?"":` · สร้าง Channel แทนโดย ${mEsc(me.name)}`):`สร้าง Channel โดย ${cM?`<at id="${cM.id}">${mEsc(me.name)}</at>`:mEsc(me.name)} · ยังไม่ได้มอบหมาย Engineer`}${sM?` · ผู้ขอ (Sales) <at id="${sM.id}">${mEsc(sM.mentionText)}</at>`:(acc?.name?" · ผู้ขอ (Sales) "+mEsc(acc.name):"")}</p>`+
   `<p>ลูกค้า: ${mEsc(p.client||"—")}${(sr.brands||[]).length?" · Brand: "+mEsc(sr.brands.join(", ")):""}${(sr.workTypes||[]).length?" · งาน: "+mEsc(sr.workTypes.join(", ")):""}${sr.urgency?" · ความเร่งด่วน: "+mEsc(sr.urgency):""}</p>`+
   (sr.notes?`<p>รายละเอียด: ${mEsc(sr.notes).slice(0,800)}</p>`:"")+
   (copied.length?`<p>ไฟล์แนบจาก Service Request (${copied.length}): ${copied.map(mEsc).join(", ")} — อยู่ในแท็บ Files ของ Channel นี้</p>`:"")+
@@ -3300,7 +3305,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.55";
+var M_VER="v16.56";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
