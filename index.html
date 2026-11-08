@@ -2829,7 +2829,7 @@ function stkClean(v){return String(v||"").toUpperCase().replace(/^[\s:#.\-=]+|[\
 /* อ่านข้อความทั้งหมด (OCR / ข้อความใน QR) → ค่าตามหัวข้อบนฉลาก */
 function stkParse(t){let L=String(t||"").replace(/[‘’`´]/g,"'").split(/\r?\n/).map(s=>s.trim()).filter(Boolean),U=L.map(l=>l.toUpperCase().replace(/[|]/g,"I").replace(/\s*[：]\s*/g,": ")),
   o={sn:[],pn:[],model:[],mac:[],brand:"",kv:[],tok:[]},used=new Set(),add=(k,v)=>{v=stkClean(v);if(!v||STK_STOP.test(v))return;if(k==="mac"){v=stkMac(v);if(!v)return}else{if(v.length<3||v.length>40)return;if((k==="sn"||k==="pn")&&!/\d/.test(v))return}if(!o[k].includes(v))o[k].push(v);used.add(stkN(v))};
- let VAL=/^\s*(?:[:#.=]|-(?=\s))?\s*(?:#\s*)?([A-Z0-9][A-Z0-9\-\/.+_]*[A-Z0-9])/,MV=/^\s*[:#.=\-]?\s*((?:[0-9A-F]{2}[:\-\s]?){5}[0-9A-F]{2}|[0-9A-F]{4}\.[0-9A-F]{4}\.[0-9A-F]{4})/;
+ let VAL=/^\s*(?:[:#.=]|-(?=\s))?\s*(?:#\s*)?([A-Z0-9][A-Z0-9\-\/.+_]*[A-Z0-9])/,MV=/^\s*[:#.=\-]?\s*((?:[0-9A-F]{2}[:\-.\s]?\s?){5}[0-9A-F]{2}|[0-9A-F]{4}\.[0-9A-F]{4}\.[0-9A-F]{4})/;
  U.forEach((u,i)=>{for(let k of["mac","sn","pn","model"]){let re=new RegExp(STK_K[k].source,"g"),m;while((m=re.exec(u))){let rest=u.slice(m.index+m[0].length),v=(k==="mac"?MV:VAL).exec(rest);
     if(!v&&!rest.trim()&&U[i+1])v=(k==="mac"?MV:VAL).exec(U[i+1]);if(v)add(k,v[1])}}
   let mm=u.match(STK_MACRE);if(mm)add("mac",mm[1]);

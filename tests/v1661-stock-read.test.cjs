@@ -8,6 +8,7 @@ test('ฉลาก Cisco: PID / VID / SN อยู่บรรทัดเดี
  assert.deepEqual(J(o.pn),['C9200L-24T-4G']);assert.deepEqual(J(o.sn),['JAE24510ABC']);assert.deepEqual(J(o.mac),['70:1F:53:AA:BB:CC']);assert.equal(o.brand,'Cisco')});
 test('ฉลาก HPE/Aruba: หัวข้อกับค่าแยกบรรทัด · OCR อ่าน S/N เป็น 5/N · Model No. · Serial No.',()=>{const o=c.stkParse('Hewlett Packard Enterprise  Aruba\nModel No.: R8N85A\n5/N\nCN12KD0ABC\nSerial No: TW9876XYZ1\nMAC ADDRESS 001A1E-0A0B0C');
  assert.equal(o.brand,'HPE Aruba');assert.deepEqual(J(o.model),['R8N85A']);assert.deepEqual(J(o.sn),['CN12KD0ABC','TW9876XYZ1']);assert.deepEqual(J(o.mac),['00:1A:1E:0A:0B:0C'])});
+test('MAC ที่ OCR อ่านตัวคั่นปนกัน (: . เว้นวรรค)',()=>{assert.deepEqual(J(c.stkParse('MAC: 90:4C:81:12.34.56').mac),['90:4C:81:12:34:56']);assert.deepEqual(J(c.stkParse('MAC 90 4C 81.12 34 56').mac),['90:4C:81:12:34:56'])});
 test('ข้อมูลอื่นบนฉลากเก็บเป็น key:value และคำทั่วไปไม่ถูกจับเป็น S/N',()=>{const o=c.stkParse('Input: 100-240V~ 1.5A\nS/N: NUMBER\nP/N JL678A');assert.deepEqual(J(o.sn),[]);assert.deepEqual(J(o.pn),['JL678A']);assert.ok(o.kv.some(k=>/INPUT: 100-240V/.test(k)))});
 test('บาร์โค้ด GS1 แบบวงเล็บ / แบบดิบ (FNC1) และ DataMatrix ANSI MH10',()=>{let r=c.stkCodeParse('(01)00889296123456(21)SN998877(240)JL678A');assert.deepEqual(J(r.gtin),['889296123456']);assert.deepEqual(J(r.sn),['SN998877']);assert.deepEqual(J(r.pn),['JL678A']);
  r=c.stkCodeParse('0100889296123456'+'21ABC12345\x1d240JL679A');assert.deepEqual(J(r.sn),['ABC12345']);assert.deepEqual(J(r.pn),['JL679A']);
