@@ -2782,7 +2782,8 @@ var dvSigned=L=>{let n=DV_SIGN.filter(([k])=>L.sign?.[k]?.img).length;return`<sp
    - เก็บ 1 แถวต่อ 1 รายการ ใน 9D Project Tracking (ProjectItemId = M_STOCK) → ไม่ต้องสร้าง List/คอลัมน์ใหม่
    - รูปเต็มเก็บใน Documents › "9D Demo Stock/<รหัส>/" · ในแถวเก็บแค่รูปย่อ ~3KB + ลายเซ็นภาพ (dHash + สี) ไว้เทียบภาพ
    - เช็คด้วยภาพ: บาร์โค้ด/QR (BarcodeDetector หรือ ZXing) → อ่านตัวอักษรบนฉลาก (Tesseract OCR) → เทียบภาพกับรูปในสต็อก
-   - ลบ = ซ่อนรายการ (deleted) ไม่ลบแถว/ไฟล์จริง */
+   - ลบ = ต้องใส่เหตุผล + หมายเหตุ → ซ่อนรายการ (deleted) ไม่ลบแถว/ไฟล์จริง · กู้คืนได้ (v16.61)
+   - v16.61 อ่านฉลากครบขึ้น: บาร์โค้ดหลายตัว + GS1/DataMatrix · OCR หลายรอบ (ปรับภาพ/ขาวดำ/หมุน) · เลือกเฉพาะฉลาก · สแกนสดด้วยกล้อง */
 var M_STOCK=-9.5e9,STK_ROOT="9D Demo Stock",STK={ocr:null},
  STK_ST=[["ready","พร้อมใช้","ok"],["out","ยืมออก / อยู่กับลูกค้า","cur"],["repair","ส่งซ่อม / เคลม","dlv"],["broken","ชำรุด","no"],["gone","คืนผู้ผลิต / ตัดออก","mut"]],
  STK_CAT=["Switch","Router / Firewall","Wireless / AP","Server","Storage","CCTV / Security","Accessory / สาย / Module","อื่นๆ"],
@@ -2793,7 +2794,7 @@ var stkN=v=>String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,""),stkF=v=>stkN(v)
 function stkMerge(rows){let by={};for(let r of rows){if(!r.id)continue;let o=by[r.id];if(!o||mT(r.updatedAt)>=mT(o.updatedAt))by[r.id]=r}return Object.values(by).sort((a,b)=>mT(b.updatedAt)-mT(a.updatedAt))}
 function stkNewId(){let d=new Date(Date.now()+252e5),n;do{n="DM"+String(d.getUTCFullYear()).slice(2)+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+Math.random().toString(36).slice(2,6).toUpperCase()}while((M.stock||[]).some(x=>x.id===n));return n}
 /* ตรวจ S/N / บาร์โค้ดซ้ำ (ยกเว้นตัวเอง) */
-function stkDup(it){for(let k of["sn","barcode"]){let v=stkF(it[k]);if(v.length<4)continue;let o=stkList().find(x=>x.id!==it.id&&(stkF(x.sn)===v||stkF(x.barcode)===v));if(o)return{k,o}}return null}
+function stkDup(it){for(let k of["sn","mac","barcode"]){let v=stkF(it[k]);if(v.length<4)continue;let o=stkList().find(x=>x.id!==it.id&&(stkF(x.sn)===v||stkF(x.mac)===v||stkF(x.barcode)===v));if(o)return{k,o}}return null}
 async function mStockSave(it){if(!mIsEng())throw new PvErr("เฉพาะ Engineer",403);if(!M.tl)throw new PvErr("ยังเชื่อมรายการ 9D Project Tracking ไม่ได้ — ลองโหลดหน้าใหม่",503);
  let old=it.row?(M.stock||[]).find(x=>x.id===it.id):null;
  if(it.row&&old){let cur;try{cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${it.row}?$expand=fields($select=Payload)`)}catch(e){cur=null}
@@ -2814,28 +2815,95 @@ function stkSig(im){let c=document.createElement("canvas");c.width=9;c.height=8;
 function stkSim(a,b){if(!a||!b)return 0;let[ha,ca]=a.split("."),[hb,cb]=b.split(".");if(!ha||ha.length!==hb?.length)return 0;let n=0;for(let i=0;i<ha.length;i++){let x=parseInt(ha[i],16)^parseInt(hb[i],16);n+=(x&1)+(x>>1&1)+(x>>2&1)+(x>>3&1)}
  let s=1-n/64;if(ca&&cb&&ca.length===cb.length){let t=0;for(let i=0;i<ca.length;i++)t+=Math.abs(parseInt(ca[i],16)-parseInt(cb[i],16));s=s*.65+(1-t/(ca.length*15))*.35}return s}
 async function stkPrep(file){let im=await stkImg(file),big=stkCanvas(im,1600),blob=await new Promise(r=>big.toBlob(r,"image/jpeg",.82));if(!blob)throw new PvErr("ย่อรูปไม่สำเร็จ",400);
- return{im,big,blob,thumb:stkCanvas(im,96).toDataURL("image/jpeg",.6),sig:stkSig(im),url:URL.createObjectURL(blob),name:"photo-"+dvDay(Date.now())+"-"+Date.now().toString(36)+".jpg"}}
-/* ---------- อ่านบาร์โค้ด / ตัวอักษร (โหลดตัวอ่านเมื่อใช้ครั้งแรก) ---------- */
+ return{im,big,blob,ocr:stkCanvas(im,2600),thumb:stkCanvas(im,96).toDataURL("image/jpeg",.6),sig:stkSig(im),url:URL.createObjectURL(blob),name:"photo-"+dvDay(Date.now())+"-"+Date.now().toString(36)+".jpg"}}
+/* ---------- v16.61 อ่านฉลากให้ครบขึ้น: S/N · P/N · รุ่น · MAC · ยี่ห้อ · บาร์โค้ดหลายตัว (GS1 / DataMatrix) ---------- */
 function stkLib(k){let[u,sri,g]=STK_LIB[k];if(window[g])return Promise.resolve(window[g]);return STK_LIBP[k]||(STK_LIBP[k]=new Promise((ok,no)=>{let s=document.createElement("script");s.src=u;s.integrity=sri;s.crossOrigin="anonymous";s.onload=()=>window[g]?ok(window[g]):no(new Error("load"));s.onerror=()=>{STK_LIBP[k]=null;no(new PvErr(k==="ocr"?"โหลดตัวอ่านตัวอักษรไม่ได้ (ต้องต่ออินเทอร์เน็ต)":"โหลดตัวอ่านบาร์โค้ดไม่ได้",503))};document.head.appendChild(s)}))}
-async function stkBarcodes(cv){let out=new Set();
- try{if("BarcodeDetector"in window){let fm=await BarcodeDetector.getSupportedFormats?.().catch(()=>null),bd=new BarcodeDetector(fm?.length?{formats:fm}:void 0);for(let r of await bd.detect(cv))if(r.rawValue)out.add(String(r.rawValue).trim())}}catch(e){console.warn("[9D] BarcodeDetector",e)}
- if(!out.size){let Z=await stkLib("zxing"),h=new Map([[Z.DecodeHintType.TRY_HARDER,!0]]),rd=new Z.MultiFormatReader();rd.setHints(h);
-  for(let c of[cv,stkCanvas(cv,900)]){try{let r=rd.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c))));if(r?.getText())out.add(r.getText().trim());break}catch(e){}}}
- return[...out].filter(Boolean).slice(0,6)}
-async function stkOcr(cv,onp){let T=await stkLib("ocr");if(!STK.ocr)STK.ocr=T.createWorker("eng",1,{logger:m=>{if(m.status==="recognizing text"&&STK.onp)STK.onp(m.progress)}}).catch(e=>{STK.ocr=null;throw e});
- let w=await STK.ocr;STK.onp=onp;try{let r=await w.recognize(stkCanvas(cv,1400));return r?.data?.text||""}finally{STK.onp=null}}
-function stkParse(t){let sn=new Set(),pn=new Set(),tok=new Set();
- for(let l of String(t||"").split(/\n/).map(s=>s.trim()).filter(Boolean)){let u=l.toUpperCase().replace(/[|]/g,"I");
-  let m=u.match(/\b(?:S\s*\/?\s*N|SERIAL\s*(?:NO|NUMBER)?\.?|SER\.?\s*NO\.?)\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\-]{4,})/);if(m)sn.add(m[1]);
-  let p=u.match(/\b(?:P\s*\/?\s*N|PART\s*(?:NO|NUMBER)?\.?|MODEL(?:\s*NO\.?)?|MDL|PID|SKU)\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\-\/.+]{2,})/);if(p)pn.add(p[1].replace(/[.\-]+$/,""));
-  for(let w of u.match(/[A-Z0-9][A-Z0-9\-\/]{4,}/g)||[])if(/\d/.test(w)&&/[A-Z]/.test(w))tok.add(w)}
- return{sn:[...sn],pn:[...pn],tok:[...tok].filter(w=>!sn.has(w)&&!pn.has(w)).slice(0,10)}}
-/* เทียบกับสต็อก: codes = รหัสที่ได้จากบาร์โค้ด/พิมพ์เอง · text = ข้อความ OCR · sig = ลายเซ็นภาพ */
+var STK_BRANDS=[["Cisco",/\bCISCO\b|\bMERAKI\b/],["HPE Aruba",/\bARUBA\b/],["HPE",/HEWLETT\s*PACKARD\s*ENTERPRISE|\bHPE\b/],["HP",/HEWLETT|\bHP\b/],["Dell",/\bDELL\b/],["Fortinet",/FORTI(?:NET|GATE|SWITCH|AP|WIFI)/],["Hikvision",/HIKVISION/],["Dahua",/DAHUA/],["Huawei",/HUAWEI/],["Ruijie",/RUIJIE|REYEE/],["Ubiquiti",/UBIQUITI|\bUNIFI\b/],["CommScope",/COMMSCOPE|RUCKUS|SYSTIMAX/],["Juniper",/JUNIPER/],["Palo Alto",/PALO\s*ALTO/],["Sophos",/SOPHOS/],["Lenovo",/LENOVO/],["Synology",/SYNOLOGY/],["QNAP",/\bQNAP\b/],["TP-Link",/TP-?LINK|OMADA/],["MikroTik",/MIKROTIK/],["Zyxel",/ZYXEL/],["Extreme Networks",/EXTREME\s*NETWORKS/],["Allied Telesis",/ALLIED\s*TELESIS/],["APC",/\bAPC\b|SCHNEIDER/],["Panduit",/PANDUIT/],["Legrand",/LEGRAND/],["Supermicro",/SUPERMICRO/],["Check Point",/CHECK\s*POINT/],["Grandstream",/GRANDSTREAM/],["Yealink",/YEALINK/],["Axis",/AXIS\s*COMMUNICATIONS/],["Uniview",/UNIVIEW/],["Netgear",/NETGEAR/],["D-Link",/D-?LINK/],["Cambium",/CAMBIUM/],["Corning",/CORNING/],["Belden",/BELDEN/]];
+var STK_K={sn:/(?:[S5]\s*\/\s*[NM]\b|\bS\.\s*N\b\.?|\bSN\b|\bSERIAL(?:\s*(?:NO|NUMBER|NUM|#))?\b\.?|\bSER\.?\s*(?:NO|#)\b\.?|\(S\)|\(21\)|\bSSN\b)/g,
+ pn:/(?:\bP\s*\/\s*N\b|\bP\.\s*N\b\.?|\bPN\b|\bPART\s*(?:NO|NUMBER|NUM|#)\b\.?|\bPRODUCT\s*(?:NO|NUMBER|ID|CODE)\b\.?|\bPID\b|\bSKU\b|\(1P\)|\(240\)|\bSPN\b|\bCPN\b|\bORDER\s*(?:NO|CODE)\b\.?|\bP\/NO\b\.?)/g,
+ model:/(?:\bM\s*\/\s*N\b|\bMODEL(?:\s*(?:NO|NUMBER|NAME|#))?\b\.?|\bMDL\b|\bMTM\b|\bREG(?:ULATORY)?\s*MODEL\b)/g,
+ mac:/(?:\bBASE\s*MAC\b|\bETH(?:ERNET)?\s*MAC\b|\bMAC(?:\s*(?:ADDRESS|ADDR|ID))?\b|\bLAN\s*MAC\b)/g};
+var STK_MACRE=/\b((?:[0-9A-F]{2}[:\-]){5}[0-9A-F]{2}|[0-9A-F]{4}\.[0-9A-F]{4}\.[0-9A-F]{4})\b/,stkMac=v=>{let h=String(v||"").toUpperCase().replace(/[^0-9A-F]/g,"");return h.length===12?h.match(/../g).join(":"):""};
+var STK_STOP=/^(NO|NUMBER|NUM|SERIAL|MODEL|PART|PRODUCT|MADE|IN|CHINA|TAIWAN|DESIGNED|BY|AND|THE|INPUT|OUTPUT|POWER|RATING|LABEL|ADDRESS|MAC|TYPE)$/;
+function stkClean(v){return String(v||"").toUpperCase().replace(/^[\s:#.\-=]+|[\s.,;:\-\/]+$/g,"").replace(/[|]/g,"I")}
+/* อ่านข้อความทั้งหมด (OCR / ข้อความใน QR) → ค่าตามหัวข้อบนฉลาก */
+function stkParse(t){let L=String(t||"").replace(/[‘’`´]/g,"'").split(/\r?\n/).map(s=>s.trim()).filter(Boolean),U=L.map(l=>l.toUpperCase().replace(/[|]/g,"I").replace(/\s*[：]\s*/g,": ")),
+  o={sn:[],pn:[],model:[],mac:[],brand:"",kv:[],tok:[]},used=new Set(),add=(k,v)=>{v=stkClean(v);if(!v||STK_STOP.test(v))return;if(k==="mac"){v=stkMac(v);if(!v)return}else{if(v.length<3||v.length>40)return;if((k==="sn"||k==="pn")&&!/\d/.test(v))return}if(!o[k].includes(v))o[k].push(v);used.add(stkN(v))};
+ let VAL=/^\s*(?:[:#.=]|-(?=\s))?\s*(?:#\s*)?([A-Z0-9][A-Z0-9\-\/.+_]*[A-Z0-9])/,MV=/^\s*[:#.=\-]?\s*((?:[0-9A-F]{2}[:\-\s]?){5}[0-9A-F]{2}|[0-9A-F]{4}\.[0-9A-F]{4}\.[0-9A-F]{4})/;
+ U.forEach((u,i)=>{for(let k of["mac","sn","pn","model"]){let re=new RegExp(STK_K[k].source,"g"),m;while((m=re.exec(u))){let rest=u.slice(m.index+m[0].length),v=(k==="mac"?MV:VAL).exec(rest);
+    if(!v&&!rest.trim()&&U[i+1])v=(k==="mac"?MV:VAL).exec(U[i+1]);if(v)add(k,v[1])}}
+  let mm=u.match(STK_MACRE);if(mm)add("mac",mm[1]);
+  let kv=u.match(/^([A-Z][A-Z0-9 .\/#()-]{1,22}?)\s*:\s*(\S.{1,58})$/);if(kv&&!/S\s*\/\s*N|SERIAL|P\s*\/\s*N|PART|MODEL|MAC|PID|SKU|\bSN\b|\bPN\b/.test(kv[1]))o.kv.push(kv[1].trim()+": "+kv[2].trim())});
+ let all=U.join(" ");for(let[b,re]of STK_BRANDS)if(re.test(all)){o.brand=b;break}
+ for(let w of all.match(/[A-Z0-9][A-Z0-9\-\/.]{3,}[A-Z0-9]/g)||[])if(/\d/.test(w)&&/[A-Z]/.test(w)&&!used.has(stkN(w))&&!o.tok.includes(w))o.tok.push(w);
+ o.tok=o.tok.slice(0,14);o.kv=o.kv.slice(0,8);return o}
+/* ข้อมูลในบาร์โค้ด: GS1 (01 GTIN · 21 S/N · 240 P/N) · ANSI MH10 DataMatrix ([)> 1P/S) · QR ข้อความแบบ key:value */
+var STK_AIF={"00":18,"01":14,"02":14,"11":6,"12":6,"13":6,"15":6,"16":6,"17":6,"20":2},STK_AIV3=["240","241","250","251","235"];
+function stkCodeParse(v){let s=String(v||""),r={sn:[],pn:[],model:[],gtin:[],mac:[],kv:[]},ai=(k,x)=>{x=String(x).trim();if(!x)return;if(k==="01"||k==="02")r.gtin.push(x.replace(/^0+(?=\d{12,13}$)/,""));else if(k==="21")r.sn.push(x);else if(k==="240"||k==="241")r.pn.push(x);else if(k==="10")r.kv.push("LOT: "+x);else if(k==="17")r.kv.push("EXP: "+x)};
+ if(/^\[\)>/.test(s)){for(let f of s.split(/[\x1d\x1e\x04]/)){let m=f.match(/^(1P|P|1S|S|Q|1T)(.+)$/);if(!m)continue;if(/P$/.test(m[1]))r.pn.push(m[2].trim());else if(/S$/.test(m[1]))r.sn.push(m[2].trim());else if(m[1]==="Q")r.kv.push("QTY: "+m[2]);else r.kv.push("LOT: "+m[2])}return r}
+ let g=s.replace(/^\][A-Za-z]\d/,"").replace(/^\x1d/,"");
+ if(/^\(\d{2,4}\)/.test(g)){for(let m of g.matchAll(/\((\d{2,4})\)([^(]+)/g))ai(m[1],m[2]);return r}
+ if(/^(?:0[12]\d{14}|00\d{18})/.test(g)&&(g.length>16||/\x1d/.test(g))){let i=0;while(i<g.length){let k3=g.substr(i,3),k=STK_AIV3.includes(k3)?k3:g.substr(i,2);if(!/^\d+$/.test(k))break;i+=k.length;
+   if(STK_AIF[k]){ai(k,g.substr(i,STK_AIF[k]));i+=STK_AIF[k]}else if(/^(10|21|22|30|37|9\d|240|241|250|251|235)$/.test(k)){let e=g.indexOf("\x1d",i);if(e<0)e=g.length;ai(k,g.slice(i,e));i=e+1}else break}
+  return r}
+ if(/^\d{8}$|^\d{12,14}$/.test(g)){r.gtin.push(g);return r}
+ let mac=stkMac(g);if(mac&&/^[0-9A-F:\-.]+$/i.test(g)){r.mac.push(mac);return r}
+ if(/[A-Z]{2,}\s*[:=#]/i.test(g)||/\n/.test(g)){let p=stkParse(g.replace(/[;,|]\s*/g,"\n"));for(let k of["sn","pn","model","mac"])r[k].push(...p[k]);r.kv.push(...p.kv)}
+ return r}
+var stkLev=(a,b)=>{if(Math.abs(a.length-b.length)>2)return 9;let d=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=b.length;j++){let t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[b.length]},
+ stkNear=(a,b)=>{a=stkF(a);b=stkF(b);return a.length>=5&&b.length>=5&&(a===b||stkLev(a,b)<=(a.length>=10?2:1))};
+/* รวมผลบาร์โค้ด + OCR → ค่าที่แนะนำ (บาร์โค้ดแม่นกว่า OCR: ถ้าใกล้เคียงกันใช้ค่าจากบาร์โค้ด และทำเครื่องหมาย ✓) */
+function stkFuse(bars,text){let o=stkParse(text),f={brand:o.brand,model:"",pn:"",sn:"",mac:"",barcode:""},ok={},pool=[],extra=[...o.kv];
+ let take=(k,arr,v)=>{let i=arr.findIndex(x=>stkNear(x,v));if(i>=0)arr.splice(i,1);arr.unshift(v);ok[k]=1};
+ for(let b of bars||[]){let c=stkCodeParse(b.v);for(let k of["sn","pn","model"])for(let v of c[k])take(k,o[k],stkClean(v));for(let m of c.mac)take("mac",o.mac,m);extra.push(...c.kv);
+  if(c.gtin.length){f.barcode=f.barcode||c.gtin[0];ok.barcode=1}
+  if(!c.sn.length&&!c.pn.length&&!c.gtin.length&&!c.mac.length&&!c.model.length){let v=stkClean(b.v);if(!v)continue;
+   let k=["sn","pn","model","mac"].find(k=>o[k].some(x=>stkNear(x,v)));if(k)take(k,o[k],k==="mac"?stkMac(v)||v:v);else pool.push({v,f:b.f})}}
+ if(!o.sn.length){let c=pool.find(p=>/\d/.test(p.v)&&/^[A-Z0-9\-]{6,30}$/.test(p.v)&&!/QR|DATA/.test(p.f||""));if(c){o.sn.push(c.v);ok.sn=1;pool=pool.filter(p=>p!==c)}}
+ if(!f.barcode&&pool.length)f.barcode=pool[0].v;
+ f.sn=o.sn[0]||"";f.pn=o.pn[0]||"";f.model=o.model[0]||"";f.mac=o.mac[0]||"";
+ if(f.model&&f.pn&&stkF(f.model)===stkF(f.pn))f.model="";
+ let chips=[...new Set([...o.sn.slice(1),...o.pn.slice(1),...o.model.slice(1),...o.mac.slice(1),...pool.map(p=>p.v),...o.tok])].filter(v=>!Object.values(f).some(x=>x&&stkF(x)===stkF(v))).slice(0,16);
+ return{f,ok,chips,extra:[...new Set(extra)].slice(0,8)}}
+/* ---------- ภาพสำหรับอ่าน: ครอป · หมุน · ขยาย · ปรับคอนทราสต์ · ขาวดำ (Otsu) · กลับสีถ้าพื้นเข้ม ---------- */
+function stkPre(src,o={}){let cr=o.crop,sx=cr?cr.x*src.width:0,sy=cr?cr.y*src.height:0,sw=cr?cr.w*src.width:src.width,sh=cr?cr.h*src.height:src.height,r=((o.rot||0)%360+360)%360,
+  sc=Math.min((o.max||2000)/Math.max(sw,sh),o.up||3),w=Math.max(1,Math.round(sw*sc)),h=Math.max(1,Math.round(sh*sc)),c=document.createElement("canvas");c.width=r%180?h:w;c.height=r%180?w:h;
+ let x=c.getContext("2d",{willReadFrequently:!0});x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.translate(c.width/2,c.height/2);x.rotate(r*Math.PI/180);x.imageSmoothingQuality="high";x.drawImage(src,sx,sy,sw,sh,-w/2,-h/2,w,h);x.setTransform(1,0,0,1,0,0);
+ if(o.raw)return c;let id=x.getImageData(0,0,c.width,c.height),d=id.data,n=d.length/4,hist=new Uint32Array(256),g=new Uint8ClampedArray(n);
+ for(let i=0,j=0;i<d.length;i+=4,j++){let v=(d[i]*299+d[i+1]*587+d[i+2]*114)/1000|0;g[j]=v;hist[v]++}
+ let lo=0,hi=255,acc=0;for(;lo<255&&(acc+=hist[lo])<n*.01;lo++);acc=0;for(;hi>0&&(acc+=hist[hi])<n*.01;hi--);let span=Math.max(1,hi-lo),mean=0;
+ for(let j=0;j<n;j++){let v=(g[j]-lo)*255/span;g[j]=v;mean+=g[j]}mean/=n;let inv=mean<105;
+ let th=128;if(o.bin){let H=new Float64Array(256);for(let j=0;j<n;j++)H[g[j]]++;let sum=0;for(let t=0;t<256;t++)sum+=t*H[t];let sB=0,wB=0,best=0;for(let t=0;t<256;t++){wB+=H[t];if(!wB)continue;let wF=n-wB;if(!wF)break;sB+=t*H[t];let mB=sB/wB,mF=(sum-sB)/wF,b=wB*wF*(mB-mF)**2;if(b>best){best=b;th=t}}}
+ for(let i=0,j=0;i<d.length;i+=4,j++){let v=g[j];if(o.bin)v=v>th?255:0;if(inv)v=255-v;d[i]=d[i+1]=d[i+2]=v}x.putImageData(id,0,0);return c}
+async function stkBarcodes(cv,fast){let out=new Map(),put=(v,f)=>{v=String(v||"").trim();if(v&&!out.has(v))out.set(v,{v,f:String(f||"").toUpperCase()})};
+ try{if("BarcodeDetector"in window){STK.bd=STK.bd||(async()=>{let fm=await BarcodeDetector.getSupportedFormats?.().catch(()=>null);return new BarcodeDetector(fm?.length?{formats:fm}:void 0)})();let bd=await STK.bd;
+  for(let r of await bd.detect(cv))put(r.rawValue,r.format);if(!fast&&!out.size)for(let r of await bd.detect(stkPre(cv,{max:1600})))put(r.rawValue,r.format)}}catch(e){console.warn("[9D] BarcodeDetector",e)}
+ if(out.size&&(fast||"BarcodeDetector"in window))return[...out.values()];
+ let Z;try{Z=await stkLib("zxing")}catch(e){if(out.size)return[...out.values()];throw e}
+ let rd=STK.zr;if(!rd){rd=STK.zr=new Z.MultiFormatReader();rd.setHints(new Map([[Z.DecodeHintType.TRY_HARDER,!0]]))}
+ let dec=c=>{try{let r=rd.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c))));if(r?.getText())put(r.getText(),Z.BarcodeFormat[r.getBarcodeFormat()]||"")}catch(e){}finally{rd.reset?.()}};
+ let W=cv.width,H=cv.height,part=(x,y,w,h)=>stkPre(cv,{crop:{x,y,w,h},max:1200,up:2,raw:1});
+ if(fast){dec(stkCanvas(cv,1000));if(!out.size)dec(part(.15,.25,.7,.5));return[...out.values()]}
+ dec(stkCanvas(cv,1400));dec(stkPre(cv,{max:1400}));
+ /* ฉลากมักมีบาร์โค้ดหลายแถว: ไล่อ่านทีละแถบแนวนอน 3 ส่วน + ครึ่งซ้าย/ขวา + หมุน 90° สำหรับบาร์โค้ดแนวตั้ง */
+ for(let[x,y,w,h]of[[0,0,1,.4],[0,.3,1,.4],[0,.6,1,.4],[0,0,.55,1],[.45,0,.55,1],[0,0,1,.25],[0,.25,1,.25],[0,.5,1,.25],[0,.75,1,.25]])dec(part(x,y,w,h));
+ if(out.size<2)dec(stkPre(cv,{max:1400,rot:90,raw:1}));
+ return[...out.values()].slice(0,10)}
+async function stkWorker(){let T=await stkLib("ocr");if(!STK.ocr)STK.ocr=T.createWorker("eng",1,{logger:m=>{if(m.status==="recognizing text"&&STK.onp)STK.onp(m.progress)}}).catch(e=>{STK.ocr=null;throw e});return STK.ocr}
+async function stkOcrPass(src,o,onp){let w=await stkWorker();STK.onp=onp;
+ try{await w.setParameters({tessedit_pageseg_mode:o.psm||"11",preserve_interword_spaces:"1",tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:/-.#()+_,= "});
+  let r=await w.recognize(stkPre(src,{max:o.crop?2200:2400,up:o.crop?3:1.6,...o}));return r?.data?.text||""}finally{STK.onp=null}}
+/* หลายรอบ: ภาพปรับคอนทราสต์ (ข้อความกระจาย) → ขาวดำ (ทั้งบล็อก) → ถ้ายังไม่เจอ S/N/P/N ลองหมุน 90° / 270° */
+async function stkOcrAll(src,{crop,rot=0}={},cb){let passes=[{psm:"11"},{psm:"6",bin:1},{psm:"11",rot:90},{psm:"11",rot:270}],txt="";
+ for(let i=0;i<passes.length;i++){let p={...passes[i],crop};p.rot=((p.rot||0)+rot)%360;if(i>=2){let q=stkParse(txt);if(q.sn.length||q.pn.length||q.model.length)break}
+  if(cb?.stop?.())return txt;let t=await stkOcrPass(src,p,v=>cb?.prog?.(i,i<2?2:passes.length,v));txt+=(txt?"\n":"")+t;cb?.part?.(txt,i)}
+ return txt}
+/* เทียบกับสต็อก: codes = รหัสที่อ่าน/พิมพ์ได้ · text = ข้อความ OCR ทั้งหมด · sig = ลายเซ็นภาพ */
 function stkMatch(q){let codes=(q.codes||[]).map(stkF).filter(c=>c.length>=3),txt=stkF(q.text),out=[];
  for(let it of stkList()){let why=[],sc=0,unit=!1;
-  for(let[k,l]of[["sn","S/N"],["barcode","บาร์โค้ด"],["model","รุ่น / P/N"]]){let v=stkF(it[k]);if(v.length<4)continue;let same=k!=="model";
+  for(let[k,l]of[["sn","S/N"],["mac","MAC"],["barcode","บาร์โค้ด"],["pn","P/N"],["model","รุ่น"]]){let v=stkF(it[k]);if(v.length<4)continue;let same=k==="sn"||k==="mac"||k==="barcode"&&!/^\d{8,14}$/.test(v);
    if(codes.includes(v)){why.push("ตรง "+l);sc=Math.max(sc,same?1:.8);unit=unit||same}
-   else if(codes.some(c=>c.length>=6&&v.length>=6&&(c.includes(v)||v.includes(c)))){why.push("คล้าย "+l);sc=Math.max(sc,same?.75:.6)}
+   else if(codes.some(c=>c.length>=6&&v.length>=6&&(c.includes(v)||v.includes(c)||stkNear(c,v)))){why.push("ใกล้เคียง "+l);sc=Math.max(sc,same?.75:.6)}
    else if(txt&&v.length>=5&&txt.includes(v)){why.push("พบ "+l+" บนฉลาก");sc=Math.max(sc,same?.95:.75);unit=unit||same}}
   if(q.sig){let s=Math.max(0,...(it.sigs||[]).map(g=>stkSim(q.sig,g)));if(s>=.8){why.push("ภาพคล้าย "+Math.round(s*100)+"%");sc=Math.max(sc,s*.7)}}
   if(why.length)out.push({it,sc,why,unit})}
@@ -2843,101 +2911,163 @@ function stkMatch(q){let codes=(q.codes||[]).map(stkF).filter(c=>c.length>=3),tx
 /* ใบยืมที่ยังไม่คืน → แผนที่ S/N, รหัสสินค้า */
 async function stkLoanMap(){let m={sn:{},code:{}};try{for(let L of await mLoans())if(L.status!=="คืนครบ")for(let x of L.items||[])if(!x.ret){let s=stkF(x.sn),c=stkF(x.code);if(s.length>=4)m.sn[s]=L;if(c.length>=3)(m.code[c]=m.code[c]||[]).push(L)}}catch(e){}return m}
 var stkLoanOf=(it,m)=>m?.sn[stkF(it.sn)]||null;
+var STK_DELR=["ขาย / ส่งมอบให้ลูกค้าแล้ว","คืนผู้ผลิต / Distributor","ชำรุด ใช้งานไม่ได้ / จำหน่ายทิ้ง","สูญหาย","บันทึกซ้ำ / ข้อมูลผิด","อื่นๆ"];
 /* ---------- หน้า สต็อก Demo ---------- */
 async function dvStockPage(host,id){if(!mIsEng()){host.innerHTML=`<p class="dv-empty">หน้านี้สำหรับ Engineer เท่านั้น</p>`;return}DV.sig=dvSig();
  let lm=await stkLoanMap();STK.lm=lm;if(!dvRenderCurrent(id,"stock"))return;
- let all=stkList(),pcs=a=>a.reduce((s,x)=>s+(Number(x.qty)||1),0),by=k=>all.filter(x=>(x.status||"ready")===k),onLoan=all.filter(x=>stkLoanOf(x,lm));
- let f={all:()=>!0,ready:x=>(x.status||"ready")==="ready"&&!stkLoanOf(x,lm),out:x=>x.status==="out"||!!stkLoanOf(x,lm),fix:x=>x.status==="repair"||x.status==="broken",gone:x=>x.status==="gone"},sf=DV.sf||"all",list=all.filter(f[sf]||f.all);
+ let all=stkList(),gone=(M.stock||[]).filter(x=>x.deleted),pcs=a=>a.reduce((s,x)=>s+(Number(x.qty)||1),0),by=k=>all.filter(x=>(x.status||"ready")===k),onLoan=all.filter(x=>stkLoanOf(x,lm));
+ let f={all:()=>!0,ready:x=>(x.status||"ready")==="ready"&&!stkLoanOf(x,lm),out:x=>x.status==="out"||!!stkLoanOf(x,lm),fix:x=>x.status==="repair"||x.status==="broken",gone:x=>x.status==="gone"},sf=DV.sf||"all",list=sf==="del"?gone:all.filter(f[sf]||f.all);
  let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS · ENGINEER</p><h1>สต็อกสินค้า Demo</h1><p class="dv-sub">เครื่อง Demo ของทีม Engineer · ถ่ายภาพฉลาก/บาร์โค้ดเพื่อเช็คว่ามีในระบบแล้วหรือยัง แล้วเพิ่มได้ทันที</p></div>
   <div class="dv-ctrl"><button type="button" class="dv-new stk-cambtn" onclick="dvStockCheck()">${STK_IC.cam} ถ่ายภาพเช็คสินค้า</button><button type="button" class="dv-btn" onclick="dvStockForm()"><span aria-hidden="true">+</span> เพิ่มสินค้า</button><button type="button" class="dv-btn" onclick="dvStockExport()">${dvIcon.dl} Export</button></div></header>`;
  if(!M.tl){host.innerHTML=head+`<p class="dv-empty dv-warnbox">${dvIcon.warn} ยังเชื่อมรายการ 9D Project Tracking ไม่ได้ ${mEsc(M.trackErr||"")}</p>`;return}
- let card=x=>{let L=stkLoanOf(x,lm),q=[x.id,x.name,x.brand,x.model,x.sn,x.barcode,x.cat,x.loc,x.holder,x.notes,L?.no,L?.customer].join(" ").toLowerCase();
-  return`<li class="stk-card" data-q="${mEsc(q)}"><button type="button" class="stk-tap" onclick="dvStockForm('${mEsc(x.id)}')" aria-label="เปิด ${mEsc(x.name)}"><span class="stk-ph">${x.thumb?`<img src="${mEsc(x.thumb)}" alt="" loading="lazy">`:STK_IC.box}</span>
-   <span class="stk-tx"><small class="stk-id">${mEsc(x.id)}${x.cat?" · "+mEsc(x.cat):""}</small><b>${mEsc(x.name)}</b><small>${[x.brand,x.model].filter(Boolean).map(mEsc).join(" · ")||"—"}</small><small class="stk-sn">S/N ${mEsc(x.sn||"—")}</small></span></button>
-   <div class="stk-meta">${stkChip(x.status)}${L?`<span class="stk-st cur" title="${mEsc(L.customer||"")}">ในใบยืม ${mEsc(L.no||"")}</span>`:""}${(Number(x.qty)||1)>1?`<span class="stk-q">× ${Number(x.qty)}</span>`:""}${x.loc?`<span>📍 ${mEsc(x.loc)}</span>`:""}${x.holder?`<span>👤 ${mEsc(x.holder)}</span>`:""}${(x.photos||[]).length?`<span>🖼 ${(x.photos||[]).length}</span>`:""}</div></li>`};
+ let card=x=>{let L=!x.deleted&&stkLoanOf(x,lm),q=[x.id,x.name,x.brand,x.model,x.pn,x.sn,x.mac,x.barcode,x.cat,x.loc,x.holder,x.notes,L?.no,L?.customer,x.del?.reason,x.del?.note].join(" ").toLowerCase();
+  return`<li class="stk-card${x.deleted?" del":""}" data-q="${mEsc(q)}"><button type="button" class="stk-tap" onclick="dvStockForm('${mEsc(x.id)}')" aria-label="เปิด ${mEsc(x.name)}"><span class="stk-ph">${x.thumb?`<img src="${mEsc(x.thumb)}" alt="" loading="lazy">`:STK_IC.box}</span>
+   <span class="stk-tx"><small class="stk-id">${mEsc(x.id)}${x.cat?" · "+mEsc(x.cat):""}</small><b>${mEsc(x.name)}</b><small>${[x.brand,x.model,x.pn&&x.pn!==x.model&&"P/N "+x.pn].filter(Boolean).map(mEsc).join(" · ")||"—"}</small><small class="stk-sn">S/N ${mEsc(x.sn||"—")}</small></span></button>
+   <div class="stk-meta">${x.deleted?`<span class="stk-st no">ลบออกแล้ว</span><span class="stk-delr">${mEsc(x.del?.reason||"")}${x.del?.note?" — "+mEsc(x.del.note):""} · ${mEsc(x.del?.by||x.updatedBy||"")} ${x.del?.at?mEsc(dvTH2(dvDay(Date.parse(x.del.at)))):""}</span>`:`${stkChip(x.status)}${L?`<span class="stk-st cur" title="${mEsc(L.customer||"")}">ในใบยืม ${mEsc(L.no||"")}</span>`:""}${(Number(x.qty)||1)>1?`<span class="stk-q">× ${Number(x.qty)}</span>`:""}${x.loc?`<span>📍 ${mEsc(x.loc)}</span>`:""}${x.holder?`<span>👤 ${mEsc(x.holder)}</span>`:""}${(x.photos||[]).length?`<span>🖼 ${(x.photos||[]).length}</span>`:""}`}</div></li>`};
  host.innerHTML=head+`<div class="dv-kpis">${dvKpi("รายการในสต็อก",dvNum(all.length),"รวม "+dvNum(pcs(all))+" ชิ้น")}${dvKpi("พร้อมใช้",dvNum(all.filter(f.ready).length),"ยืม Demo ได้ทันที")}${dvKpi("ยืมออก / อยู่กับลูกค้า",dvNum(all.filter(f.out).length),onLoan.length?"ผูกกับใบยืม "+onLoan.length+" รายการ":"ตาม S/N ในใบยืม")}${dvKpi(dvIcon.warn+" ซ่อม / ชำรุด",dvNum(by("repair").length+by("broken").length),"ต้องติดตาม",by("repair").length+by("broken").length?"warn":"")}</div>
-  <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสต็อก">${[["all","ทั้งหมด",all.length],["ready","พร้อมใช้",all.filter(f.ready).length],["out","ยืมออก",all.filter(f.out).length],["fix","ซ่อม/ชำรุด",all.filter(f.fix).length],["gone","ตัดออก",all.filter(f.gone).length]].map(([k,l,n])=>`<button type="button" class="${sf===k?"on":""}" aria-pressed="${sf===k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
-   <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="skq" placeholder="ค้นหา ชื่อ / รุ่น / S/N / บาร์โค้ด / ที่เก็บ" value="${mEsc(DV.skq||"")}" oninput="dvQ('skq','.stk-card',this.value,'sf')" onkeydown="dvQKey(event,this)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
-  ${list.length?`<ul class="stk-grid">${list.map(card).join("")}</ul>`:all.length?`<p class="dv-empty ok">${dvIcon.ok} ไม่มีรายการในกลุ่มนี้</p>`:`<div class="dv-card stk-empty">${STK_IC.box}<h3>ยังไม่มีสินค้า Demo ในระบบ</h3><p class="dv-cap">กด “ถ่ายภาพเช็คสินค้า” แล้วถ่ายฉลาก S/N หรือบาร์โค้ด ระบบจะเช็คให้ว่ามีอยู่แล้วหรือยัง ถ้ายังไม่มีกดเพิ่มได้เลย</p><button type="button" class="dv-new" onclick="dvStockCheck()">${STK_IC.cam} เริ่มถ่ายภาพ</button></div>`}`;
+  <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสต็อก">${[["all","ทั้งหมด",all.length],["ready","พร้อมใช้",all.filter(f.ready).length],["out","ยืมออก",all.filter(f.out).length],["fix","ซ่อม/ชำรุด",all.filter(f.fix).length],["gone","ตัดออก",all.filter(f.gone).length],["del","ลบออกแล้ว",gone.length]].map(([k,l,n])=>`<button type="button" class="${sf===k?"on":""}" aria-pressed="${sf===k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
+   <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="skq" placeholder="ค้นหา ชื่อ / รุ่น / P/N / S/N / MAC / ที่เก็บ" value="${mEsc(DV.skq||"")}" oninput="dvQ('skq','.stk-card',this.value,'sf')" onkeydown="dvQKey(event,this)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
+  ${list.length?`<ul class="stk-grid">${list.map(card).join("")}</ul>`:all.length||sf==="del"?`<p class="dv-empty ok">${dvIcon.ok} ไม่มีรายการในกลุ่มนี้</p>`:`<div class="dv-card stk-empty">${STK_IC.box}<h3>ยังไม่มีสินค้า Demo ในระบบ</h3><p class="dv-cap">กด “ถ่ายภาพเช็คสินค้า” แล้วถ่ายฉลาก S/N หรือบาร์โค้ด ระบบจะเช็คให้ว่ามีอยู่แล้วหรือยัง ถ้ายังไม่มีกดเพิ่มได้เลย</p><button type="button" class="dv-new" onclick="dvStockCheck()">${STK_IC.cam} เริ่มถ่ายภาพ</button></div>`}`;
  if(DV.skq)dvQ("skq",".stk-card",DV.skq,"sf")}
 var STK_IC={cam:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.2l1.4-2h6.8l1.4 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.6"/></svg>',
+ scan:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/></svg>',
  box:'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8M7.5 5.5l9 5"/></svg>',
  nav:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></svg>'};
-window.dvStockExport=()=>{let lm=STK.lm,cols=[["id","รหัส"],["name","ชื่อสินค้า"],["brand","ยี่ห้อ"],["model","รุ่น/P/N"],["sn","S/N"],["barcode","บาร์โค้ด"],["cat","หมวด"],["qty","จำนวน"],["status","สถานะ"],["loan","ใบยืม"],["loc","ที่เก็บ"],["holder","ผู้รับผิดชอบ"],["notes","หมายเหตุ"],["photo","รูป"],["updatedAt","แก้ไขล่าสุด"],["updatedBy","แก้ไขโดย"]];
+window.dvStockExport=()=>{let lm=STK.lm,cols=[["id","รหัส"],["name","ชื่อสินค้า"],["brand","ยี่ห้อ"],["model","รุ่น"],["pn","P/N"],["sn","S/N"],["mac","MAC"],["barcode","บาร์โค้ด"],["cat","หมวด"],["qty","จำนวน"],["status","สถานะ"],["loan","ใบยืม"],["loc","ที่เก็บ"],["holder","ผู้รับผิดชอบ"],["notes","หมายเหตุ"],["photo","รูป"],["updatedAt","แก้ไขล่าสุด"],["updatedBy","แก้ไขโดย"]];
  let v=(x,k)=>k==="status"?stkSt(x.status)[1]:k==="loan"?(stkLoanOf(x,lm)?.no||""):k==="photo"?(x.photos||[]).map(p=>p.url).filter(Boolean).join(" "):k==="qty"?(Number(x.qty)||1):x[k]??"";
  let esc=s=>{s=String(s);if(/^[=+\-@]/.test(s))s="'"+s;return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
  let csv="﻿"+[cols.map(c=>c[1]).join(","),...stkList().map(x=>cols.map(([k])=>esc(v(x,k))).join(","))].join("\r\n"),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="9D-Demo-Stock-"+dvToday()+".csv";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
+/* ลบออกจากสต็อก: ต้องเลือกเหตุผล + ใส่หมายเหตุ (ไม่ลบแถว/รูปจริง ดูย้อนหลังได้ที่ “ลบออกแล้ว”) */
+function stkAskDel(x){return new Promise(ok=>{let d=document.createElement("dialog");d.className="dv-dlg stk-dlg stk-deld";
+ d.innerHTML=`<form method="dialog" class="stk-form" novalidate><div class="dv-dhead"><h2>ลบออกจากสต็อก</h2><button type="button" class="dv-xbtn" data-a="x" aria-label="ปิด">✕</button></div>
+  <p class="stk-delw"><b>${mEsc(x.id)} · ${mEsc(x.name)}</b>${x.sn?`<br>S/N ${mEsc(x.sn)}`:""}</p>
+  <fieldset class="stk-reasons"><legend>เหตุผล *</legend>${STK_DELR.map((r,i)=>`<label><input type="radio" name="reason" value="${mEsc(r)}"${i?"":""}> ${mEsc(r)}</label>`).join("")}</fieldset>
+  <label class="stk-delnote">หมายเหตุ *<textarea name="note" rows="3" maxlength="300" placeholder="เช่น ส่งมอบให้ลูกค้า ABC ตามใบส่งของ DO-xxxx / คืน Distributor วันที่ ..."></textarea></label>
+  <p class="stk-cap">ข้อมูลและรูปยังเก็บไว้ใน SharePoint · ดูย้อนหลังหรือกู้คืนได้ที่ตัวกรอง “ลบออกแล้ว”</p>
+  <p class="dv-ferr stk-err" role="alert"></p>
+  <div class="stk-foot"><span></span><button type="button" class="dv-btn" data-a="x">ยกเลิก</button><button type="submit" class="dv-x2 stk-delbtn">ยืนยันลบออก</button></div></form>`;
+ document.body.appendChild(d);let F=d.querySelector("form"),er=d.querySelector(".stk-err"),res=null;
+ F.onsubmit=e=>{e.preventDefault();let r=F.elements.reason.value,n=F.elements.note.value.trim();if(!r){er.textContent="เลือกเหตุผลที่ลบ";return}if(n.length<5){er.textContent="ใส่หมายเหตุอย่างน้อย 5 ตัวอักษร (เช่น ส่งให้ใคร / เลขที่เอกสาร)";F.elements.note.focus();return}res={reason:r,note:n};d.close()};
+ d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{d.remove();ok(res)});d.showModal()})}
 /* ---------- ฟอร์มเพิ่ม/แก้ไข ---------- */
 window.dvStockForm=(id,pre)=>{if(!mIsEng())return;let old=id?(M.stock||[]).find(x=>x.id===id):null;if(id&&!old){mToast("ไม่พบรายการนี้แล้ว",!0);return}
- let x=old?{...old}:{name:"",brand:"",model:"",sn:"",barcode:"",cat:"",qty:1,status:"ready",loc:"",holder:M.profile.name,notes:"",photos:[],sigs:[],...(pre?.fields||{})};
- let pend=[...(pre?.photos||[])],keep=[...(x.photos||[])],engs=[...new Set([M.profile.name,...Hd.map(n=>dvTitle(n)),x.holder].filter(Boolean))],L=old&&stkLoanOf(old,STK.lm);
+ let x=old?{...old}:{name:"",brand:"",model:"",pn:"",sn:"",mac:"",barcode:"",cat:"",qty:1,status:"ready",loc:"",holder:M.profile.name,notes:"",photos:[],sigs:[],...(pre?.fields||{})};
+ let pend=[...(pre?.photos||[])],keep=[...(x.photos||[])],engs=[...new Set([M.profile.name,...Hd.map(n=>dvTitle(n)),x.holder].filter(Boolean))],L=old&&!old.deleted&&stkLoanOf(old,STK.lm);
  let inp=(n,l,o={})=>`<label class="${o.cls||""}">${l}${o.req?" *":""}<input name="${n}" value="${mEsc(x[n]??"")}"${o.req?" required":""}${o.ph?` placeholder="${mEsc(o.ph)}"`:""}${o.list?` list="${o.list}"`:""}${o.cap?' autocapitalize="characters" spellcheck="false"':""}${o.type?` type="${o.type}" min="1" inputmode="numeric"`:""}></label>`;
  let d=document.createElement("dialog");d.className="dv-dlg stk-dlg";d.innerHTML=`<form method="dialog" class="stk-form" novalidate><div class="dv-dhead"><h2>${old?"สินค้า Demo "+mEsc(old.id):"เพิ่มสินค้า Demo"}</h2><button type="button" class="dv-xbtn" data-a="x" aria-label="ปิด">✕</button></div>
+  ${old?.deleted?`<p class="stk-note del"><b>ลบออกจากสต็อกแล้ว</b> · ${mEsc(old.del?.reason||"")}${old.del?.note?" — "+mEsc(old.del.note):""}<br><small>${mEsc(old.del?.by||"")} ${old.del?.at?mEsc(dvTH2(dvDay(Date.parse(old.del.at)))):""}</small></p>`:""}
   ${L?`<p class="stk-note cur">อยู่ในใบยืม <b>${mEsc(L.no||"")}</b> · ${mEsc(L.customer||"")} · กำหนดคืน ${mEsc(L.dueDate?dvTH2(L.dueDate):"—")}</p>`:""}
   <div class="stk-photos"><div class="stk-strip"></div><label class="stk-add">${STK_IC.cam}<span>ถ่าย / เพิ่มรูป</span><input type="file" accept="image/*" capture="environment" multiple hidden></label></div>
-  <div class="stk-grid2">${inp("name","ชื่อสินค้า",{req:1,ph:"เช่น Aruba CX 6100 24G",cls:"w2"})}${inp("brand","ยี่ห้อ",{list:"stk-brands",ph:"เช่น HPE Aruba"})}${inp("model","รุ่น / P/N",{cap:1,ph:"เช่น JL678A"})}${inp("sn","Serial Number (S/N)",{cap:1,ph:"S/N บนฉลาก"})}${inp("barcode","บาร์โค้ด / QR",{cap:1,ph:"ถ้ามี"})}
+  <div class="stk-grid2">${inp("name","ชื่อสินค้า",{req:1,ph:"เช่น Aruba CX 6100 24G",cls:"w2"})}${inp("brand","ยี่ห้อ",{list:"stk-brands",ph:"เช่น HPE Aruba"})}${inp("model","รุ่น (Model)",{cap:1,ph:"เช่น CX 6100"})}${inp("pn","P/N (Part No.)",{cap:1,ph:"เช่น JL678A"})}${inp("sn","Serial Number (S/N)",{cap:1,ph:"S/N บนฉลาก"})}${inp("mac","MAC Address",{cap:1,ph:"ถ้ามี"})}${inp("barcode","บาร์โค้ด / QR",{cap:1,ph:"ถ้ามี"})}
    <label>หมวด<input name="cat" value="${mEsc(x.cat||"")}" list="stk-cats" placeholder="เลือกหรือพิมพ์"></label>${inp("qty","จำนวน",{type:"number"})}
    <label>สถานะ<select name="status">${STK_ST.map(([k,l])=>`<option value="${k}"${(x.status||"ready")===k?" selected":""}>${l}</option>`).join("")}</select></label>
    ${inp("loc","ที่เก็บ",{ph:"เช่น ตู้ A ชั้น 2 / ห้อง Lab"})}<label>ผู้รับผิดชอบ<input name="holder" value="${mEsc(x.holder||"")}" list="stk-engs"></label>
    <label class="w2">หมายเหตุ<textarea name="notes" rows="2" placeholder="อุปกรณ์ที่มากับเครื่อง / License / สภาพ">${mEsc(x.notes||"")}</textarea></label></div>
-  <datalist id="stk-cats">${STK_CAT.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-engs">${engs.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-brands">${[...new Set(stkList().map(s=>s.brand).filter(Boolean))].map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist>
+  <datalist id="stk-cats">${STK_CAT.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-engs">${engs.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-brands">${[...new Set([...stkList().map(s=>s.brand),...STK_BRANDS.map(b=>b[0])].filter(Boolean))].map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist>
   ${old?.log?.length?`<details class="stk-log"><summary>ประวัติ (${old.log.length})</summary><ol>${old.log.map(g=>`<li><time>${mEsc(dvTH2(dvDay(Date.parse(g.at))))}</time> ${mEsc(g.by)} — ${mEsc(g.act)}</li>`).join("")}</ol></details>`:""}
   <p class="dv-ferr stk-err" role="alert"></p>
-  <div class="stk-foot">${old?`<button type="button" class="dv-x2" data-a="del">ซ่อนออกจากสต็อก</button>`:""}<span></span><button type="button" class="dv-btn" data-a="x">ยกเลิก</button><button type="submit" class="dv-new" data-a="save">บันทึก</button></div></form>`;
+  <div class="stk-foot">${old?old.deleted?`<button type="button" class="dv-btn" data-a="undel">กู้คืนเข้าสต็อก</button>`:`<button type="button" class="dv-x2" data-a="del">ลบออกจากสต็อก</button>`:""}<span></span><button type="button" class="dv-btn" data-a="x">ยกเลิก</button>${old?.deleted?"":`<button type="submit" class="dv-new" data-a="save">บันทึก</button>`}</div></form>`;
  document.body.appendChild(d);let F=d.querySelector("form"),er=d.querySelector(".stk-err"),strip=d.querySelector(".stk-strip");
  let paint=()=>{strip.innerHTML=keep.map((p,i)=>`<figure>${i===0&&x.thumb&&p.name===(x.photos||[])[0]?.name?`<img src="${mEsc(x.thumb)}" alt="">`:STK_IC.box}<figcaption>${p.url?`<a href="${mEsc(p.url)}" target="_blank" rel="noreferrer">เปิดรูป ↗</a>`:"รูป "+(i+1)}</figcaption><button type="button" class="stk-rm" data-k="${i}" aria-label="เอารูปนี้ออก">✕</button></figure>`).join("")+pend.map((p,i)=>`<figure class="new"><img src="${p.url}" alt=""><figcaption>รูปใหม่</figcaption><button type="button" class="stk-rm" data-p="${i}" aria-label="เอารูปนี้ออก">✕</button></figure>`).join("")||`<p class="stk-nophoto">ยังไม่มีรูป · แนะนำถ่ายตัวเครื่อง 1 รูป + ฉลาก S/N 1 รูป</p>`;
   strip.querySelectorAll(".stk-rm").forEach(b=>b.onclick=()=>{if(b.dataset.p!=null)pend.splice(+b.dataset.p,1);else keep.splice(+b.dataset.k,1);paint()})};paint();
  d.querySelector(".stk-add input").onchange=async e=>{let fs=[...e.target.files].slice(0,6);e.target.value="";er.textContent="";for(let f of fs){try{pend.push(await stkPrep(f))}catch(err){er.textContent=err.message}}paint()};
  d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{pend.forEach(p=>URL.revokeObjectURL(p.url));d.remove()});
- let busy=!1,save=async del=>{if(busy)return;er.textContent="";let v=k=>String(F.elements[k].value||"").trim();
-  let n={...x,name:v("name"),brand:v("brand"),model:v("model").toUpperCase(),sn:v("sn").toUpperCase(),barcode:v("barcode"),cat:v("cat"),qty:Math.max(1,parseInt(v("qty"))||1),status:F.elements.status.value,loc:v("loc"),holder:v("holder"),notes:v("notes")};
+ let busy=!1,save=async(mode,dl)=>{if(busy)return;er.textContent="";let v=k=>String(F.elements[k].value||"").trim(),del=mode==="del";
+  let n={...x,name:v("name"),brand:v("brand"),model:v("model").toUpperCase(),pn:v("pn").toUpperCase(),sn:v("sn").toUpperCase(),mac:stkMac(v("mac"))||v("mac").toUpperCase(),barcode:v("barcode"),cat:v("cat"),qty:Math.max(1,parseInt(v("qty"))||1),status:F.elements.status.value,loc:v("loc"),holder:v("holder"),notes:v("notes")};
+  if(mode==="undel")n={...x,deleted:!1};
   if(!del&&!n.name){er.textContent="กรอกชื่อสินค้า";F.elements.name.focus();return}
-  if(!n.id)n.id=stkNewId();let dup=!del&&stkDup(n);if(dup){er.innerHTML=`${dup.k==="sn"?"S/N":"บาร์โค้ด"} นี้มีในระบบแล้ว: <button type="button" class="dv-link" data-open="${mEsc(dup.o.id)}">${mEsc(dup.o.id)} · ${mEsc(dup.o.name)}</button>`;er.querySelector("[data-open]").onclick=()=>{d.close();dvStockForm(dup.o.id)};return}
-  busy=!0;let btn=d.querySelector("[data-a=save]"),t0=btn.textContent;btn.disabled=!0;btn.textContent=pend.length?"กำลังอัปโหลดรูป…":"กำลังบันทึก…";
-  try{let up=[],bad=0;for(let p of pend){try{up.push({...(await mStockPhoto(n.id,p.blob,p.name)),thumb:p.thumb,sig:p.sig})}catch(e){console.warn("[9D] stock photo",e);bad++;up.push({name:p.name,url:"",at:pvNow(),thumb:p.thumb,sig:p.sig})}}
-   let ph=[...keep,...up.map(({thumb,sig,...r})=>r)];n.photos=ph.slice(0,12);
-   let sigs=[...(keep.length?(x.sigs||[]).slice(0,keep.length):[]),...up.map(p=>p.sig)].filter(Boolean);n.sigs=sigs.slice(-4);
-   if(!keep.length||keep[0]?.name!==(x.photos||[])[0]?.name)n.thumb=up[0]?.thumb||(keep.length?"":"");else if(!n.thumb&&up[0])n.thumb=up[0].thumb;
-   let act=del?"ซ่อนออกจากสต็อก":old?["name","model","sn","status","loc","holder","qty"].filter(k=>String(old[k]??"")!==String(n[k]??"")).map(k=>k==="status"?"สถานะ → "+stkSt(n.status)[1]:k==="loc"?"ที่เก็บ → "+(n.loc||"—"):k==="holder"?"ผู้รับผิดชอบ → "+(n.holder||"—"):"แก้ "+k).join(", ")||(up.length?"เพิ่มรูป "+up.length+" รูป":"แก้ไขรายละเอียด"):"เพิ่มเข้าสต็อก";
-   if(del)n.deleted=!0;if(!old){n.createdAt=pvNow();n.createdBy=M.profile.name}n.log=[{at:pvNow(),by:M.profile.name,act},...(old?.log||[])].slice(0,30);
-   await mStockSave(n);d.close();mToast(del?"ซ่อน "+n.name+" ออกจากสต็อกแล้ว":(old?"บันทึก ":"เพิ่ม ")+n.id+" · "+n.name+(bad?` (อัปโหลดรูปไม่สำเร็จ ${bad} รูป — เก็บรูปย่อไว้แล้ว)`:""),!!bad);if(DV.page==="stock")dvRender()}
-  catch(e){er.textContent=e.message||String(e);btn.disabled=!1;btn.textContent=t0}finally{busy=!1}};
- F.onsubmit=e=>{e.preventDefault();save(!1)};d.querySelector("[data-a=del]")&&(d.querySelector("[data-a=del]").onclick=()=>{if(confirm("ซ่อน “"+x.name+"” ออกจากสต็อก?\nข้อมูลและรูปยังเก็บไว้ใน SharePoint (ไม่ได้ลบถาวร)"))save(!0)});
+  if(!n.id)n.id=stkNewId();let dup=!del&&stkDup(n);if(dup){er.innerHTML=`${({sn:"S/N",barcode:"บาร์โค้ด",mac:"MAC"})[dup.k]} นี้มีในระบบแล้ว: <button type="button" class="dv-link" data-open="${mEsc(dup.o.id)}">${mEsc(dup.o.id)} · ${mEsc(dup.o.name)}</button>`;er.querySelector("[data-open]").onclick=()=>{d.close();dvStockForm(dup.o.id)};return}
+  busy=!0;let btn=d.querySelector(mode==="save"?"[data-a=save]":mode==="del"?"[data-a=del]":"[data-a=undel]"),t0=btn?.textContent;if(btn){btn.disabled=!0;btn.textContent=pend.length&&mode==="save"?"กำลังอัปโหลดรูป…":"กำลังบันทึก…"}
+  try{let up=[],bad=0;if(mode==="save")for(let p of pend){try{up.push({...(await mStockPhoto(n.id,p.blob,p.name)),thumb:p.thumb,sig:p.sig})}catch(e){console.warn("[9D] stock photo",e);bad++;up.push({name:p.name,url:"",at:pvNow(),thumb:p.thumb,sig:p.sig})}}
+   if(mode==="save"){let ph=[...keep,...up.map(({thumb,sig,...r})=>r)];n.photos=ph.slice(0,12);
+    let sigs=[...(keep.length?(x.sigs||[]).slice(0,keep.length):[]),...up.map(p=>p.sig)].filter(Boolean);n.sigs=sigs.slice(-4);
+    if(!keep.length||keep[0]?.name!==(x.photos||[])[0]?.name)n.thumb=up[0]?.thumb||"";else if(!n.thumb&&up[0])n.thumb=up[0].thumb}
+   let act=del?"ลบออกจากสต็อก: "+dl.reason+" — "+dl.note:mode==="undel"?"กู้คืนเข้าสต็อก":old?["name","model","pn","sn","mac","status","loc","holder","qty"].filter(k=>String(old[k]??"")!==String(n[k]??"")).map(k=>k==="status"?"สถานะ → "+stkSt(n.status)[1]:k==="loc"?"ที่เก็บ → "+(n.loc||"—"):k==="holder"?"ผู้รับผิดชอบ → "+(n.holder||"—"):"แก้ "+k).join(", ")||(up.length?"เพิ่มรูป "+up.length+" รูป":"แก้ไขรายละเอียด"):"เพิ่มเข้าสต็อก";
+   if(del){n.deleted=!0;n.del={...dl,at:pvNow(),by:M.profile.name}}if(mode==="undel"&&x.del){n.delPrev=x.del;delete n.del}
+   if(!old){n.createdAt=pvNow();n.createdBy=M.profile.name}n.log=[{at:pvNow(),by:M.profile.name,act},...(old?.log||[])].slice(0,30);
+   await mStockSave(n);d.close();mToast(del?"ลบ "+n.name+" ออกจากสต็อกแล้ว":mode==="undel"?"กู้คืน "+n.name+" เข้าสต็อกแล้ว":(old?"บันทึก ":"เพิ่ม ")+n.id+" · "+n.name+(bad?` (อัปโหลดรูปไม่สำเร็จ ${bad} รูป — เก็บรูปย่อไว้แล้ว)`:""),!!bad);if(DV.page==="stock")dvRender()}
+  catch(e){er.textContent=e.message||String(e);if(btn){btn.disabled=!1;btn.textContent=t0}}finally{busy=!1}};
+ F.onsubmit=e=>{e.preventDefault();if(!old?.deleted)save("save")};
+ let db=d.querySelector("[data-a=del]");if(db)db.onclick=async()=>{let r=await stkAskDel(x);if(r)save("del",r)};
+ let ub=d.querySelector("[data-a=undel]");if(ub)ub.onclick=()=>save("undel");
  d.showModal();if(!old)setTimeout(()=>F.elements.name.focus(),50);return d};
-/* ---------- ถ่ายภาพเช็คสินค้า ---------- */
-window.dvStockCheck=()=>{if(!mIsEng())return;let S={codes:[],text:"",ocr:{sn:[],pn:[],tok:[]},sig:"",photo:null,typed:""},d=document.createElement("dialog");d.className="dv-dlg stk-dlg stk-chk";
+/* ---------- ถ่ายภาพ / สแกนสด เช็คสินค้า ---------- */
+var STK_FL=[["brand","ยี่ห้อ"],["model","รุ่น (Model)"],["pn","P/N"],["sn","S/N"],["mac","MAC"],["barcode","บาร์โค้ด"]];
+window.dvStockCheck=()=>{if(!mIsEng())return;let S={bars:[],text:"",sig:"",photo:null,typed:"",f:{},ok:{},chips:[],extra:[],touched:new Set(),crop:null,rot:0,focus:"sn",live:null},d=document.createElement("dialog");d.className="dv-dlg stk-dlg stk-chk";
+ let canLive=!!navigator.mediaDevices?.getUserMedia;
  d.innerHTML=`<div class="dv-dhead"><h2>ถ่ายภาพเช็คสินค้า</h2><button type="button" class="dv-xbtn" data-a="x" aria-label="ปิด">✕</button></div>
-  <div class="stk-cam"><label class="stk-shot"><input type="file" accept="image/*" capture="environment" hidden>${STK_IC.cam}<b>ถ่ายภาพ / เลือกรูป</b><small>ถ่ายให้เห็นฉลาก S/N หรือบาร์โค้ดชัด ๆ · ระบบจะอ่านรหัสและเทียบภาพให้</small></label>
-   <label class="stk-type">หรือพิมพ์ / ยิงเครื่องสแกนบาร์โค้ด<input type="search" enterkeyhint="search" autocapitalize="characters" spellcheck="false" placeholder="S/N, P/N, บาร์โค้ด หรือชื่อรุ่น"></label></div>
-  <div class="stk-prev" hidden><img alt="รูปที่ถ่าย"><ol class="stk-steps"><li data-k="img">เทียบภาพกับสต็อก</li><li data-k="bc">อ่านบาร์โค้ด / QR</li><li data-k="ocr">อ่านตัวอักษรบนฉลาก</li></ol></div>
+  <div class="stk-cam"><label class="stk-shot"><input type="file" accept="image/*" capture="environment" hidden>${STK_IC.cam}<b>ถ่ายภาพฉลาก</b><small>ถ่ายตรง ๆ ให้ฉลากเต็มเฟรม ไม่สะท้อนแสง · อ่าน S/N, P/N, รุ่น, MAC และบาร์โค้ดทุกตัว</small></label>
+   <div class="stk-side">${canLive?`<button type="button" class="dv-btn stk-livebtn" data-a="live">${STK_IC.scan} สแกนบาร์โค้ดสด</button>`:""}
+   <label class="stk-type">หรือพิมพ์ / ยิงเครื่องสแกน<input type="search" enterkeyhint="search" autocapitalize="characters" spellcheck="false" placeholder="S/N, P/N, MAC หรือชื่อรุ่น"></label></div></div>
+  <div class="stk-live" hidden><div class="stk-vid"><video playsinline muted></video><i class="stk-aim" aria-hidden="true"></i></div><p class="stk-livecap" aria-live="polite">เล็งบาร์โค้ด/QR ให้อยู่ในกรอบ — อ่านอัตโนมัติ</p>
+   <div class="stk-livebar"><button type="button" class="dv-btn" data-a="torch" hidden>💡 ไฟฉาย</button><button type="button" class="dv-btn" data-a="stop">ปิดกล้อง</button><span></span><button type="button" class="dv-new" data-a="snap">${STK_IC.cam} ถ่ายภาพนี้ แล้วอ่านตัวอักษร</button></div></div>
+  <div class="stk-prev" hidden><div class="stk-crop"><img alt="รูปที่ถ่าย"><i class="stk-sel" hidden></i></div>
+   <div class="stk-pside"><ol class="stk-steps"><li data-k="img">เทียบภาพกับสต็อก</li><li data-k="bc">อ่านบาร์โค้ด / QR</li><li data-k="ocr">อ่านตัวอักษรบนฉลาก</li></ol>
+    <p class="stk-cap">อ่านไม่ครบ? <b>ลากบนรูป</b>เพื่อเลือกเฉพาะฉลาก แล้วกดอ่านใหม่ — ตัวอักษรเล็กจะชัดขึ้นมาก</p>
+    <div class="stk-pbtn"><button type="button" class="dv-btn" data-a="reocr" disabled>อ่านส่วนที่เลือก</button><button type="button" class="dv-btn" data-a="rot">⟳ หมุน 90°</button></div></div></div>
+  <div class="stk-read" hidden></div>
   <div class="stk-res" aria-live="polite"></div>`;
- document.body.appendChild(d);let res=d.querySelector(".stk-res"),prev=d.querySelector(".stk-prev"),step=(k,st,t)=>{let li=d.querySelector(`.stk-steps [data-k=${k}]`);if(!li)return;li.className=st;if(t!=null)li.dataset.t=t};
- let found=()=>[...new Set([...S.codes,...S.ocr.sn,...S.ocr.pn,...(S.typed?[S.typed]:[])])];
- let show=()=>{let q={codes:found(),text:S.text,sig:S.sig},m=stkMatch(q),hit=m.find(r=>r.unit&&r.sc>=.9),any=S.photo||S.typed;if(!any){res.innerHTML="";return}
-  let typedHit=S.typed&&!S.photo?stkList().filter(x=>!m.some(r=>r.it.id===x.id)&&[x.name,x.brand,x.model].join(" ").toLowerCase().includes(S.typed.toLowerCase())).slice(0,5).map(it=>({it,why:["ชื่อ/รุ่นตรงคำค้น"]})):[];
-  let rows=[...m,...typedHit],chips=[...S.codes.map(c=>["บาร์โค้ด",c,"barcode"]),...S.ocr.sn.map(c=>["S/N",c,"sn"]),...S.ocr.pn.map(c=>["P/N",c,"model"]),...S.ocr.tok.map(c=>["ข้อความ",c,""])];
+ document.body.appendChild(d);let $=s=>d.querySelector(s),res=$(".stk-res"),rd=$(".stk-read"),prev=$(".stk-prev"),step=(k,st,t)=>{let li=d.querySelector(`.stk-steps [data-k=${k}]`);if(!li)return;li.className=st;if(t!=null)li.dataset.t=t};
+ /* ช่องข้อมูลที่อ่านได้ (แก้ได้) + ชิปรหัสอื่น ๆ: แตะชิปเพื่อใส่ในช่องที่เลือกอยู่ */
+ let fuse=()=>{let r=stkFuse(S.bars,S.text);for(let[k]of STK_FL)if(!S.touched.has(k))S.f[k]=r.f[k]||"";S.ok=r.ok;S.chips=r.chips;S.extra=r.extra};
+ let paintRead=()=>{if(!S.photo&&!S.bars.length){rd.hidden=!0;return}rd.hidden=!1;
+  rd.innerHTML=`<h3>ข้อมูลที่อ่านได้ <small>แก้ไขได้ · แตะรหัสด้านล่างเพื่อใส่ในช่องที่เลือก</small></h3><div class="stk-fields">${STK_FL.map(([k,l])=>`<label class="${S.focus===k?"foc":""}"><span>${l}${S.ok[k]?' <em title="ยืนยันจากบาร์โค้ด">✓ บาร์โค้ด</em>':""}</span><input data-f="${k}" value="${mEsc(S.f[k]||"")}" autocapitalize="characters" spellcheck="false" placeholder="—"></label>`).join("")}</div>
+   ${(cl=>cl.length?`<div class="stk-chips"><span>รหัสอื่นที่อ่านได้:</span>${cl.map(([c,f])=>`<button type="button" data-chip="${mEsc(c)}" title="${f?mEsc(f.replace(/_/g," ")):"ข้อความบนฉลาก"}">${f?"▥ ":""}${mEsc(c)}</button>`).join("")}</div>`:"")([...S.chips.map(c=>[c,""]),...S.bars.filter(b=>!S.chips.includes(b.v)&&!Object.values(S.f).includes(b.v)).map(b=>[b.v,b.f])])}
+   ${S.extra.length?`<label class="stk-ext"><input type="checkbox" checked data-ext> ใส่ข้อมูลอื่นจากฉลากลงหมายเหตุ: <small>${S.extra.map(mEsc).join(" · ")}</small></label>`:""}`;
+  rd.querySelectorAll("[data-f]").forEach(i=>{i.onfocus=()=>{S.focus=i.dataset.f;rd.querySelectorAll(".stk-fields label").forEach(l=>l.classList.toggle("foc",l.contains(i)))};i.oninput=()=>{S.touched.add(i.dataset.f);S.f[i.dataset.f]=i.value.trim();clearTimeout(S.ti2);S.ti2=setTimeout(show,250)}});
+  rd.querySelectorAll("[data-chip]").forEach(b=>b.onclick=()=>{let k=S.focus||"sn",v=b.dataset.chip;S.f[k]=k==="mac"?stkMac(v)||v:v;S.touched.add(k);let i=rd.querySelector(`[data-f=${k}]`);if(i){i.value=S.f[k];i.classList.add("flash");setTimeout(()=>i.classList.remove("flash"),600)}show()})};
+ let codes=()=>[...new Set([...Object.entries(S.f).filter(([k,v])=>v&&k!=="brand").map(([,v])=>v),...S.bars.map(b=>b.v),...(S.typed?[S.typed]:[])])];
+ let show=()=>{let q={codes:codes(),text:S.text,sig:S.sig},m=stkMatch(q),hit=m.find(r=>r.unit&&r.sc>=.9),any=S.photo||S.typed||S.bars.length;if(!any){res.innerHTML="";return}
+  let typedHit=S.typed&&!S.photo?stkList().filter(x=>!m.some(r=>r.it.id===x.id)&&[x.name,x.brand,x.model,x.pn].join(" ").toLowerCase().includes(S.typed.toLowerCase())).slice(0,5).map(it=>({it,why:["ชื่อ/รุ่นตรงคำค้น"]})):[],rows=[...m,...typedHit];
   res.innerHTML=`<div class="stk-verdict ${hit?"ok":rows.length?"maybe":"new"}">${hit?`${dvIcon.ok} <b>มีในระบบแล้ว</b> — ${mEsc(hit.it.id)} · ${mEsc(hit.it.name)}`:rows.length?`${dvIcon.wait} <b>พบรายการที่อาจตรงกัน</b> — ตรวจด้วยตาอีกครั้ง`:`${dvIcon.warn} <b>ยังไม่พบในระบบ</b>${STK.busy?" (กำลังอ่านต่อ…)":" — เพิ่มเป็นสินค้าใหม่ได้เลย"}`}</div>
-   ${chips.length?`<p class="stk-chips"><span>อ่านได้:</span>${chips.map(([l,c])=>`<code title="${l}">${mEsc(l)} ${mEsc(c)}</code>`).join("")}</p>`:""}
-   ${rows.length?`<ul class="stk-hits">${rows.map(r=>{let L=stkLoanOf(r.it,STK.lm);return`<li><span class="stk-ph sm">${r.it.thumb?`<img src="${mEsc(r.it.thumb)}" alt="">`:STK_IC.box}</span><span class="stk-tx"><b>${mEsc(r.it.name)}</b><small>${mEsc(r.it.id)} · ${[r.it.model,r.it.sn&&"S/N "+r.it.sn].filter(Boolean).map(mEsc).join(" · ")}</small><span class="stk-why">${r.why.map(w=>`<em>${mEsc(w)}</em>`).join("")}${stkChip(r.it.status)}${L?`<span class="stk-st cur">ในใบยืม ${mEsc(L.no||"")}</span>`:""}</span></span><span class="stk-ha">${S.photo?`<button type="button" class="dv-btn" data-addph="${mEsc(r.it.id)}">+ แนบรูปนี้</button>`:""}<button type="button" class="dv-btn" data-open="${mEsc(r.it.id)}">เปิด</button></span></li>`}).join("")}</ul>`:""}
+   ${rows.length?`<ul class="stk-hits">${rows.map(r=>{let L=stkLoanOf(r.it,STK.lm);return`<li><span class="stk-ph sm">${r.it.thumb?`<img src="${mEsc(r.it.thumb)}" alt="">`:STK_IC.box}</span><span class="stk-tx"><b>${mEsc(r.it.name)}</b><small>${mEsc(r.it.id)} · ${[r.it.pn||r.it.model,r.it.sn&&"S/N "+r.it.sn].filter(Boolean).map(mEsc).join(" · ")}</small><span class="stk-why">${r.why.map(w=>`<em>${mEsc(w)}</em>`).join("")}${stkChip(r.it.status)}${L?`<span class="stk-st cur">ในใบยืม ${mEsc(L.no||"")}</span>`:""}</span></span><span class="stk-ha">${S.photo?`<button type="button" class="dv-btn" data-addph="${mEsc(r.it.id)}">+ แนบรูปนี้</button>`:""}<button type="button" class="dv-btn" data-open="${mEsc(r.it.id)}">เปิด</button></span></li>`}).join("")}</ul>`:""}
    <div class="stk-foot"><button type="button" class="dv-btn" data-a="again">${STK_IC.cam} ถ่ายใหม่</button><span></span><button type="button" class="${hit?"dv-btn":"dv-new"}" data-a="add">+ ${hit?"เพิ่มเป็นอีกรายการ":"เพิ่มเข้าสต็อก"}</button></div>`;
   res.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{let id=b.dataset.open;d.close();dvStockForm(id)});
   res.querySelectorAll("[data-addph]").forEach(b=>b.onclick=()=>{let id=b.dataset.addph,p=S.photo;S.photo=null;d.close();dvStockFormPhoto(id,p)});
-  res.querySelector("[data-a=again]").onclick=()=>d.querySelector(".stk-shot input").click();
-  res.querySelector("[data-a=add]").onclick=()=>{let f={},ty=S.typed,sn=S.ocr.sn[0]||"",bc=S.codes[0]||"";
-   if(bc)f.barcode=bc;if(sn)f.sn=sn;else if(bc&&/^[A-Z0-9\-]{6,}$/i.test(bc)&&!/^\d{12,14}$/.test(bc))f.sn=bc.toUpperCase();if(S.ocr.pn[0])f.model=S.ocr.pn[0];
-   if(ty&&!f.sn&&!f.model){if(/\d/.test(ty)&&/^[A-Z0-9\-\/]{5,}$/i.test(ty))f.sn=ty.toUpperCase();else f.name=ty}
+  res.querySelector("[data-a=again]").onclick=()=>$(".stk-shot input").click();
+  res.querySelector("[data-a=add]").onclick=()=>{let f={},v=S.f,ty=S.typed;for(let[k]of STK_FL)if(v[k])f[k]=v[k];if(f.mac)f.mac=stkMac(f.mac)||f.mac;
+   if(ty&&!f.sn&&!f.pn&&!f.model){if(/\d/.test(ty)&&/^[A-Z0-9\-\/]{5,}$/i.test(ty))f.sn=ty.toUpperCase();else f.name=ty}
+   if(!f.name)f.name=[f.brand,f.model||f.pn].filter(Boolean).join(" ");
+   if(rd.querySelector("[data-ext]")?.checked&&S.extra.length)f.notes="จากฉลาก: "+S.extra.join(" · ");
    let p=S.photo;S.photo=null;d.close();dvStockForm(null,{fields:f,photos:p?[p]:[]})}};
- let run=async file=>{let tk=S.tk=Symbol();S.codes=[];S.text="";S.ocr={sn:[],pn:[],tok:[]};S.typed="";d.querySelector(".stk-type input").value="";if(S.photo)URL.revokeObjectURL(S.photo.url);S.photo=null;
-  res.innerHTML=`<p class="stk-wait">กำลังเตรียมรูป…</p>`;prev.hidden=!1;["img","bc","ocr"].forEach(k=>step(k,"","รอ"));
+ /* อ่านรูป: เทียบภาพ → บาร์โค้ด (หลายตัว) → OCR หลายรอบ (แสดงผลทันทีทีละรอบ) */
+ let readOcr=async(tk,o={})=>{STK.busy=!0;show();step("ocr","run","กำลังอ่าน…");
+  try{let t=await stkOcrAll(S.photo.ocr,o,{stop:()=>S.tk!==tk,prog:(i,n,v)=>{if(S.tk===tk)step("ocr","run",`รอบ ${i+1}/${n} · ${Math.round(v*100)}%`)},part:txt=>{if(S.tk!==tk)return;S.text=txt;fuse();paintRead();show()}});
+   if(S.tk!==tk)return;S.text=t;fuse();let n=["sn","pn","model","mac"].filter(k=>S.f[k]).length;step("ocr",n?"ok":"none",n?"อ่านได้ "+n+" ช่อง":"ไม่พบ S/N/P/N — ลองเลือกเฉพาะฉลาก")}
+  catch(e){if(S.tk!==tk)return;step("ocr","none",e.message)}
+  STK.busy=!1;paintRead();show()};
+ let run=async(file,pre=[])=>{let tk=S.tk=Symbol();Object.assign(S,{bars:[],text:"",f:{},ok:{},chips:[],extra:[],touched:new Set(),crop:null,rot:0,typed:""});$("[data-a=rot]").textContent="⟳ หมุน 90°";$(".stk-type input").value="";if(S.photo)URL.revokeObjectURL(S.photo.url);S.photo=null;$(".stk-sel").hidden=!0;$("[data-a=reocr]").disabled=!0;
+  res.innerHTML=`<p class="stk-wait">กำลังเตรียมรูป…</p>`;rd.hidden=!0;prev.hidden=!1;["img","bc","ocr"].forEach(k=>step(k,"","รอ"));
   let p;try{p=await stkPrep(file)}catch(e){res.innerHTML=`<p class="dv-empty dv-warnbox">${dvIcon.warn} ${mEsc(e.message)}</p>`;return}if(S.tk!==tk){URL.revokeObjectURL(p.url);return}
-  S.photo=p;S.sig=p.sig;prev.querySelector("img").src=p.url;STK.busy=!0;step("img","ok","เสร็จ");show();
-  step("bc","run","กำลังอ่าน…");try{S.codes=await stkBarcodes(p.big);if(S.tk!==tk)return;step("bc",S.codes.length?"ok":"none",S.codes.length?"พบ "+S.codes.length:"ไม่พบ")}catch(e){if(S.tk!==tk)return;step("bc","none",e.message)}show();
-  step("ocr","run","กำลังอ่าน…");try{S.text=await stkOcr(p.big,v=>{if(S.tk===tk)step("ocr","run",Math.round(v*100)+"%")});if(S.tk!==tk)return;S.ocr=stkParse(S.text);let n=S.ocr.sn.length+S.ocr.pn.length+S.ocr.tok.length;step("ocr",n?"ok":"none",n?"อ่านได้ "+n+" รหัส":"ไม่พบรหัส")}catch(e){if(S.tk!==tk)return;step("ocr","none",e.message)}
-  STK.busy=!1;show()};
- d.querySelector(".stk-shot input").onchange=e=>{let f=e.target.files[0];e.target.value="";if(f)run(f)};
- let ti;d.querySelector(".stk-type input").oninput=e=>{clearTimeout(ti);ti=setTimeout(()=>{S.tk=Symbol();STK.busy=!1;if(S.photo){URL.revokeObjectURL(S.photo.url);S.photo=null}S.sig="";S.codes=[];S.text="";S.ocr={sn:[],pn:[],tok:[]};prev.hidden=!0;S.typed=e.target.value.trim();show()},250)};
- d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{S.tk=Symbol();STK.busy=!1;if(S.photo)URL.revokeObjectURL(S.photo.url);d.remove()});
- d.showModal();stkLoanMap().then(m=>STK.lm=m)};
+  S.photo=p;S.sig=p.sig;$(".stk-crop img").src=p.url;STK.busy=!0;step("img","ok","เสร็จ");show();
+  step("bc","run","กำลังอ่าน…");S.bars=[...pre];try{let got=await stkBarcodes(p.ocr);if(S.tk!==tk)return;for(let b of got)if(!S.bars.some(x=>x.v===b.v))S.bars.push(b);step("bc",S.bars.length?"ok":"none",S.bars.length?"พบ "+S.bars.length+" รหัส":"ไม่พบ")}catch(e){if(S.tk!==tk)return;step("bc","none",e.message)}
+  fuse();paintRead();show();await readOcr(tk)};
+ /* เลือกเฉพาะส่วนของรูป (ลากเป็นกรอบ) */
+ let box=$(".stk-crop"),sel=$(".stk-sel"),st0=null;
+ box.onpointerdown=e=>{if(!S.photo)return;e.preventDefault();let r=box.getBoundingClientRect();st0={x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,r};box.setPointerCapture(e.pointerId)};
+ box.onpointermove=e=>{if(!st0)return;let r=st0.r,x=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),y=Math.min(1,Math.max(0,(e.clientY-r.top)/r.height)),c={x:Math.min(x,st0.x),y:Math.min(y,st0.y),w:Math.abs(x-st0.x),h:Math.abs(y-st0.y)};
+  if(c.w>.04&&c.h>.03){S.crop=c;Object.assign(sel.style,{left:c.x*100+"%",top:c.y*100+"%",width:c.w*100+"%",height:c.h*100+"%"});sel.hidden=!1;$("[data-a=reocr]").disabled=!1}};
+ box.onpointerup=box.onpointercancel=()=>{st0=null};
+ $("[data-a=reocr]").onclick=async()=>{if(!S.photo||!S.crop)return;let tk=S.tk=Symbol();S.touched=new Set();step("bc","run","อ่านส่วนที่เลือก…");
+  try{let more=await stkBarcodes(stkPre(S.photo.ocr,{crop:S.crop,max:1600,up:3,raw:1}));for(let b of more)if(!S.bars.some(x=>x.v===b.v))S.bars.push(b);step("bc",S.bars.length?"ok":"none",S.bars.length?"พบ "+S.bars.length+" รหัส":"ไม่พบ")}catch(e){step("bc","none",e.message)}
+  S.text="";await readOcr(tk,{crop:S.crop,rot:S.rot})};
+ $("[data-a=rot]").onclick=async()=>{if(!S.photo)return;S.rot=(S.rot+90)%360;$("[data-a=rot]").textContent="⟳ หมุนอ่าน "+S.rot+"°";let tk=S.tk=Symbol();S.text="";S.touched=new Set();await readOcr(tk,{rot:S.rot,crop:S.crop})};
+ /* สแกนสดด้วยกล้อง (บาร์โค้ด/QR) + ถ่ายภาพนี้เพื่ออ่านตัวอักษร */
+ let stopLive=()=>{let L=S.live;S.live=null;if(L){clearInterval(L.t);L.st.getTracks().forEach(t=>t.stop())}$(".stk-live").hidden=!0};
+ let lb=$("[data-a=live]");if(lb)lb.onclick=async()=>{if(S.live)return;let v=$(".stk-live video"),cap=$(".stk-livecap");
+  try{let st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:!1});S.live={st,t:0,busy:!1};v.srcObject=st;await v.play();$(".stk-live").hidden=!1;prev.hidden=!0;
+   let tr=st.getVideoTracks()[0],caps=tr.getCapabilities?.()||{};if(caps.torch){let tb=$("[data-a=torch]");tb.hidden=!1;let on=!1;tb.onclick=()=>{on=!on;tr.applyConstraints({advanced:[{torch:on}]}).catch(()=>{});tb.classList.toggle("on",on)}}
+   if(caps.focusMode?.includes?.("continuous"))tr.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
+   S.live.t=setInterval(async()=>{let L=S.live;if(!L||L.busy||v.readyState<2)return;L.busy=!0;try{let c=document.createElement("canvas"),s=Math.min(1,1280/v.videoWidth);c.width=v.videoWidth*s|0;c.height=v.videoHeight*s|0;c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+     let got=await stkBarcodes(c,!0),nw=got.filter(b=>!S.bars.some(x=>x.v===b.v));if(nw.length){S.bars.push(...nw);navigator.vibrate?.(60);cap.textContent="สแกนได้ "+S.bars.length+" รหัส: "+S.bars.map(b=>b.v).join(" · ");fuse();paintRead();show()}}catch(e){cap.textContent=e.message}finally{if(S.live)S.live.busy=!1}},350);
+  }catch(e){stopLive();mToast("เปิดกล้องไม่ได้: "+(e.name==="NotAllowedError"?"ยังไม่อนุญาตให้ใช้กล้อง":e.message)+" — ใช้ปุ่มถ่ายภาพแทนได้",!0)}};
+ $("[data-a=stop]").onclick=stopLive;
+ $("[data-a=snap]").onclick=()=>{let v=$(".stk-live video");if(!S.live||v.readyState<2)return;let c=document.createElement("canvas");c.width=v.videoWidth;c.height=v.videoHeight;c.getContext("2d").drawImage(v,0,0);let keepBars=S.bars;stopLive();
+  c.toBlob(b=>{if(b)run(new File([b],"scan.jpg",{type:"image/jpeg"}),keepBars)},"image/jpeg",.92)};
+ $(".stk-shot input").onchange=e=>{let f=e.target.files[0];e.target.value="";stopLive();if(f)run(f)};
+ let ti;$(".stk-type input").oninput=e=>{clearTimeout(ti);ti=setTimeout(()=>{S.tk=Symbol();STK.busy=!1;if(S.photo){URL.revokeObjectURL(S.photo.url);S.photo=null}Object.assign(S,{sig:"",bars:[],text:"",f:{},chips:[],extra:[]});prev.hidden=!0;rd.hidden=!0;S.typed=e.target.value.trim();show()},250)};
+ d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{S.tk=Symbol();STK.busy=!1;stopLive();if(S.photo)URL.revokeObjectURL(S.photo.url);d.remove()});
+ d.showModal();stkLoanMap().then(m=>STK.lm=m);stkLib("zxing").catch(()=>{})};
 /* แนบรูปจากหน้าตรวจเข้ารายการเดิม แล้วเปิดฟอร์มให้กดบันทึก */
 window.dvStockFormPhoto=(id,p)=>{let d=dvStockForm(id);if(!p||!d)return;let dt=new DataTransfer();dt.items.add(new File([p.blob],p.name,{type:"image/jpeg"}));let inp=d.querySelector(".stk-add input");inp.files=dt.files;inp.dispatchEvent(new Event("change"));URL.revokeObjectURL(p.url)};
 var dvOver=L=>L.status!=="คืนครบ"&&L.dueDate&&L.dueDate<dvToday();
@@ -3486,7 +3616,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.60";
+var M_VER="v16.61";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4650,6 +4780,65 @@ body.dv-nosel{-webkit-user-select:none;user-select:none;cursor:grabbing}
  .stk-prev img{width:96px;height:96px;flex-basis:96px}
  .stk-hits li{flex-wrap:wrap}.stk-ha{width:100%}
  .stk-grid2 input,.stk-grid2 select,.stk-grid2 textarea,.stk-type input{font-size:16px}
+}
+</style>
+<style id="v1661">
+/* v16.61 แถบบัญชีด้านบน: โทนสว่างเข้ากับหน้าเว็บ (เดิมดำ) */
+.offline-notice{background:#F4F7FB!important;color:#5A6478!important;border-bottom:1px solid #E3E8F0}
+.offline-notice::after{height:2px!important;opacity:.85}
+.offline-notice a{color:#005CB9!important;text-decoration:none!important;font-weight:600}
+.offline-notice a:hover{text-decoration:underline!important}
+.offline-notice b{color:#B45400}
+.offline-notice .dot{background:#00B259!important;box-shadow:0 0 0 3px #00B25926}
+.offline-notice .ver{opacity:1!important;color:#8A94A6}
+/* v16.61 สต็อก: อ่านฉลาก · สแกนสด · ลบพร้อมเหตุผล */
+.stk-side{display:flex;flex-direction:column;gap:10px;justify-content:center}
+.stk-livebtn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 12px}
+.stk-live{margin-top:14px}
+.stk-vid{position:relative;border-radius:10px;overflow:hidden;background:#000;max-height:52vh}
+.stk-vid video{width:100%;max-height:52vh;object-fit:cover;display:block}
+.stk-aim{position:absolute;left:12%;right:12%;top:30%;bottom:30%;border:2px solid #fff;border-radius:10px;box-shadow:0 0 0 999px #0006}
+.stk-aim::after{content:"";position:absolute;left:6%;right:6%;top:50%;height:2px;background:#EC1C24;animation:stkscan 1.6s ease-in-out infinite alternate}
+@keyframes stkscan{from{transform:translateY(-40px)}to{transform:translateY(40px)}}
+.stk-livecap{font-size:13px;color:var(--dv-ink2);margin:8px 0;overflow-wrap:anywhere}
+.stk-livebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.stk-livebar>span{flex:1}
+.stk-livebar .on{background:#fff1d9}
+.stk-prev{align-items:stretch}
+.stk-crop{position:relative;flex:0 0 46%;max-width:46%;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none;border-radius:8px;overflow:hidden;border:1px solid var(--dv-grid);background:#111;align-self:flex-start}
+.stk-crop img{width:100%!important;height:auto!important;max-height:340px;object-fit:contain!important;display:block;border:0!important;flex:none!important;pointer-events:none}
+.stk-sel{position:absolute;border:2px solid #00ADEF;background:#00ADEF22;box-shadow:0 0 0 999px #0005;border-radius:3px;pointer-events:none}
+.stk-pside{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+.stk-pside .stk-cap{margin:0}
+.stk-cap{font-size:12.5px;color:var(--dv-muted);line-height:1.5}
+.stk-pbtn{display:flex;gap:8px;flex-wrap:wrap}
+.stk-read{margin-top:14px;border:1px solid var(--dv-grid);border-radius:10px;padding:12px 14px;background:#fafbfd}
+.stk-read h3{margin:0 0 10px;font-size:15px}.stk-read h3 small{font-weight:400;color:var(--dv-muted);font-size:12px;margin-left:6px}
+.stk-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 12px}
+.stk-fields label{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:var(--dv-ink2)}
+.stk-fields label span em{font-style:normal;color:#00874a;font-weight:600;font-size:11px}
+.stk-fields input{font:inherit;font-weight:500;font-size:14px;font-family:ui-monospace,Menlo,Consolas,monospace;padding:7px 9px;border:1px solid #cfd6e2;border-radius:6px;background:#fff;color:var(--dv-ink);min-width:0;transition:background .3s}
+.stk-fields label.foc input{border-color:#005CB9;box-shadow:0 0 0 2px #005CB922}
+.stk-fields input.flash{background:#e5f3ff}
+.stk-read .stk-chips{margin-top:10px}
+.stk-chips button{font:inherit;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;background:#fff;border:1px solid #d5dce8;border-radius:5px;padding:3px 8px;cursor:pointer;color:var(--dv-ink);overflow-wrap:anywhere;text-align:left}
+.stk-chips button:hover{border-color:#005CB9;background:#eef5fd}
+.stk-ext{display:flex!important;flex-direction:row!important;align-items:baseline;gap:8px;margin-top:10px;font-size:12.5px;color:var(--dv-ink2);text-align:left}.stk-ext input,.stk-reasons input{width:auto!important;margin:0!important;flex:none!important}.stk-ext small{color:var(--dv-muted)}
+.stk-card.del{opacity:.82;background:#fbfbfc}.stk-card.del .stk-ph{filter:grayscale(1)}
+.stk-delr{font-size:12px;color:var(--dv-ink2);flex-basis:100%}
+.stk-note.del{background:#fbe6e6;color:#7a2020}
+.stk-delw{margin-top:12px;font-size:14px}
+.stk-reasons{border:1px solid var(--dv-grid);border-radius:8px;padding:8px 12px 10px;margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.stk-reasons legend{font-size:13px;font-weight:600;color:var(--dv-ink2);padding:0 4px}
+.stk-reasons label{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;text-align:left!important;gap:8px;align-items:center;font-size:14px;cursor:pointer}
+.stk-delnote{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:13px;font-weight:600;color:var(--dv-ink2)}
+.stk-delnote textarea{font:inherit;font-weight:400;font-size:15px;padding:9px 10px;border:1px solid #cfd6e2;border-radius:7px}
+.stk-deld{width:min(520px,calc(100vw - 24px))}
+.stk-delbtn{background:#a03030!important;color:#fff!important;border-color:#a03030!important}
+@media (max-width:640px){
+ .stk-prev{flex-direction:column}.stk-crop{flex-basis:auto;max-width:100%;width:100%}
+ .stk-fields{grid-template-columns:1fr 1fr}
+ .stk-reasons{grid-template-columns:1fr}
+ .stk-fields input{font-size:16px}
 }
 </style>
 </body></html>

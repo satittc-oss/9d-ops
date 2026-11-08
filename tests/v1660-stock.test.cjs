@@ -13,7 +13,7 @@ const items=[{id:'DM2611-AAAA',name:'Aruba CX 6100',model:'JL678A',sn:'SG12KL0AB
 test('อ่าน S/N และ P/N จากข้อความ OCR บนฉลาก',()=>{const c=ctx();const r=c.stkParse('HPE Aruba\nP/N: JL678A\nS/N: SG12KL0ABC\nMade in China');assert.deepEqual([...r.sn],['SG12KL0ABC']);assert.deepEqual([...r.pn],['JL678A'])});
 test('S/N หรือบาร์โค้ดตรง = มีในระบบแล้ว; รุ่นตรงอย่างเดียวไม่นับเป็นเครื่องเดียวกัน; รายการที่ซ่อนไม่ถูกนับ',()=>{const c=ctx(items);
  let m=c.stkMatch({codes:['sg12-kl0abc']});assert.equal(m[0].it.id,'DM2611-AAAA');assert.equal(m[0].unit,true);
- m=c.stkMatch({codes:['6900000000012']});assert.equal(m[0].it.id,'DM2611-BBBB');assert.equal(m[0].unit,true);
+ m=c.stkMatch({codes:['6900000000012']});assert.equal(m[0].it.id,'DM2611-BBBB');assert.equal(m[0].unit,false);
  m=c.stkMatch({codes:['JL678A']});assert.equal(m[0].unit,false);
  m=c.stkMatch({text:'xx FGT40FTK2209XYZ yy'});assert.equal(m[0].it.id,'DM2611-BBBB');m=c.stkMatch({text:'S/N: SG12KLOABC'});assert.equal(m[0].it.id,'DM2611-AAAA');m=c.stkMatch({codes:['SN-FGT40FTK2209XYZ']});assert.equal(m[0].it.id,'DM2611-BBBB');
  assert.equal(c.stkMatch({codes:['HIDDEN123']}).length,0)});

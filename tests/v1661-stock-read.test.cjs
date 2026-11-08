@@ -1,0 +1,20 @@
+// v16.61 อ่านฉลากครบขึ้น + ลบสต็อกต้องมีเหตุผล/หมายเหตุ + แถบบัญชีโทนสว่าง
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync(__dirname+'/../index.html','utf8');
+const part=html.slice(html.indexOf('/* ===== v16.60 สต็อกสินค้า Demo'),html.indexOf('var dvOver=L=>'));
+const c={M:{stock:[]},mEsc:v=>String(v??''),mT:v=>Date.parse(v||0)||0,PvErr:Error,window:{},document:{},navigator:{},console};vm.createContext(c);vm.runInContext(part,c);
+const J=v=>JSON.parse(JSON.stringify(v));
+test('ฉลาก Cisco: PID / VID / SN อยู่บรรทัดเดียวกัน',()=>{const o=c.stkParse('cisco Catalyst 9200L\nPID: C9200L-24T-4G VID: V02 SN: JAE24510ABC\nMAC: 70:1F:53:AA:BB:CC');
+ assert.deepEqual(J(o.pn),['C9200L-24T-4G']);assert.deepEqual(J(o.sn),['JAE24510ABC']);assert.deepEqual(J(o.mac),['70:1F:53:AA:BB:CC']);assert.equal(o.brand,'Cisco')});
+test('ฉลาก HPE/Aruba: หัวข้อกับค่าแยกบรรทัด · OCR อ่าน S/N เป็น 5/N · Model No. · Serial No.',()=>{const o=c.stkParse('Hewlett Packard Enterprise  Aruba\nModel No.: R8N85A\n5/N\nCN12KD0ABC\nSerial No: TW9876XYZ1\nMAC ADDRESS 001A1E-0A0B0C');
+ assert.equal(o.brand,'HPE Aruba');assert.deepEqual(J(o.model),['R8N85A']);assert.deepEqual(J(o.sn),['CN12KD0ABC','TW9876XYZ1']);assert.deepEqual(J(o.mac),['00:1A:1E:0A:0B:0C'])});
+test('ข้อมูลอื่นบนฉลากเก็บเป็น key:value และคำทั่วไปไม่ถูกจับเป็น S/N',()=>{const o=c.stkParse('Input: 100-240V~ 1.5A\nS/N: NUMBER\nP/N JL678A');assert.deepEqual(J(o.sn),[]);assert.deepEqual(J(o.pn),['JL678A']);assert.ok(o.kv.some(k=>/INPUT: 100-240V/.test(k)))});
+test('บาร์โค้ด GS1 แบบวงเล็บ / แบบดิบ (FNC1) และ DataMatrix ANSI MH10',()=>{let r=c.stkCodeParse('(01)00889296123456(21)SN998877(240)JL678A');assert.deepEqual(J(r.gtin),['889296123456']);assert.deepEqual(J(r.sn),['SN998877']);assert.deepEqual(J(r.pn),['JL678A']);
+ r=c.stkCodeParse('0100889296123456'+'21ABC12345\x1d240JL679A');assert.deepEqual(J(r.sn),['ABC12345']);assert.deepEqual(J(r.pn),['JL679A']);
+ r=c.stkCodeParse('[)>\x1e06\x1d1PJL680A\x1dSCN99AA11\x1dQ1\x1e\x04');assert.deepEqual(J(r.pn),['JL680A']);assert.deepEqual(J(r.sn),['CN99AA11']);
+ r=c.stkCodeParse('SN:FGT40FTK2209XYZ;PN:FG-40F');assert.deepEqual(J(r.sn),['FGT40FTK2209XYZ']);assert.deepEqual(J(r.pn),['FG-40F'])});
+test('รวมผล: ค่าจากบาร์โค้ดแก้ OCR ที่อ่านผิดเล็กน้อย และ Code128 ที่ไม่มีหัวข้อใช้เป็น S/N',()=>{let r=c.stkFuse([{v:'SG12KL0ABC',f:'CODE_128'},{v:'0889296123456',f:'EAN_13'}],'P/N: JL678A\nS/N: SG12KLOA8C');
+ assert.equal(r.f.sn,'SG12KL0ABC');assert.equal(r.ok.sn,1);assert.equal(r.f.pn,'JL678A');assert.equal(r.f.barcode,'0889296123456');
+ r=c.stkFuse([{v:'Q2XN-ABCD-1234',f:'CODE_128'}],'');assert.equal(r.f.sn,'Q2XN-ABCD-1234')});
+test('ลบต้องเลือกเหตุผล + หมายเหตุ ≥ 5 ตัว เก็บผู้ลบ/เวลา และกู้คืนได้',()=>{assert.match(html,/function stkAskDel/);assert.match(html,/if\(!r\)\{er\.textContent="เลือกเหตุผลที่ลบ"/);assert.match(html,/n\.length<5/);assert.match(html,/n\.del=\{\.\.\.dl,at:pvNow\(\),by:M\.profile\.name\}/);assert.match(html,/data-a="undel">กู้คืนเข้าสต็อก/);assert.doesNotMatch(part,/confirm\("ซ่อน/)});
+test('แถบบัญชีด้านบนเปลี่ยนเป็นโทนสว่าง',()=>{assert.match(html,/<style id="v1661">[\s\S]*\.offline-notice\{background:#F4F7FB!important/)});
