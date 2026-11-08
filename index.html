@@ -547,14 +547,14 @@ async function mLoadData(){
  let track={},pres={},settings={settings:{},accounts:{},members:[]};
  let ti=await tiP;
  if(ti){
-  let slog={},alog={},sublog={},inbox=[],wfl=[];for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
+  let slog={},alog={},sublog={},inbox=[],wfl=[],stk=[];for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
    else if(pid===M_PRES){let em=String(pl.email||"").toLowerCase();if(em&&(!pres[em]||mT(pl.at)>=mT(pres[em].at)))pres[em]={...pl,row:t.id}}
-   else if(pid===M_FLOWIX)M.flowIx={...pl,row:t.id};else if(pid===M_WFLOG)wfl.push({...pl,row:t.id});else if(pid===M_INBOX){if(pl.pid)inbox.push({...pl,row:t.id})}
+   else if(pid===M_FLOWIX)M.flowIx={...pl,row:t.id};else if(pid===M_WFLOG)wfl.push({...pl,row:t.id});else if(pid===-9.5e9)stk.push({...pl,row:t.id});else if(pid===M_INBOX){if(pl.pid)inbox.push({...pl,row:t.id})}
    else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.sub)(sublog[-pid]=sublog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
    /* v16.25 งานที่ Engineer คีย์แทนเซลส์: นับเป็นของเซลส์ทุกส่วน (Created By ใน SharePoint ยังเป็นชื่อผู้คีย์) */
    for(let it of items){let ob=track[Number(it.id)]?.onBehalf;if(ob?.email&&!it.createdByReal){it.createdByReal=it.createdBy;it.createdBy={user:{email:String(ob.email).toLowerCase(),displayName:ob.name||ob.email}}}}
-   M.wfLog=wfl.sort((a,b)=>mT(b.at)-mT(a.at)).slice(0,100);try{mWfApply(settings)}catch(e){console.warn("[9D] workflow apply",e)}
+   M.stock=typeof stkMerge==="function"?stkMerge([...stk,...(M.stock||[]).filter(x=>Date.now()-mT(x.updatedAt)<9e4)]):stk;M.wfLog=wfl.sort((a,b)=>mT(b.at)-mT(a.at)).slice(0,100);try{mWfApply(settings)}catch(e){console.warn("[9D] workflow apply",e)}
    if(settings.syncAccess?.v!==1)mInboxMerge(inbox,items,slog,sublog);
    for(let k in slog){slog[k].sort((a,b)=>mT(a.at)-mT(b.at));let last=slog[k][slog[k].length-1],t=track[k]||(track[k]={});let ps={s:last.s,at:last.at,by:last.by,via:last.via,msg:last.msg||"",prev:last.prev,...(last.inbox?{inbox:1,root:last.root}:{})};t.pstat=mPsNewer(t.pstat,ps)}
    /* v16.16: ขั้นตอนย่อย (#รอราคา ฯลฯ) — แถวเพิ่มแบบเดียวกัน ใช้ตัวล่าสุด */
@@ -1426,7 +1426,7 @@ var dvIcon={warn:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" st
  wait:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'};
 
 /* v16.37 เมนูร่วมของ Workspace — Admin เรียงลำดับได้ในหน้าตั้งค่า */
-var WS_MENU=[['home','ภาพรวม'],['projects','โครงการทั้งหมด'],['appr','รออนุมัติ'],['status','สถานะโครงการ'],['city','เมืองจำลอง'],['loans','ยืมสินค้า'],['quotes','ใบเสนอราคา'],['service','งานเซอร์วิส']];
+var WS_MENU=[['home','ภาพรวม'],['projects','โครงการทั้งหมด'],['appr','รออนุมัติ'],['status','สถานะโครงการ'],['city','เมืองจำลอง'],['loans','ยืมสินค้า'],['stock','สต็อก Demo'],['quotes','ใบเสนอราคา'],['service','งานเซอร์วิส']];
 var mWorkspaceAdmin=()=>M.role==='admin';
 function dvMenuKey(el){if(el.id?.startsWith('dvnav-'))return el.id.slice(6);let t=el.textContent.trim();return /^ภาพรวม/.test(t)?'home':/^โครงการทั้งหมด/.test(t)?'projects':/^รออนุมัติ/.test(t)?'appr':''}
 function dvMenuOrder(value){return wsOrder(value)}
@@ -1554,7 +1554,7 @@ function wsMenuCatalog(ui=wsUi()){return[...WS_MENU,...ui.custom.map(p=>['custom
 function wsOrder(value,ui=wsUi()){let keys=wsMenuCatalog(ui).map(x=>x[0]);return[...new Set([...(Array.isArray(value)?value:[]).filter(k=>keys.includes(k)),...keys])]}
 function wsFingerprint(s=M.cache?.settings){return JSON.stringify([wsUi(s),wsOrder(s?.sidebarOrder,wsUi(s))])}
 function wsIsCurrentAdmin(s){let me=String(M.profile?.email||'').toLowerCase(),member=(s?.members||[]).find(m=>String(m.email).toLowerCase()===me);return !!M.profile&&(member?member.role==='admin':M.isAdmin===true)}
-function wsPageAllowed(key,role=M.role){if(key==='admin')return role==='admin';if(key==='workflow')return role==='admin'&&mWorkspaceAdmin();if(key==='home')return true;if(['loans','service'].includes(key)&&!(['admin','engineer'].includes(role)||(role===M.role&&M.isApprover)))return false;let ui=wsUi(),p=key.startsWith('custom-')?ui.custom.find(p=>'custom-'+p.id===key):ui.pages[key];return !!p&&p.enabled&&p.roles.includes(role)}
+function wsPageAllowed(key,role=M.role){if(key==='admin')return role==='admin';if(key==='workflow')return role==='admin'&&mWorkspaceAdmin();if(key==='home')return true;if(['loans','service','stock'].includes(key)&&!(['admin','engineer'].includes(role)||(role===M.role&&M.isApprover)))return false;let ui=wsUi(),p=key.startsWith('custom-')?ui.custom.find(p=>'custom-'+p.id===key):ui.pages[key];return !!p&&p.enabled&&p.roles.includes(role)}
 function wsActionVisible(id){return wsUi().actions[id]!==false}
 /* บันทึกเฉพาะสาขาตั้งค่า UI หรือสมาชิก โดยตรวจ eTag และบทบาทจากข้อมูลล่าสุดอีกครั้ง */
 var WS_WRITE=new Map();
@@ -1682,7 +1682,7 @@ async function dvRender(){let host=document.getElementById("dashv");if(!host)ret
  if(page!=="city")dvCityStop();if(DV.busy&&DV.renderPage===page){DV.again=!0;return}
  let id=DV.renderId=(DV.renderId||0)+1;DV.renderPage=page;DV.busy=!0;DV.again=!1;
  if(host.dataset.page!==String(page)){host.dataset.page=String(page);host.innerHTML=`<p class="dv-empty dv-loading" role="status">กำลังโหลดข้อมูล…</p>`}
- try{if(!wsPageAllowed(page||"home")){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="workflow"){await dvWorkflowPage(host,id);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){await dvProjectsPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvRackPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
+ try{if(!wsPageAllowed(page||"home")){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="workflow"){await dvWorkflowPage(host,id);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){await dvProjectsPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="stock"){await dvStockPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvRackPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
   if(!dvRenderCurrent(id,page))return;DV.sig=dvSig();
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
   let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>แดชบอร์ด</h1><p class="dv-sub">${staff?"ความเคลื่อนไหวใน Teams Channel และคำขอจากเซลส์ที่รอพิจารณา":"คำขอ Service Request ของคุณและสถานะการพิจารณา"}</p></div>
@@ -1779,26 +1779,27 @@ var dvNavIcon={workflow:'<svg width="20" height="20" viewBox="0 0 24 24" fill="n
  loans:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
  city:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l6-3v15"/><path d="M9 21V4l8 3v14"/><path d="M17 21v-9l4 2v7"/><path d="M2 21h20M12 9h2M12 13h2M12 17h2"/></svg>'};
 function dvNav(items){let ref=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim()))||items[1];if(!ref)return;
- let want=[["status","สถานะโครงการ"],["city","ศูนย์ข้อมูลงาน"],...(mIsEng()?[["loans","ยืมสินค้า"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title]),...(wsPageAllowed("workflow")?[["workflow","ตั้งค่า Workflow"]]:[])],prev=ref;
+ let want=[["status","สถานะโครงการ"],["city","ศูนย์ข้อมูลงาน"],...(mIsEng()?[["loans","ยืมสินค้า"],["stock","สต็อก Demo"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title]),...(wsPageAllowed("workflow")?[["workflow","ตั้งค่า Workflow"]]:[])],prev=ref;
  for(let b of items)if(b.id?.startsWith("dvnav-custom-")&&!want.some(x=>b.id==="dvnav-"+x[0]))b.remove();
- for(let k of ["loans","quotes","service","workflow"])if(!want.some(x=>x[0]===k))document.getElementById("dvnav-"+k)?.remove();
- for(let[k,label]of want){let b=document.getElementById("dvnav-"+k);if(!b){b=document.createElement("button");b.type="button";b.id="dvnav-"+k;b.className="nav-item dv-nav";b.innerHTML=(dvNavIcon[k]||dvNavIcon.quotes)+"<span>"+mEsc(label)+"</span>";
+ for(let k of ["loans","stock","quotes","service","workflow"])if(!want.some(x=>x[0]===k))document.getElementById("dvnav-"+k)?.remove();
+ for(let[k,label]of want){let b=document.getElementById("dvnav-"+k);if(!b){b=document.createElement("button");b.type="button";b.id="dvnav-"+k;b.className="nav-item dv-nav";b.innerHTML=(k==="stock"?STK_IC.nav:dvNavIcon[k]||dvNavIcon.quotes)+"<span>"+mEsc(label)+"</span>";
    b.onclick=()=>{DV.page=k;let sb=document.querySelector(".sidebar.show .mobile-close");if(sb)sb.click();dvSync();dvRender();window.scrollTo(0,0)};}
   if(!b.parentElement)prev.after(b);if(b.querySelector("span")?.textContent!==label)b.querySelector("span").textContent=label;prev=b;b.classList.toggle("active",DV.page===k);b.setAttribute("aria-current",DV.page===k?"page":"false")}}
 /* v16.1 แถบเมนูล่างบนมือถือ: ภาพรวม · สถานะ · รออนุมัติ · ยืมสินค้า (Engineer) · เมนู */
 var dvTabIcon={home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
  status:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>',
  appr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z"/></svg>',
+ stock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.2l1.4-2h6.8l1.4 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.6"/></svg>',
  loans:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'};
 function dvTabbar(items){let tb=document.getElementById("dv-tabbar");if(!tb){tb=document.createElement("nav");tb.id="dv-tabbar";tb.setAttribute("aria-label","เมนูหลัก");document.body.appendChild(tb)}
- let appr=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim())),home=items.find(x=>/^ภาพรวม/.test(x.textContent.trim())),tabs=[...(mWorkspaceAdmin()?[["home","ภาพรวม"]]:[]),["status","สถานะ"],["appr","รออนุมัติ"],...(mIsEng()?[["loans","ยืมสินค้า"]]:[]),["menu","เมนู"]];
- tabs=tabs.filter(([k])=>k==="menu"||wsPageAllowed(k));let cur=DV.page==="status"||DV.page==="loans"?DV.page:DV.page?"menu":appr?.classList.contains("active")?"appr":home?.classList.contains("active")?"home":"";
+ let appr=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim())),home=items.find(x=>/^ภาพรวม/.test(x.textContent.trim())),tabs=[...(mWorkspaceAdmin()?[["home","ภาพรวม"]]:[]),["status","สถานะ"],["appr","รออนุมัติ"],...(mIsEng()?[["loans","ยืมสินค้า"],["stock","สต็อก"]]:[]),["menu","เมนู"]];
+ tabs=tabs.filter(([k])=>k==="menu"||wsPageAllowed(k));let cur=DV.page==="status"||DV.page==="loans"||DV.page==="stock"?DV.page:DV.page?"menu":appr?.classList.contains("active")?"appr":home?.classList.contains("active")?"home":"";
  let pend=(M.cache?.items||[]).filter(i=>mReqStatus(i.fields||{})==="pending"&&(mIsEng()||String(i.createdBy?.user?.email||"").toLowerCase()===String(M.profile?.email||"").toLowerCase())).length,key=tabs.map(t=>t[0]).join()+"|"+cur+"|"+pend;
  if(tb.dataset.k===key)return;tb.dataset.k=key;
  tb.innerHTML=tabs.map(([k,l])=>`<button type="button" data-t="${k}" class="${k===cur?"on":""}"${k===cur?' aria-current="page"':""}>${dvTabIcon[k]}<span>${l}</span>${k==="appr"&&pend?`<em aria-label="${pend} รายการ">${pend>99?"99+":pend}</em>`:""}</button>`).join("");
  tb.querySelectorAll("button").forEach(b=>b.onclick=()=>dvTab(b.dataset.t))}
-window.dvTab=t=>{if(t==="status"||t==="loans"||t==="service"){dvGo(t);return}if(t==="menu"){document.querySelector(".mobile-menu")?.click();return}
+window.dvTab=t=>{if(t==="status"||t==="loans"||t==="stock"||t==="service"){dvGo(t);return}if(t==="menu"){document.querySelector(".mobile-menu")?.click();return}
  let items=[...document.querySelectorAll(".sidebar .nav-item")],n=t==="appr"?items.find(x=>/^รออนุมัติ/.test(x.textContent.trim())):items.find(x=>/^ภาพรวม/.test(x.textContent.trim()));DV.page=null;if(n)n.click();setTimeout(()=>{dvSync();if(document.body.classList.contains("dv-on"))dvRender();scrollTo(0,0)},60)};
 document.addEventListener("click",e=>{let n=e.target.closest?.(".sidebar .nav-item");if(!n||n.id?.startsWith("dvnav-")||(/^โครงการทั้งหมด/.test(n.textContent.trim())&&!DV.bypass))return;
  DV.nativeEl=n;DV.nativePending=!0;DV.page=null;setTimeout(()=>{dvSync();DV.nativePending=!1;if(document.body.classList.contains("dv-on"))dvRender()},0)},!0);
@@ -2777,6 +2778,168 @@ var dvQRt=0;window.dvQR=(k,i)=>{DV[k]=i.value;clearTimeout(dvQRt);dvQRt=setTimeo
 /* ---- หน้า ยืมสินค้า (เฉพาะ Engineer) ---- */
 var dvToday=()=>new Date(Date.now()+252e5).toISOString().slice(0,10);
 var dvSigned=L=>{let n=DV_SIGN.filter(([k])=>L.sign?.[k]?.img).length;return`<span class="dv-sgn${n===3?" ok":""}" title="ลายเซ็นบนหน้าจอ">✍ เซ็นแล้ว ${n}/3</span>`};
+/* ===== v16.60 สต็อกสินค้า Demo ของ Engineer + ถ่ายภาพเช็คสินค้า =====
+   - เก็บ 1 แถวต่อ 1 รายการ ใน 9D Project Tracking (ProjectItemId = M_STOCK) → ไม่ต้องสร้าง List/คอลัมน์ใหม่
+   - รูปเต็มเก็บใน Documents › "9D Demo Stock/<รหัส>/" · ในแถวเก็บแค่รูปย่อ ~3KB + ลายเซ็นภาพ (dHash + สี) ไว้เทียบภาพ
+   - เช็คด้วยภาพ: บาร์โค้ด/QR (BarcodeDetector หรือ ZXing) → อ่านตัวอักษรบนฉลาก (Tesseract OCR) → เทียบภาพกับรูปในสต็อก
+   - ลบ = ซ่อนรายการ (deleted) ไม่ลบแถว/ไฟล์จริง */
+var M_STOCK=-9.5e9,STK_ROOT="9D Demo Stock",STK={ocr:null},
+ STK_ST=[["ready","พร้อมใช้","ok"],["out","ยืมออก / อยู่กับลูกค้า","cur"],["repair","ส่งซ่อม / เคลม","dlv"],["broken","ชำรุด","no"],["gone","คืนผู้ผลิต / ตัดออก","mut"]],
+ STK_CAT=["Switch","Router / Firewall","Wireless / AP","Server","Storage","CCTV / Security","Accessory / สาย / Module","อื่นๆ"],
+ STK_LIB={zxing:["https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js","sha384-BzBxP10ZE72aitqj5UMmUsbKFliP/DZqA8Wq+BNNhlIJDGoEd1tpkMYXOg9+n6sB","ZXing"],
+  ocr:["https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js","sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F","Tesseract"]},STK_LIBP={};
+var stkN=v=>String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,""),stkF=v=>stkN(v).replace(/[OQ]/g,"0").replace(/I/g,"1"),stkList=()=>(M.stock||[]).filter(x=>!x.deleted),
+ stkSt=k=>STK_ST.find(x=>x[0]===k)||STK_ST[0],stkChip=k=>{let s=stkSt(k);return`<span class="stk-st ${s[2]}">${mEsc(s[1])}</span>`};
+function stkMerge(rows){let by={};for(let r of rows){if(!r.id)continue;let o=by[r.id];if(!o||mT(r.updatedAt)>=mT(o.updatedAt))by[r.id]=r}return Object.values(by).sort((a,b)=>mT(b.updatedAt)-mT(a.updatedAt))}
+function stkNewId(){let d=new Date(Date.now()+252e5),n;do{n="DM"+String(d.getUTCFullYear()).slice(2)+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+Math.random().toString(36).slice(2,6).toUpperCase()}while((M.stock||[]).some(x=>x.id===n));return n}
+/* ตรวจ S/N / บาร์โค้ดซ้ำ (ยกเว้นตัวเอง) */
+function stkDup(it){for(let k of["sn","barcode"]){let v=stkF(it[k]);if(v.length<4)continue;let o=stkList().find(x=>x.id!==it.id&&(stkF(x.sn)===v||stkF(x.barcode)===v));if(o)return{k,o}}return null}
+async function mStockSave(it){if(!mIsEng())throw new PvErr("เฉพาะ Engineer",403);if(!M.tl)throw new PvErr("ยังเชื่อมรายการ 9D Project Tracking ไม่ได้ — ลองโหลดหน้าใหม่",503);
+ let old=it.row?(M.stock||[]).find(x=>x.id===it.id):null;
+ if(it.row&&old){let cur;try{cur=await G(`/sites/${M.sid}/lists/${M.tl}/items/${it.row}?$expand=fields($select=Payload)`)}catch(e){cur=null}
+  if(cur){let pl={};try{pl=JSON.parse(cur.fields?.Payload||"{}")}catch{}if(pl.updatedAt&&old.updatedAt&&pl.updatedAt!==old.updatedAt)throw new PvErr(`${pl.updatedBy||"มีคน"}แก้ไขรายการนี้ไปก่อนแล้ว — ปิดหน้าต่างแล้วเปิดใหม่เพื่อดูข้อมูลล่าสุด`,409)}}
+ let n={...it,updatedAt:pvNow(),updatedBy:M.profile.name};delete n.row;let pl=JSON.stringify(n);if(pl.length>6e4)throw new PvErr("ข้อมูลรายการนี้ใหญ่เกินไป (ลดจำนวนรูป/หมายเหตุ)",413);
+ if(it.row)await G(`/sites/${M.sid}/lists/${M.tl}/items/${it.row}/fields`,{method:"PATCH",json:{Payload:pl}});
+ else{let r=await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",noRetry:!0,json:{fields:{Title:"stock:"+n.id,ProjectItemId:M_STOCK,TrackVersion:0,Payload:pl}}});it={...it,row:r.id}}
+ n.row=it.row;let L=M.stock||(M.stock=[]),i=L.findIndex(x=>x.id===n.id);if(i>=0)L[i]=n;else L.unshift(n);return n}
+async function mStockPhoto(id,blob,name){let path=STK_ROOT+"/"+mFsName(id)+"/"+mFsName(name);
+ let r=await mHttp(`${M_GRAPH}/sites/${M.sid}/drive/root:/${mDrivePath(path)}:/content?@microsoft.graph.conflictBehavior=rename`,{method:"PUT",body:blob,headers:{"Content-Type":blob.type||"image/jpeg"}});
+ return{name:r?.name||name,url:r?.webUrl||"",did:r?.id||"",at:pvNow()}}
+/* ---------- รูปภาพ ---------- */
+function stkImg(file){return new Promise((ok,no)=>{let u=URL.createObjectURL(file),im=new Image();im.onload=()=>ok(im);im.onerror=()=>no(new PvErr("เปิดไฟล์รูปนี้ไม่ได้ (รองรับ JPG / PNG / HEIC ที่เบราว์เซอร์เปิดได้)",400));im.src=u})}
+function stkCanvas(im,max){let w=im.naturalWidth||im.width,h=im.naturalHeight||im.height,s=Math.min(1,max/Math.max(w,h)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(w*s));c.height=Math.max(1,Math.round(h*s));let x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);return c}
+function stkSig(im){let c=document.createElement("canvas");c.width=9;c.height=8;let x=c.getContext("2d",{willReadFrequently:!0});x.drawImage(im,0,0,9,8);let d=x.getImageData(0,0,9,8).data,g=i=>d[i]*.3+d[i+1]*.59+d[i+2]*.11,b="";
+ for(let y=0;y<8;y++)for(let i=0;i<8;i++){let p=(y*9+i)*4;b+=g(p)>g(p+4)?"1":"0"}
+ let h=b.match(/.{4}/g).map(s=>parseInt(s,2).toString(16)).join("");c.width=4;c.height=4;x.drawImage(im,0,0,4,4);d=x.getImageData(0,0,4,4).data;let col="";for(let i=0;i<64;i+=4)col+=[d[i],d[i+1],d[i+2]].map(v=>(v>>4).toString(16)).join("");return h+"."+col}
+function stkSim(a,b){if(!a||!b)return 0;let[ha,ca]=a.split("."),[hb,cb]=b.split(".");if(!ha||ha.length!==hb?.length)return 0;let n=0;for(let i=0;i<ha.length;i++){let x=parseInt(ha[i],16)^parseInt(hb[i],16);n+=(x&1)+(x>>1&1)+(x>>2&1)+(x>>3&1)}
+ let s=1-n/64;if(ca&&cb&&ca.length===cb.length){let t=0;for(let i=0;i<ca.length;i++)t+=Math.abs(parseInt(ca[i],16)-parseInt(cb[i],16));s=s*.65+(1-t/(ca.length*15))*.35}return s}
+async function stkPrep(file){let im=await stkImg(file),big=stkCanvas(im,1600),blob=await new Promise(r=>big.toBlob(r,"image/jpeg",.82));if(!blob)throw new PvErr("ย่อรูปไม่สำเร็จ",400);
+ return{im,big,blob,thumb:stkCanvas(im,96).toDataURL("image/jpeg",.6),sig:stkSig(im),url:URL.createObjectURL(blob),name:"photo-"+dvDay(Date.now())+"-"+Date.now().toString(36)+".jpg"}}
+/* ---------- อ่านบาร์โค้ด / ตัวอักษร (โหลดตัวอ่านเมื่อใช้ครั้งแรก) ---------- */
+function stkLib(k){let[u,sri,g]=STK_LIB[k];if(window[g])return Promise.resolve(window[g]);return STK_LIBP[k]||(STK_LIBP[k]=new Promise((ok,no)=>{let s=document.createElement("script");s.src=u;s.integrity=sri;s.crossOrigin="anonymous";s.onload=()=>window[g]?ok(window[g]):no(new Error("load"));s.onerror=()=>{STK_LIBP[k]=null;no(new PvErr(k==="ocr"?"โหลดตัวอ่านตัวอักษรไม่ได้ (ต้องต่ออินเทอร์เน็ต)":"โหลดตัวอ่านบาร์โค้ดไม่ได้",503))};document.head.appendChild(s)}))}
+async function stkBarcodes(cv){let out=new Set();
+ try{if("BarcodeDetector"in window){let fm=await BarcodeDetector.getSupportedFormats?.().catch(()=>null),bd=new BarcodeDetector(fm?.length?{formats:fm}:void 0);for(let r of await bd.detect(cv))if(r.rawValue)out.add(String(r.rawValue).trim())}}catch(e){console.warn("[9D] BarcodeDetector",e)}
+ if(!out.size){let Z=await stkLib("zxing"),h=new Map([[Z.DecodeHintType.TRY_HARDER,!0]]),rd=new Z.MultiFormatReader();rd.setHints(h);
+  for(let c of[cv,stkCanvas(cv,900)]){try{let r=rd.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c))));if(r?.getText())out.add(r.getText().trim());break}catch(e){}}}
+ return[...out].filter(Boolean).slice(0,6)}
+async function stkOcr(cv,onp){let T=await stkLib("ocr");if(!STK.ocr)STK.ocr=T.createWorker("eng",1,{logger:m=>{if(m.status==="recognizing text"&&STK.onp)STK.onp(m.progress)}}).catch(e=>{STK.ocr=null;throw e});
+ let w=await STK.ocr;STK.onp=onp;try{let r=await w.recognize(stkCanvas(cv,1400));return r?.data?.text||""}finally{STK.onp=null}}
+function stkParse(t){let sn=new Set(),pn=new Set(),tok=new Set();
+ for(let l of String(t||"").split(/\n/).map(s=>s.trim()).filter(Boolean)){let u=l.toUpperCase().replace(/[|]/g,"I");
+  let m=u.match(/\b(?:S\s*\/?\s*N|SERIAL\s*(?:NO|NUMBER)?\.?|SER\.?\s*NO\.?)\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\-]{4,})/);if(m)sn.add(m[1]);
+  let p=u.match(/\b(?:P\s*\/?\s*N|PART\s*(?:NO|NUMBER)?\.?|MODEL(?:\s*NO\.?)?|MDL|PID|SKU)\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\-\/.+]{2,})/);if(p)pn.add(p[1].replace(/[.\-]+$/,""));
+  for(let w of u.match(/[A-Z0-9][A-Z0-9\-\/]{4,}/g)||[])if(/\d/.test(w)&&/[A-Z]/.test(w))tok.add(w)}
+ return{sn:[...sn],pn:[...pn],tok:[...tok].filter(w=>!sn.has(w)&&!pn.has(w)).slice(0,10)}}
+/* เทียบกับสต็อก: codes = รหัสที่ได้จากบาร์โค้ด/พิมพ์เอง · text = ข้อความ OCR · sig = ลายเซ็นภาพ */
+function stkMatch(q){let codes=(q.codes||[]).map(stkF).filter(c=>c.length>=3),txt=stkF(q.text),out=[];
+ for(let it of stkList()){let why=[],sc=0,unit=!1;
+  for(let[k,l]of[["sn","S/N"],["barcode","บาร์โค้ด"],["model","รุ่น / P/N"]]){let v=stkF(it[k]);if(v.length<4)continue;let same=k!=="model";
+   if(codes.includes(v)){why.push("ตรง "+l);sc=Math.max(sc,same?1:.8);unit=unit||same}
+   else if(codes.some(c=>c.length>=6&&v.length>=6&&(c.includes(v)||v.includes(c)))){why.push("คล้าย "+l);sc=Math.max(sc,same?.75:.6)}
+   else if(txt&&v.length>=5&&txt.includes(v)){why.push("พบ "+l+" บนฉลาก");sc=Math.max(sc,same?.95:.75);unit=unit||same}}
+  if(q.sig){let s=Math.max(0,...(it.sigs||[]).map(g=>stkSim(q.sig,g)));if(s>=.8){why.push("ภาพคล้าย "+Math.round(s*100)+"%");sc=Math.max(sc,s*.7)}}
+  if(why.length)out.push({it,sc,why,unit})}
+ return out.sort((a,b)=>b.sc-a.sc).slice(0,8)}
+/* ใบยืมที่ยังไม่คืน → แผนที่ S/N, รหัสสินค้า */
+async function stkLoanMap(){let m={sn:{},code:{}};try{for(let L of await mLoans())if(L.status!=="คืนครบ")for(let x of L.items||[])if(!x.ret){let s=stkF(x.sn),c=stkF(x.code);if(s.length>=4)m.sn[s]=L;if(c.length>=3)(m.code[c]=m.code[c]||[]).push(L)}}catch(e){}return m}
+var stkLoanOf=(it,m)=>m?.sn[stkF(it.sn)]||null;
+/* ---------- หน้า สต็อก Demo ---------- */
+async function dvStockPage(host,id){if(!mIsEng()){host.innerHTML=`<p class="dv-empty">หน้านี้สำหรับ Engineer เท่านั้น</p>`;return}DV.sig=dvSig();
+ let lm=await stkLoanMap();STK.lm=lm;if(!dvRenderCurrent(id,"stock"))return;
+ let all=stkList(),pcs=a=>a.reduce((s,x)=>s+(Number(x.qty)||1),0),by=k=>all.filter(x=>(x.status||"ready")===k),onLoan=all.filter(x=>stkLoanOf(x,lm));
+ let f={all:()=>!0,ready:x=>(x.status||"ready")==="ready"&&!stkLoanOf(x,lm),out:x=>x.status==="out"||!!stkLoanOf(x,lm),fix:x=>x.status==="repair"||x.status==="broken",gone:x=>x.status==="gone"},sf=DV.sf||"all",list=all.filter(f[sf]||f.all);
+ let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS · ENGINEER</p><h1>สต็อกสินค้า Demo</h1><p class="dv-sub">เครื่อง Demo ของทีม Engineer · ถ่ายภาพฉลาก/บาร์โค้ดเพื่อเช็คว่ามีในระบบแล้วหรือยัง แล้วเพิ่มได้ทันที</p></div>
+  <div class="dv-ctrl"><button type="button" class="dv-new stk-cambtn" onclick="dvStockCheck()">${STK_IC.cam} ถ่ายภาพเช็คสินค้า</button><button type="button" class="dv-btn" onclick="dvStockForm()"><span aria-hidden="true">+</span> เพิ่มสินค้า</button><button type="button" class="dv-btn" onclick="dvStockExport()">${dvIcon.dl} Export</button></div></header>`;
+ if(!M.tl){host.innerHTML=head+`<p class="dv-empty dv-warnbox">${dvIcon.warn} ยังเชื่อมรายการ 9D Project Tracking ไม่ได้ ${mEsc(M.trackErr||"")}</p>`;return}
+ let card=x=>{let L=stkLoanOf(x,lm),q=[x.id,x.name,x.brand,x.model,x.sn,x.barcode,x.cat,x.loc,x.holder,x.notes,L?.no,L?.customer].join(" ").toLowerCase();
+  return`<li class="stk-card" data-q="${mEsc(q)}"><button type="button" class="stk-tap" onclick="dvStockForm('${mEsc(x.id)}')" aria-label="เปิด ${mEsc(x.name)}"><span class="stk-ph">${x.thumb?`<img src="${mEsc(x.thumb)}" alt="" loading="lazy">`:STK_IC.box}</span>
+   <span class="stk-tx"><small class="stk-id">${mEsc(x.id)}${x.cat?" · "+mEsc(x.cat):""}</small><b>${mEsc(x.name)}</b><small>${[x.brand,x.model].filter(Boolean).map(mEsc).join(" · ")||"—"}</small><small class="stk-sn">S/N ${mEsc(x.sn||"—")}</small></span></button>
+   <div class="stk-meta">${stkChip(x.status)}${L?`<span class="stk-st cur" title="${mEsc(L.customer||"")}">ในใบยืม ${mEsc(L.no||"")}</span>`:""}${(Number(x.qty)||1)>1?`<span class="stk-q">× ${Number(x.qty)}</span>`:""}${x.loc?`<span>📍 ${mEsc(x.loc)}</span>`:""}${x.holder?`<span>👤 ${mEsc(x.holder)}</span>`:""}${(x.photos||[]).length?`<span>🖼 ${(x.photos||[]).length}</span>`:""}</div></li>`};
+ host.innerHTML=head+`<div class="dv-kpis">${dvKpi("รายการในสต็อก",dvNum(all.length),"รวม "+dvNum(pcs(all))+" ชิ้น")}${dvKpi("พร้อมใช้",dvNum(all.filter(f.ready).length),"ยืม Demo ได้ทันที")}${dvKpi("ยืมออก / อยู่กับลูกค้า",dvNum(all.filter(f.out).length),onLoan.length?"ผูกกับใบยืม "+onLoan.length+" รายการ":"ตาม S/N ในใบยืม")}${dvKpi(dvIcon.warn+" ซ่อม / ชำรุด",dvNum(by("repair").length+by("broken").length),"ต้องติดตาม",by("repair").length+by("broken").length?"warn":"")}</div>
+  <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสต็อก">${[["all","ทั้งหมด",all.length],["ready","พร้อมใช้",all.filter(f.ready).length],["out","ยืมออก",all.filter(f.out).length],["fix","ซ่อม/ชำรุด",all.filter(f.fix).length],["gone","ตัดออก",all.filter(f.gone).length]].map(([k,l,n])=>`<button type="button" class="${sf===k?"on":""}" aria-pressed="${sf===k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
+   <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="skq" placeholder="ค้นหา ชื่อ / รุ่น / S/N / บาร์โค้ด / ที่เก็บ" value="${mEsc(DV.skq||"")}" oninput="dvQ('skq','.stk-card',this.value,'sf')" onkeydown="dvQKey(event,this)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
+  ${list.length?`<ul class="stk-grid">${list.map(card).join("")}</ul>`:all.length?`<p class="dv-empty ok">${dvIcon.ok} ไม่มีรายการในกลุ่มนี้</p>`:`<div class="dv-card stk-empty">${STK_IC.box}<h3>ยังไม่มีสินค้า Demo ในระบบ</h3><p class="dv-cap">กด “ถ่ายภาพเช็คสินค้า” แล้วถ่ายฉลาก S/N หรือบาร์โค้ด ระบบจะเช็คให้ว่ามีอยู่แล้วหรือยัง ถ้ายังไม่มีกดเพิ่มได้เลย</p><button type="button" class="dv-new" onclick="dvStockCheck()">${STK_IC.cam} เริ่มถ่ายภาพ</button></div>`}`;
+ if(DV.skq)dvQ("skq",".stk-card",DV.skq,"sf")}
+var STK_IC={cam:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.2l1.4-2h6.8l1.4 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.6"/></svg>',
+ box:'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8M7.5 5.5l9 5"/></svg>',
+ nav:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></svg>'};
+window.dvStockExport=()=>{let lm=STK.lm,cols=[["id","รหัส"],["name","ชื่อสินค้า"],["brand","ยี่ห้อ"],["model","รุ่น/P/N"],["sn","S/N"],["barcode","บาร์โค้ด"],["cat","หมวด"],["qty","จำนวน"],["status","สถานะ"],["loan","ใบยืม"],["loc","ที่เก็บ"],["holder","ผู้รับผิดชอบ"],["notes","หมายเหตุ"],["photo","รูป"],["updatedAt","แก้ไขล่าสุด"],["updatedBy","แก้ไขโดย"]];
+ let v=(x,k)=>k==="status"?stkSt(x.status)[1]:k==="loan"?(stkLoanOf(x,lm)?.no||""):k==="photo"?(x.photos||[]).map(p=>p.url).filter(Boolean).join(" "):k==="qty"?(Number(x.qty)||1):x[k]??"";
+ let esc=s=>{s=String(s);if(/^[=+\-@]/.test(s))s="'"+s;return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+ let csv="﻿"+[cols.map(c=>c[1]).join(","),...stkList().map(x=>cols.map(([k])=>esc(v(x,k))).join(","))].join("\r\n"),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="9D-Demo-Stock-"+dvToday()+".csv";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
+/* ---------- ฟอร์มเพิ่ม/แก้ไข ---------- */
+window.dvStockForm=(id,pre)=>{if(!mIsEng())return;let old=id?(M.stock||[]).find(x=>x.id===id):null;if(id&&!old){mToast("ไม่พบรายการนี้แล้ว",!0);return}
+ let x=old?{...old}:{name:"",brand:"",model:"",sn:"",barcode:"",cat:"",qty:1,status:"ready",loc:"",holder:M.profile.name,notes:"",photos:[],sigs:[],...(pre?.fields||{})};
+ let pend=[...(pre?.photos||[])],keep=[...(x.photos||[])],engs=[...new Set([M.profile.name,...Hd.map(n=>dvTitle(n)),x.holder].filter(Boolean))],L=old&&stkLoanOf(old,STK.lm);
+ let inp=(n,l,o={})=>`<label class="${o.cls||""}">${l}${o.req?" *":""}<input name="${n}" value="${mEsc(x[n]??"")}"${o.req?" required":""}${o.ph?` placeholder="${mEsc(o.ph)}"`:""}${o.list?` list="${o.list}"`:""}${o.cap?' autocapitalize="characters" spellcheck="false"':""}${o.type?` type="${o.type}" min="1" inputmode="numeric"`:""}></label>`;
+ let d=document.createElement("dialog");d.className="dv-dlg stk-dlg";d.innerHTML=`<form method="dialog" class="stk-form" novalidate><div class="dv-dhead"><h2>${old?"สินค้า Demo "+mEsc(old.id):"เพิ่มสินค้า Demo"}</h2><button type="button" class="dv-xbtn" data-a="x" aria-label="ปิด">✕</button></div>
+  ${L?`<p class="stk-note cur">อยู่ในใบยืม <b>${mEsc(L.no||"")}</b> · ${mEsc(L.customer||"")} · กำหนดคืน ${mEsc(L.dueDate?dvTH2(L.dueDate):"—")}</p>`:""}
+  <div class="stk-photos"><div class="stk-strip"></div><label class="stk-add">${STK_IC.cam}<span>ถ่าย / เพิ่มรูป</span><input type="file" accept="image/*" capture="environment" multiple hidden></label></div>
+  <div class="stk-grid2">${inp("name","ชื่อสินค้า",{req:1,ph:"เช่น Aruba CX 6100 24G",cls:"w2"})}${inp("brand","ยี่ห้อ",{list:"stk-brands",ph:"เช่น HPE Aruba"})}${inp("model","รุ่น / P/N",{cap:1,ph:"เช่น JL678A"})}${inp("sn","Serial Number (S/N)",{cap:1,ph:"S/N บนฉลาก"})}${inp("barcode","บาร์โค้ด / QR",{cap:1,ph:"ถ้ามี"})}
+   <label>หมวด<input name="cat" value="${mEsc(x.cat||"")}" list="stk-cats" placeholder="เลือกหรือพิมพ์"></label>${inp("qty","จำนวน",{type:"number"})}
+   <label>สถานะ<select name="status">${STK_ST.map(([k,l])=>`<option value="${k}"${(x.status||"ready")===k?" selected":""}>${l}</option>`).join("")}</select></label>
+   ${inp("loc","ที่เก็บ",{ph:"เช่น ตู้ A ชั้น 2 / ห้อง Lab"})}<label>ผู้รับผิดชอบ<input name="holder" value="${mEsc(x.holder||"")}" list="stk-engs"></label>
+   <label class="w2">หมายเหตุ<textarea name="notes" rows="2" placeholder="อุปกรณ์ที่มากับเครื่อง / License / สภาพ">${mEsc(x.notes||"")}</textarea></label></div>
+  <datalist id="stk-cats">${STK_CAT.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-engs">${engs.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-brands">${[...new Set(stkList().map(s=>s.brand).filter(Boolean))].map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist>
+  ${old?.log?.length?`<details class="stk-log"><summary>ประวัติ (${old.log.length})</summary><ol>${old.log.map(g=>`<li><time>${mEsc(dvTH2(dvDay(Date.parse(g.at))))}</time> ${mEsc(g.by)} — ${mEsc(g.act)}</li>`).join("")}</ol></details>`:""}
+  <p class="dv-ferr stk-err" role="alert"></p>
+  <div class="stk-foot">${old?`<button type="button" class="dv-x2" data-a="del">ซ่อนออกจากสต็อก</button>`:""}<span></span><button type="button" class="dv-btn" data-a="x">ยกเลิก</button><button type="submit" class="dv-new" data-a="save">บันทึก</button></div></form>`;
+ document.body.appendChild(d);let F=d.querySelector("form"),er=d.querySelector(".stk-err"),strip=d.querySelector(".stk-strip");
+ let paint=()=>{strip.innerHTML=keep.map((p,i)=>`<figure>${i===0&&x.thumb&&p.name===(x.photos||[])[0]?.name?`<img src="${mEsc(x.thumb)}" alt="">`:STK_IC.box}<figcaption>${p.url?`<a href="${mEsc(p.url)}" target="_blank" rel="noreferrer">เปิดรูป ↗</a>`:"รูป "+(i+1)}</figcaption><button type="button" class="stk-rm" data-k="${i}" aria-label="เอารูปนี้ออก">✕</button></figure>`).join("")+pend.map((p,i)=>`<figure class="new"><img src="${p.url}" alt=""><figcaption>รูปใหม่</figcaption><button type="button" class="stk-rm" data-p="${i}" aria-label="เอารูปนี้ออก">✕</button></figure>`).join("")||`<p class="stk-nophoto">ยังไม่มีรูป · แนะนำถ่ายตัวเครื่อง 1 รูป + ฉลาก S/N 1 รูป</p>`;
+  strip.querySelectorAll(".stk-rm").forEach(b=>b.onclick=()=>{if(b.dataset.p!=null)pend.splice(+b.dataset.p,1);else keep.splice(+b.dataset.k,1);paint()})};paint();
+ d.querySelector(".stk-add input").onchange=async e=>{let fs=[...e.target.files].slice(0,6);e.target.value="";er.textContent="";for(let f of fs){try{pend.push(await stkPrep(f))}catch(err){er.textContent=err.message}}paint()};
+ d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{pend.forEach(p=>URL.revokeObjectURL(p.url));d.remove()});
+ let busy=!1,save=async del=>{if(busy)return;er.textContent="";let v=k=>String(F.elements[k].value||"").trim();
+  let n={...x,name:v("name"),brand:v("brand"),model:v("model").toUpperCase(),sn:v("sn").toUpperCase(),barcode:v("barcode"),cat:v("cat"),qty:Math.max(1,parseInt(v("qty"))||1),status:F.elements.status.value,loc:v("loc"),holder:v("holder"),notes:v("notes")};
+  if(!del&&!n.name){er.textContent="กรอกชื่อสินค้า";F.elements.name.focus();return}
+  if(!n.id)n.id=stkNewId();let dup=!del&&stkDup(n);if(dup){er.innerHTML=`${dup.k==="sn"?"S/N":"บาร์โค้ด"} นี้มีในระบบแล้ว: <button type="button" class="dv-link" data-open="${mEsc(dup.o.id)}">${mEsc(dup.o.id)} · ${mEsc(dup.o.name)}</button>`;er.querySelector("[data-open]").onclick=()=>{d.close();dvStockForm(dup.o.id)};return}
+  busy=!0;let btn=d.querySelector("[data-a=save]"),t0=btn.textContent;btn.disabled=!0;btn.textContent=pend.length?"กำลังอัปโหลดรูป…":"กำลังบันทึก…";
+  try{let up=[],bad=0;for(let p of pend){try{up.push({...(await mStockPhoto(n.id,p.blob,p.name)),thumb:p.thumb,sig:p.sig})}catch(e){console.warn("[9D] stock photo",e);bad++;up.push({name:p.name,url:"",at:pvNow(),thumb:p.thumb,sig:p.sig})}}
+   let ph=[...keep,...up.map(({thumb,sig,...r})=>r)];n.photos=ph.slice(0,12);
+   let sigs=[...(keep.length?(x.sigs||[]).slice(0,keep.length):[]),...up.map(p=>p.sig)].filter(Boolean);n.sigs=sigs.slice(-4);
+   if(!keep.length||keep[0]?.name!==(x.photos||[])[0]?.name)n.thumb=up[0]?.thumb||(keep.length?"":"");else if(!n.thumb&&up[0])n.thumb=up[0].thumb;
+   let act=del?"ซ่อนออกจากสต็อก":old?["name","model","sn","status","loc","holder","qty"].filter(k=>String(old[k]??"")!==String(n[k]??"")).map(k=>k==="status"?"สถานะ → "+stkSt(n.status)[1]:k==="loc"?"ที่เก็บ → "+(n.loc||"—"):k==="holder"?"ผู้รับผิดชอบ → "+(n.holder||"—"):"แก้ "+k).join(", ")||(up.length?"เพิ่มรูป "+up.length+" รูป":"แก้ไขรายละเอียด"):"เพิ่มเข้าสต็อก";
+   if(del)n.deleted=!0;if(!old){n.createdAt=pvNow();n.createdBy=M.profile.name}n.log=[{at:pvNow(),by:M.profile.name,act},...(old?.log||[])].slice(0,30);
+   await mStockSave(n);d.close();mToast(del?"ซ่อน "+n.name+" ออกจากสต็อกแล้ว":(old?"บันทึก ":"เพิ่ม ")+n.id+" · "+n.name+(bad?` (อัปโหลดรูปไม่สำเร็จ ${bad} รูป — เก็บรูปย่อไว้แล้ว)`:""),!!bad);if(DV.page==="stock")dvRender()}
+  catch(e){er.textContent=e.message||String(e);btn.disabled=!1;btn.textContent=t0}finally{busy=!1}};
+ F.onsubmit=e=>{e.preventDefault();save(!1)};d.querySelector("[data-a=del]")&&(d.querySelector("[data-a=del]").onclick=()=>{if(confirm("ซ่อน “"+x.name+"” ออกจากสต็อก?\nข้อมูลและรูปยังเก็บไว้ใน SharePoint (ไม่ได้ลบถาวร)"))save(!0)});
+ d.showModal();if(!old)setTimeout(()=>F.elements.name.focus(),50);return d};
+/* ---------- ถ่ายภาพเช็คสินค้า ---------- */
+window.dvStockCheck=()=>{if(!mIsEng())return;let S={codes:[],text:"",ocr:{sn:[],pn:[],tok:[]},sig:"",photo:null,typed:""},d=document.createElement("dialog");d.className="dv-dlg stk-dlg stk-chk";
+ d.innerHTML=`<div class="dv-dhead"><h2>ถ่ายภาพเช็คสินค้า</h2><button type="button" class="dv-xbtn" data-a="x" aria-label="ปิด">✕</button></div>
+  <div class="stk-cam"><label class="stk-shot"><input type="file" accept="image/*" capture="environment" hidden>${STK_IC.cam}<b>ถ่ายภาพ / เลือกรูป</b><small>ถ่ายให้เห็นฉลาก S/N หรือบาร์โค้ดชัด ๆ · ระบบจะอ่านรหัสและเทียบภาพให้</small></label>
+   <label class="stk-type">หรือพิมพ์ / ยิงเครื่องสแกนบาร์โค้ด<input type="search" enterkeyhint="search" autocapitalize="characters" spellcheck="false" placeholder="S/N, P/N, บาร์โค้ด หรือชื่อรุ่น"></label></div>
+  <div class="stk-prev" hidden><img alt="รูปที่ถ่าย"><ol class="stk-steps"><li data-k="img">เทียบภาพกับสต็อก</li><li data-k="bc">อ่านบาร์โค้ด / QR</li><li data-k="ocr">อ่านตัวอักษรบนฉลาก</li></ol></div>
+  <div class="stk-res" aria-live="polite"></div>`;
+ document.body.appendChild(d);let res=d.querySelector(".stk-res"),prev=d.querySelector(".stk-prev"),step=(k,st,t)=>{let li=d.querySelector(`.stk-steps [data-k=${k}]`);if(!li)return;li.className=st;if(t!=null)li.dataset.t=t};
+ let found=()=>[...new Set([...S.codes,...S.ocr.sn,...S.ocr.pn,...(S.typed?[S.typed]:[])])];
+ let show=()=>{let q={codes:found(),text:S.text,sig:S.sig},m=stkMatch(q),hit=m.find(r=>r.unit&&r.sc>=.9),any=S.photo||S.typed;if(!any){res.innerHTML="";return}
+  let typedHit=S.typed&&!S.photo?stkList().filter(x=>!m.some(r=>r.it.id===x.id)&&[x.name,x.brand,x.model].join(" ").toLowerCase().includes(S.typed.toLowerCase())).slice(0,5).map(it=>({it,why:["ชื่อ/รุ่นตรงคำค้น"]})):[];
+  let rows=[...m,...typedHit],chips=[...S.codes.map(c=>["บาร์โค้ด",c,"barcode"]),...S.ocr.sn.map(c=>["S/N",c,"sn"]),...S.ocr.pn.map(c=>["P/N",c,"model"]),...S.ocr.tok.map(c=>["ข้อความ",c,""])];
+  res.innerHTML=`<div class="stk-verdict ${hit?"ok":rows.length?"maybe":"new"}">${hit?`${dvIcon.ok} <b>มีในระบบแล้ว</b> — ${mEsc(hit.it.id)} · ${mEsc(hit.it.name)}`:rows.length?`${dvIcon.wait} <b>พบรายการที่อาจตรงกัน</b> — ตรวจด้วยตาอีกครั้ง`:`${dvIcon.warn} <b>ยังไม่พบในระบบ</b>${STK.busy?" (กำลังอ่านต่อ…)":" — เพิ่มเป็นสินค้าใหม่ได้เลย"}`}</div>
+   ${chips.length?`<p class="stk-chips"><span>อ่านได้:</span>${chips.map(([l,c])=>`<code title="${l}">${mEsc(l)} ${mEsc(c)}</code>`).join("")}</p>`:""}
+   ${rows.length?`<ul class="stk-hits">${rows.map(r=>{let L=stkLoanOf(r.it,STK.lm);return`<li><span class="stk-ph sm">${r.it.thumb?`<img src="${mEsc(r.it.thumb)}" alt="">`:STK_IC.box}</span><span class="stk-tx"><b>${mEsc(r.it.name)}</b><small>${mEsc(r.it.id)} · ${[r.it.model,r.it.sn&&"S/N "+r.it.sn].filter(Boolean).map(mEsc).join(" · ")}</small><span class="stk-why">${r.why.map(w=>`<em>${mEsc(w)}</em>`).join("")}${stkChip(r.it.status)}${L?`<span class="stk-st cur">ในใบยืม ${mEsc(L.no||"")}</span>`:""}</span></span><span class="stk-ha">${S.photo?`<button type="button" class="dv-btn" data-addph="${mEsc(r.it.id)}">+ แนบรูปนี้</button>`:""}<button type="button" class="dv-btn" data-open="${mEsc(r.it.id)}">เปิด</button></span></li>`}).join("")}</ul>`:""}
+   <div class="stk-foot"><button type="button" class="dv-btn" data-a="again">${STK_IC.cam} ถ่ายใหม่</button><span></span><button type="button" class="${hit?"dv-btn":"dv-new"}" data-a="add">+ ${hit?"เพิ่มเป็นอีกรายการ":"เพิ่มเข้าสต็อก"}</button></div>`;
+  res.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{let id=b.dataset.open;d.close();dvStockForm(id)});
+  res.querySelectorAll("[data-addph]").forEach(b=>b.onclick=()=>{let id=b.dataset.addph,p=S.photo;S.photo=null;d.close();dvStockFormPhoto(id,p)});
+  res.querySelector("[data-a=again]").onclick=()=>d.querySelector(".stk-shot input").click();
+  res.querySelector("[data-a=add]").onclick=()=>{let f={},ty=S.typed,sn=S.ocr.sn[0]||"",bc=S.codes[0]||"";
+   if(bc)f.barcode=bc;if(sn)f.sn=sn;else if(bc&&/^[A-Z0-9\-]{6,}$/i.test(bc)&&!/^\d{12,14}$/.test(bc))f.sn=bc.toUpperCase();if(S.ocr.pn[0])f.model=S.ocr.pn[0];
+   if(ty&&!f.sn&&!f.model){if(/\d/.test(ty)&&/^[A-Z0-9\-\/]{5,}$/i.test(ty))f.sn=ty.toUpperCase();else f.name=ty}
+   let p=S.photo;S.photo=null;d.close();dvStockForm(null,{fields:f,photos:p?[p]:[]})}};
+ let run=async file=>{let tk=S.tk=Symbol();S.codes=[];S.text="";S.ocr={sn:[],pn:[],tok:[]};S.typed="";d.querySelector(".stk-type input").value="";if(S.photo)URL.revokeObjectURL(S.photo.url);S.photo=null;
+  res.innerHTML=`<p class="stk-wait">กำลังเตรียมรูป…</p>`;prev.hidden=!1;["img","bc","ocr"].forEach(k=>step(k,"","รอ"));
+  let p;try{p=await stkPrep(file)}catch(e){res.innerHTML=`<p class="dv-empty dv-warnbox">${dvIcon.warn} ${mEsc(e.message)}</p>`;return}if(S.tk!==tk){URL.revokeObjectURL(p.url);return}
+  S.photo=p;S.sig=p.sig;prev.querySelector("img").src=p.url;STK.busy=!0;step("img","ok","เสร็จ");show();
+  step("bc","run","กำลังอ่าน…");try{S.codes=await stkBarcodes(p.big);if(S.tk!==tk)return;step("bc",S.codes.length?"ok":"none",S.codes.length?"พบ "+S.codes.length:"ไม่พบ")}catch(e){if(S.tk!==tk)return;step("bc","none",e.message)}show();
+  step("ocr","run","กำลังอ่าน…");try{S.text=await stkOcr(p.big,v=>{if(S.tk===tk)step("ocr","run",Math.round(v*100)+"%")});if(S.tk!==tk)return;S.ocr=stkParse(S.text);let n=S.ocr.sn.length+S.ocr.pn.length+S.ocr.tok.length;step("ocr",n?"ok":"none",n?"อ่านได้ "+n+" รหัส":"ไม่พบรหัส")}catch(e){if(S.tk!==tk)return;step("ocr","none",e.message)}
+  STK.busy=!1;show()};
+ d.querySelector(".stk-shot input").onchange=e=>{let f=e.target.files[0];e.target.value="";if(f)run(f)};
+ let ti;d.querySelector(".stk-type input").oninput=e=>{clearTimeout(ti);ti=setTimeout(()=>{S.tk=Symbol();STK.busy=!1;if(S.photo){URL.revokeObjectURL(S.photo.url);S.photo=null}S.sig="";S.codes=[];S.text="";S.ocr={sn:[],pn:[],tok:[]};prev.hidden=!0;S.typed=e.target.value.trim();show()},250)};
+ d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{S.tk=Symbol();STK.busy=!1;if(S.photo)URL.revokeObjectURL(S.photo.url);d.remove()});
+ d.showModal();stkLoanMap().then(m=>STK.lm=m)};
+/* แนบรูปจากหน้าตรวจเข้ารายการเดิม แล้วเปิดฟอร์มให้กดบันทึก */
+window.dvStockFormPhoto=(id,p)=>{let d=dvStockForm(id);if(!p||!d)return;let dt=new DataTransfer();dt.items.add(new File([p.blob],p.name,{type:"image/jpeg"}));let inp=d.querySelector(".stk-add input");inp.files=dt.files;inp.dispatchEvent(new Event("change"));URL.revokeObjectURL(p.url)};
 var dvOver=L=>L.status!=="คืนครบ"&&L.dueDate&&L.dueDate<dvToday();
 var dvLChip=L=>dvOver(L)?`<span class="dv-st no">${dvIcon.warn} เกินกำหนด ${Math.floor((Date.parse(dvToday())-Date.parse(L.dueDate))/864e5)} วัน</span>`:L.status==="คืนครบ"?`<span class="dv-st ok">${dvIcon.ok} คืนครบ</span>`:L.status==="คืนบางส่วน"?`<span class="dv-st dlv">${dvIcon.wait} คืนบางส่วน</span>`:`<span class="dv-st cur">${dvIcon.wait} ยืมอยู่</span>`;
 async function dvLoansPage(host,id){if(!mIsEng()){host.innerHTML=`<p class="dv-empty">หน้านี้สำหรับ Engineer เท่านั้น</p>`;return}DV.sig=dvSig();
@@ -3323,7 +3486,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.59";
+var M_VER="v16.60";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4406,6 +4569,87 @@ body.dv-nosel{-webkit-user-select:none;user-select:none;cursor:grabbing}
  /* กล่องตารางเลื่อนในตัวเอง หัวตารางติดด้านบนเวลาเลื่อนดูโครงการจำนวนมาก */
  #dashv .dv-pregw{max-height:72vh;overflow:auto}
  #dashv .dv-pregt thead th{position:sticky;top:0;z-index:3}
+}
+</style>
+<style id="v1660">
+/* v16.60 สต็อกสินค้า Demo */
+.stk-cambtn{display:inline-flex;align-items:center;gap:7px}
+.stk-dlg input[type=file]{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;overflow:hidden!important;padding:0!important;border:0!important;pointer-events:none}.stk-add,.stk-shot{position:relative}
+.stk-grid{list-style:none;margin:14px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.stk-card{background:var(--dv-surface,#fff);border:1px solid var(--dv-grid,#e3e3e5);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.stk-card[hidden]{display:none}
+.stk-tap{all:unset;cursor:pointer;display:flex;gap:12px;padding:12px;align-items:flex-start}
+.stk-tap:hover{background:#f6f8fc}.stk-tap:focus-visible{outline:2px solid var(--dv-blue,#284397);outline-offset:-2px}
+.stk-ph{flex:0 0 72px;width:72px;height:72px;border-radius:8px;background:#eef2f8;color:#8a97ad;display:grid;place-items:center;overflow:hidden}
+.stk-ph img{width:100%;height:100%;object-fit:cover}.stk-ph.sm{flex-basis:48px;width:48px;height:48px}.stk-ph.sm svg{width:24px;height:24px}
+.stk-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stk-tx b{font-size:15px;line-height:1.3;color:var(--dv-ink,#151516);overflow-wrap:anywhere}
+.stk-tx small{color:var(--dv-ink2,#4d4c4c);font-size:12.5px;overflow-wrap:anywhere}
+.stk-id{font-size:11px!important;letter-spacing:.04em;color:var(--dv-muted,#7f7d7d)!important;font-weight:600}
+.stk-sn{font-family:ui-monospace,Menlo,Consolas,monospace}
+.stk-meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 12px 11px;border-top:1px solid var(--dv-grid,#e3e3e5);font-size:12.5px;color:var(--dv-ink2,#4d4c4c);margin-top:auto}
+.stk-st{display:inline-flex;align-items:center;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;line-height:1.5;white-space:nowrap}
+.stk-st.ok{background:#e4f4ea;color:#17663f}.stk-st.cur{background:#e5ecfb;color:#284397}.stk-st.dlv{background:#fff1d9;color:#8a5a00}.stk-st.no{background:#fbe6e6;color:#a03030}.stk-st.mut{background:#eceef1;color:#5b6475}
+.stk-q{font-weight:700;color:var(--dv-ink,#151516)}
+.stk-empty{text-align:center;padding:34px 18px;margin-top:14px;color:var(--dv-ink2)}.stk-empty svg{color:#9aa6bb}.stk-empty h3{margin:8px 0 4px}.stk-empty .dv-new{display:inline-flex;gap:7px;align-items:center;margin-top:10px}
+.stk-dlg{width:min(720px,calc(100vw - 24px))}
+.stk-dlg .dv-dhead{padding:14px 18px;border-bottom:1px solid var(--dv-grid);position:sticky;top:0;background:#fff;z-index:2}
+.stk-dlg .dv-dhead h2{margin:0;font-size:18px}
+.stk-form,.stk-chk{display:flex;flex-direction:column}
+.stk-form>*:not(.dv-dhead):not(datalist),.stk-chk>*:not(.dv-dhead){margin-left:18px;margin-right:18px}
+.stk-note{margin-top:12px;padding:9px 12px;border-radius:8px;font-size:13.5px}.stk-note.cur{background:#e5ecfb;color:#1f3576}
+.stk-photos{display:flex;gap:10px;align-items:stretch;margin-top:14px;overflow-x:auto;padding-bottom:4px}
+.stk-strip{display:flex;gap:10px}
+.stk-strip figure{position:relative;margin:0;width:96px;flex:0 0 96px;border:1px solid var(--dv-grid);border-radius:8px;overflow:hidden;background:#eef2f8;display:flex;flex-direction:column}
+.stk-strip figure img,.stk-strip figure>svg{width:96px;height:80px;object-fit:cover;display:block;color:#9aa6bb;padding:0}
+.stk-strip figure>svg{padding:22px 30px;box-sizing:border-box}
+.stk-strip figure.new{border-color:#7da0e0}
+.stk-strip figcaption{font-size:11px;padding:3px 6px;background:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stk-rm{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;background:#000a;color:#fff;font-size:11px;cursor:pointer;line-height:22px;padding:0}
+.stk-nophoto{margin:0;font-size:12.5px;color:var(--dv-muted);align-self:center;max-width:260px}
+.stk-add{flex:0 0 96px;min-height:104px;border:1.5px dashed #9fb2d6;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--dv-blue,#284397);font-size:12px;font-weight:600;cursor:pointer;text-align:center}
+.stk-add:hover{background:#f2f6fd}.stk-add:focus-within{outline:2px solid var(--dv-blue)}
+.stk-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:14px}
+.stk-grid2 .w2{grid-column:1/-1}
+.stk-grid2 label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--dv-ink2)}
+.stk-grid2 input,.stk-grid2 select,.stk-grid2 textarea{font:inherit;font-weight:400;font-size:15px;padding:9px 10px;border:1px solid #cfd6e2;border-radius:7px;background:#fff;color:var(--dv-ink);min-width:0}
+.stk-grid2 input:focus,.stk-grid2 select:focus,.stk-grid2 textarea:focus{outline:2px solid #9db4e8;border-color:var(--dv-blue)}
+.stk-log{margin-top:12px;font-size:13px}.stk-log ol{margin:6px 0 0;padding-left:18px;color:var(--dv-ink2)}.stk-log time{color:var(--dv-muted)}
+.stk-err{min-height:1.2em;margin-top:10px;color:#a03030;font-size:13.5px}
+.stk-foot{display:flex;gap:8px;align-items:center;padding:12px 0 16px;position:sticky;bottom:0;background:#fff;border-top:1px solid var(--dv-grid);margin-top:6px}
+.stk-foot>span{flex:1}
+.stk-cam{display:grid;grid-template-columns:1.2fr 1fr;gap:12px;margin-top:14px}
+.stk-shot{border:1.5px dashed #8fa6d8;border-radius:10px;background:#f4f7fd;padding:18px 14px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;cursor:pointer;color:var(--dv-blue,#284397)}
+.stk-shot svg{width:34px;height:34px}.stk-shot b{font-size:16px}.stk-shot small{color:var(--dv-ink2);font-size:12.5px;line-height:1.45}
+.stk-shot:hover{background:#eaf0fb}.stk-shot:focus-within{outline:2px solid var(--dv-blue)}
+.stk-type{display:flex;flex-direction:column;gap:6px;justify-content:center;font-size:13px;font-weight:600;color:var(--dv-ink2)}
+.stk-type input{font:inherit;font-weight:400;font-size:15px;padding:10px;border:1px solid #cfd6e2;border-radius:8px}
+.stk-prev[hidden]{display:none!important}.stk-prev{display:flex;gap:14px;align-items:flex-start;margin-top:14px}
+.stk-prev img{width:132px;height:132px;object-fit:cover;border-radius:8px;border:1px solid var(--dv-grid);flex:0 0 132px}
+.stk-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:13.5px;flex:1}
+.stk-steps li{display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border-radius:7px;background:#f3f4f6;color:var(--dv-muted)}
+.stk-steps li::after{content:attr(data-t);font-size:12px}
+.stk-steps li.run{background:#e5ecfb;color:#284397}.stk-steps li.ok{background:#e4f4ea;color:#17663f}.stk-steps li.none{background:#f6f1e7;color:#7a5b20}
+.stk-steps li.run::after{animation:stkp 1s ease-in-out infinite alternate}@keyframes stkp{to{opacity:.35}}
+.stk-res{margin-top:14px}.stk-wait{color:var(--dv-muted)}
+.stk-verdict{display:flex;gap:8px;align-items:center;padding:11px 13px;border-radius:9px;font-size:14.5px;flex-wrap:wrap}
+.stk-verdict.ok{background:#e4f4ea;color:#17663f}.stk-verdict.maybe{background:#fff1d9;color:#7a5200}.stk-verdict.new{background:#e5ecfb;color:#1f3576}
+.stk-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0;font-size:12.5px;color:var(--dv-muted)}
+.stk-chips code{background:#f1f3f7;border:1px solid #e0e5ee;border-radius:5px;padding:2px 6px;color:var(--dv-ink);font-size:12px;overflow-wrap:anywhere}
+.stk-hits{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.stk-hits li{display:flex;gap:10px;align-items:center;border:1px solid var(--dv-grid);border-radius:9px;padding:8px 10px}
+.stk-hits .stk-tx{flex:1}
+.stk-why{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px}.stk-why em{font-style:normal;font-size:11.5px;background:#eef2f8;color:#284397;border-radius:4px;padding:1px 6px}
+.stk-ha{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.stk-chk .stk-foot{margin-top:12px}
+@media (max-width:640px){
+ .stk-grid{grid-template-columns:1fr}
+ .stk-grid2,.stk-cam{grid-template-columns:1fr}
+ .stk-dlg{width:100%}
+ .stk-form>*:not(.dv-dhead):not(datalist),.stk-chk>*:not(.dv-dhead){margin-left:14px;margin-right:14px}
+ .stk-prev img{width:96px;height:96px;flex-basis:96px}
+ .stk-hits li{flex-wrap:wrap}.stk-ha{width:100%}
+ .stk-grid2 input,.stk-grid2 select,.stk-grid2 textarea,.stk-type input{font-size:16px}
 }
 </style>
 </body></html>
