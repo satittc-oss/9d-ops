@@ -392,7 +392,7 @@ body.dv-page .sidebar .nav-item.active:not(.dv-nav){background:transparent!impor
 window.NINE_CONFIG={
   clientId:"00ce921d-b5a8-4f00-bf3c-b02816850773",                 // Application (client) ID จาก Microsoft Entra ID
   tenant:"ninedistribution.onmicrosoft.com",
-  allowedDomains:["ninedistribution.com"],  // อนุญาตเฉพาะบัญชีบริษัท
+  allowedDomains:["ninedistribution.com","afternine.co.th"],  // อนุญาตเฉพาะบัญชีบริษัท (Nine Distribution + Afternine)
   teamsNotify:false,
   approveUrl:"https://ninedistribution.sharepoint.com/sites/KendoProject/Lists/All%20Projects%20List/AllItems.aspx?sortField=%5FApprovalStatus&isAscending=true&viewid=a2c1473a%2D5269%2D4584%2Da255%2D80504369e7e1",
   formUrl:"https://ninedistribution.sharepoint.com/sites/KendoProject/_layouts/15/listforms.aspx?cid=MjkyNDYzMjItMjMyZC00MjZlLWE1NzItOTJjMzg4YmQzNzlk&nav=NzkyYmRjMjItYzM3My00YmZiLWFiOWQtN2UwN2YwMTRhYjc1",  // ฟอร์ม Service Request ของบริษัท (ไม่จำกัดสิทธิ์)
@@ -474,7 +474,7 @@ async function pvSha(f){try{let h=await crypto.subtle.digest("SHA-256",await f.a
    Sign-in: OAuth 2.0 Authorization Code + PKCE (SPA) — ไม่มีไลบรารีภายนอก
    ข้อมูลหลัก: SharePoint "All Projects List" (KendoProject) ผ่าน Microsoft Graph
    สถานะติดตามงานที่ทีมเห็นร่วมกัน: list "9D Project Tracking" (แอปสร้างให้อัตโนมัติ) */
-var CFG=Object.assign({clientId:"",tenant:"ninedistribution.onmicrosoft.com",allowedDomains:["ninedistribution.com"],siteHost:"ninedistribution.sharepoint.com",sitePath:"/sites/KendoProject",listId:"29246322-232d-426e-a572-92c388bd379d",trackingListName:"9D Project Tracking",approverHashes:[],engineers:{}},window.NINE_CONFIG||{});
+var CFG=Object.assign({clientId:"",tenant:"ninedistribution.onmicrosoft.com",allowedDomains:["ninedistribution.com","afternine.co.th"],siteHost:"ninedistribution.sharepoint.com",sitePath:"/sites/KendoProject",listId:"29246322-232d-426e-a572-92c388bd379d",trackingListName:"9D Project Tracking",approverHashes:[],engineers:{}},window.NINE_CONFIG||{});
 try{Object.assign(CFG,JSON.parse(localStorage.getItem("9d-config")||"{}"))}catch{}
 var M_AUTH="https://login.microsoftonline.com/"+CFG.tenant+"/oauth2/v2.0",M_REDIRECT=location.origin+location.pathname.replace(/index\.html$/,""),M_GRAPH="https://graph.microsoft.com/v1.0",
 M_SCOPES="openid profile email offline_access User.Read Sites.ReadWrite.All Sites.Manage.All Team.ReadBasic.All Channel.ReadBasic.All Channel.Create ChannelMember.ReadWrite.All"+(CFG.teamsNotify?" ChannelMessage.Send":""),
@@ -3323,7 +3323,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.58";
+var M_VER="v16.59";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -3368,7 +3368,7 @@ async function boot(){
   try{let j=await mTokenReq({grant_type:"authorization_code",code:q.get("code"),redirect_uri:M_REDIRECT,code_verifier:pk.v,scope:mConsentScopes(pk.add)});let c=jwt(j.id_token);
    M.auth={rt:j.refresh_token,tok:{},profile:{oid:c.oid,tid:c.tid,name:c.name||c.preferred_username,email:(c.preferred_username||c.email||"").toLowerCase()}};mStore(pk.add==="spadmin"?"spadmin":"graph",j)}catch(e){gate("login",e.message);return}}
  if(!M.auth?.profile){gate("login");return}
- let pr=M.auth.profile,dom=pr.email.split("@")[1];
+ let pr=M.auth.profile,dom=String(pr.email.split("@")[1]||"").toLowerCase();
  if(!CFG.allowedDomains.includes(dom)){sessionStorage.removeItem("9d-auth");gate("denied","บัญชี "+pr.email+" ไม่ได้รับอนุญาต — ใช้บัญชีของบริษัทเท่านั้น");return}
  M.profile=pr;await mTsLoad(pr.oid);let ph=await mHash(pr.email);M.isApprover=(CFG.approverHashes||[]).includes(ph);M.isAdmin=(CFG.adminHashes||CFG.approverHashes||[]).includes(ph);gate("busy","กำลังโหลด All Projects List…");
  try{await mToken("graph");await mInit();await mLoad(!0)}catch(e){console.error(e);gate("login","เชื่อมต่อ SharePoint ไม่สำเร็จ: "+e.message);return}

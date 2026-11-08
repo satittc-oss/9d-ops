@@ -1,6 +1,11 @@
 # 9d-ops
 9D Integrated Operations - Nine Distribution (Microsoft 365 sign-in required)
 
+## v16.59 · เพิ่มโดเมน afternine.co.th เข้าสู่ระบบได้
+- CFG.allowedDomains = ninedistribution.com + afternine.co.th (ตรวจโดเมนแบบไม่สนตัวพิมพ์เล็ก/ใหญ่)
+- ยังล็อกอินผ่าน Microsoft 365 tenant เดิม (ninedistribution.onmicrosoft.com) — บัญชี @afternine.co.th ต้องอยู่ใน tenant นี้ (โดเมนที่ยืนยันแล้ว หรือเชิญเป็น Guest) และต้องมีสิทธิ์ใน SharePoint KendoProject / Teams ตามบทบาท
+- test: tests/v1659-domains.test.cjs
+
 ## v16.58 · ทะเบียนโครงการ: โลโก้แอป + สแกนง่ายขึ้น
 - เปลี่ยนไอคอนแอ็กชันจาก emoji เป็น **โลโก้แบรนด์แอป** — Teams (ม่วง) · SharePoint (เขียว) · Outlook (ซองจดหมายน้ำเงิน) และไอคอน SVG ที่ดูเรียบร้อยสำหรับคำสั่งอื่น (ไปหน้าสถานะ · ถอยกลับรอพิจารณา · ยกเลิกคำขอ · ลบ) · ชี้เมาส์ยังขึ้นรายละเอียด (tooltip) เหมือนเดิม
 - **ดูรายการง่ายขึ้นเมื่อมีโครงการเยอะ:** หัวตารางติดด้านบนขณะเลื่อน (sticky header) · ไอคอนอยู่บรรทัดเดียว · แถวแน่นขึ้น · วันที่ไม่ตัดบรรทัด · แถบสลับสี (zebra) อ่านข้ามแถวง่าย · บนมือถือปุ่มไอคอน 44px
