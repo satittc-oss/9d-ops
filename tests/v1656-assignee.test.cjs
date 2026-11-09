@@ -13,4 +13,4 @@ test('คนอื่นสร้างแทน → แท็ก Engineer ผ�
 test('ผู้รับมอบหมายสร้างเอง → ไม่มีคำว่าแทน',async()=>{let c=setup({name:'Nutsarun Sirima',email:'nut@x.invalid',oid:'u-nut'});
  await c.mChannelSetup({code:'ASP2',engineer:'NUTSARUN'},{teamId:'t',channelId:'c',members,skipFiles:1},{email:'asm@x.invalid',name:'Asmaporn'},{name:'Nutsarun Sirima',email:'nut@x.invalid'});
  let t=c.posted[0].body.content;assert.match(t,/Engineer ผู้รับผิดชอบ: <at/);assert.ok(!/แทนโดย/.test(t))});
-test('สร้างอัตโนมัติเฉพาะผู้รับมอบหมาย (รอ 30 นาทีก่อนให้คนอื่นสร้างแทน)',()=>{assert.ok(html.includes('return a?(a===meE||age>g):(!!M.isApprover||age>Math.min(g,15*6e4))'))});
+test('v16.62: สร้างอัตโนมัติเฉพาะคนที่กดอนุมัติ (แทนกฎผู้รับมอบหมาย/รอ 30 นาที)',()=>{assert.ok(!html.includes('age>Math.min(g,15*6e4)'));assert.ok(html.includes('if(!mIsMe(a))continue;'))});
