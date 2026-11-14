@@ -6,7 +6,7 @@ function ctx(TS,seen){const c={TS,M:{profile:{}},mT:v=>Date.parse(v||0)||0,mEsc:
 test('สถานะโครงการรวมเข้าหน้า "โครงการ" (เมนูเดียว) และลิงก์เดิม status ยังพาไปหน้าเดียวกัน',()=>{
  assert.match(html,/if\(DV\.page==="status"\)DV\.page="projects";let page=DV\.page;/);
  assert.match(html,/if\(page==="projects"\)\{\/\* v16\.63[^}]*\*\/if\(DV\.stv==="table"\)DV\.stv="list";await dvStatusPage\(host,id\);return\}/);
- assert.match(html,/let want=\[\["city","ศูนย์ข้อมูลงาน"\],/);assert.ok(!html.includes('let want=[["status","สถานะโครงการ"]'));
+ assert.match(html,/let want=\[\["city",dvLbl\("city"\)\],/);assert.ok(!html.includes('let want=[["status","สถานะโครงการ"]'));
  assert.match(html,/\[\["list","รายการ"\],\["board","บอร์ด"\]\]/);assert.match(html,/\["pending","รออนุมัติ",pcnt\("pending"\)\],\["rejected","ไม่อนุมัติ",pcnt\("rejected"\)\]/)});
 test('จุด "ใหม่": มีข้อความหลังเปิดดูครั้งล่าสุด / ยังไม่เคยเปิดนับเฉพาะ 24 ชม.',()=>{const now=Date.now(),iso=d=>new Date(now-d).toISOString();
  const TS={channels:{},all:[{pid:'sp-1',teamId:'t',channelId:'c1',last:iso(6e4)},{pid:'sp-2',teamId:'t',channelId:'c2',last:iso(3*864e5)},{pid:'sp-3',teamId:'t',channelId:'c3',last:iso(6e4)}]};
