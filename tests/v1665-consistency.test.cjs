@@ -18,3 +18,8 @@ test('กราฟคำขอตามเซลส์: นับทุกคำ
  const h=c.dvSalesBars({projects:[]},{},all);assert.match(h,/คำขอโครงการตามเซลส์/);assert.match(h,/· 5 โครงการ/);
  assert.ok(h.indexOf('>A<')<h.indexOf('>B<'));assert.match(h,/กำลังทำ 1 · WIN 1/);assert.match(h,/รออนุมัติ 1/);assert.match(h,/LOSS 1 · ยกเลิก\/ไม่อนุมัติ 1/);
  assert.match(h,/class="dv-sbr on" aria-pressed="true" data-sk="account:B"/)});
+test('v16.66 สรุปสถานะใช้แท่งแบบเดียวกับกราฟเซลส์ · ข้อมูลรองเป็นปุ่มเล็ก · ปุ่มคุยในทีม/Teams/อีเมล แบบเดียวกัน · บอร์ดมือถือเลือกทีละคอลัมน์',()=>{
+ assert.match(html,/class="dv-sbr dv-str\$\{on\?" on":""\}/);assert.ok(!html.includes('<div class="dv-card dv-oldc">')||html.includes('old:(M.role==="admin"||M.isApprover)?`<div class="dv-card dv-oldc">'));
+ assert.match(html,/\$\{dvMinis\(\{recent:dvRecent\(ps,acc\),alog:dvApprovalLog\(/);assert.ok(!/\n  <details class="dv-tip-box">/.test(html));
+ assert.match(html,/class="ui-act dv-pchat"/);assert.match(html,/mailB=x=>`<button type="button" class="ui-act"/);
+ assert.match(html,/<div class="dv-bchips" role="group" aria-label="เลือกคอลัมน์">/);assert.match(html,/window\.dvBCol=k=>/)});
