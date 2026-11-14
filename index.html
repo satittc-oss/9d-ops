@@ -1127,7 +1127,7 @@ async function mWfRun(){let rules=mWfRules();if(!rules.length||!M.tl)return[];le
  if(log.length){try{await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:{Title:"__workflow_log__",ProjectItemId:M_WFLOG,TrackVersion:0,Payload:JSON.stringify({at:pvNow(),by:M.profile.name,runs:log})}}});M.wfLog=[{at:pvNow(),by:M.profile.name,runs:log},...(M.wfLog||[])]}catch(e){console.warn("[9D] workflow log",e)}M.cacheAt=0}
  return log}
 async function mWfAuto(){if(M.role==="sales"||M.role==="viewer"||M.wfBusy||!M.tl)return;if(!mWfRules().length)return;M.wfBusy=1;let rel=await mPvLock();
- try{await mLoad(!0);let l=await mWfRun();if(l.length){DV.stAt=0;if(DV.page==="workflow"||DV.page==="status")dvRender()}}catch(e){console.warn("[9D] workflow",e)}finally{rel();M.wfBusy=0}}
+ try{await mLoad(!0);let l=await mWfRun();if(l.length){DV.stAt=0;if(DV.page==="workflow"||DV.page==="status"||DV.page==="projects")dvRender()}}catch(e){console.warn("[9D] workflow",e)}finally{rel();M.wfBusy=0}}
 async function mWfSave(w){if(!mWorkspaceAdmin())throw new PvErr("เฉพาะ Admin",403);let keys=new Set();
  for(let x of w.steps){x.k=String(x.k||"").trim();x.t=String(x.t||"").trim();if(!x.t)throw new PvErr("กรอกชื่อขั้นตอนให้ครบ",400);if(!/^[a-z0-9_]{1,24}$/.test(x.k)||keys.has(x.k))throw new PvErr("รหัสขั้นตอนซ้ำหรือไม่ถูกต้อง: "+x.k,400);keys.add(x.k);if(x.tag&&!/^#\S{2,39}$/.test(x.tag))throw new PvErr("แฮชแท็กต้องขึ้นต้นด้วย # และไม่มีช่องว่าง: "+x.tag,400)}
  let tags=w.steps.map(x=>String(x.tag||"").toLowerCase()).filter(Boolean);if(new Set(tags).size!==tags.length)throw new PvErr("แฮชแท็กซ้ำกัน",400);if(!keys.has("recv"))throw new PvErr("ต้องมีขั้นตอน \"รับงานแล้ว\" (recv) เสมอ",400);
@@ -1691,11 +1691,11 @@ function dvWire(host,pts){host.querySelectorAll('.dv-x').forEach(b=>{b.onclick=(
 /* ---- วาดหน้า ---- */
 /* v16.36 สลับหน้าได้ทันที ผลโหลดหน้าเก่าจะไม่เขียนทับหน้าที่ผู้ใช้เลือกแล้ว */
 function dvRenderCurrent(id,page){return id===undefined||(id===DV.renderId&&DV.page===page)}
-async function dvRender(){let host=document.getElementById("dashv");if(!host)return;let page=DV.page;
+async function dvRender(){let host=document.getElementById("dashv");if(!host)return;if(DV.page==="status")DV.page="projects";let page=DV.page;
  if(page!=="city")dvCityStop();if(DV.busy&&DV.renderPage===page){DV.again=!0;return}
  let id=DV.renderId=(DV.renderId||0)+1;DV.renderPage=page;DV.busy=!0;DV.again=!1;
  if(host.dataset.page!==String(page)){host.dataset.page=String(page);host.innerHTML=`<p class="dv-empty dv-loading" role="status">กำลังโหลดข้อมูล…</p>`}
- try{if(!wsPageAllowed(page||"home")){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="workflow"){await dvWorkflowPage(host,id);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){await dvProjectsPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="stock"){await dvStockPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvRackPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
+ try{if(!(wsPageAllowed(page||"home")||page==="projects"&&wsPageAllowed("status"))){wsDenied(host);return}if(page==="admin"){await wsAdminPage(host,id);return}if(page?.startsWith("custom-")){wsCustomPage(host,id,page);return}if(page==="workflow"){await dvWorkflowPage(host,id);return}if(page==="status"){await dvStatusPage(host,id);return}if(page==="projects"){/* v16.63 โครงการทั้งหมด + สถานะโครงการ = หน้าเดียว */if(DV.stv==="table")await dvProjectsPage(host,id);else await dvStatusPage(host,id);return}if(page==="loans"){await dvLoansPage(host,id);return}if(page==="stock"){await dvStockPage(host,id);return}if(page==="quotes"){await dvQuotesPage(host,id);return}if(page==="service"){await dvServicePage(host,id);return}if(page==="city"){await dvRackPage(host,id);return}let st=await dvState(),staff=M.role!=="sales"&&M.role!=="viewer",R=dvRange(),since=R.since,sinceIso=new Date(since).toISOString(),untilIso=new Date(R.until).toISOString(),keys=dvKeys(R),rl=R.label;
   if(!dvRenderCurrent(id,page))return;DV.sig=dvSig();
   let w=Math.max(280,(host.clientWidth||900)),half=w>=900;
   let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>แดชบอร์ด</h1><p class="dv-sub">${staff?"ความเคลื่อนไหวใน Teams Channel และคำขอจากเซลส์ที่รอพิจารณา":"คำขอ Service Request ของคุณและสถานะการพิจารณา"}</p></div>
@@ -1792,9 +1792,9 @@ var dvNavIcon={workflow:'<svg width="20" height="20" viewBox="0 0 24 24" fill="n
  loans:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
  city:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l6-3v15"/><path d="M9 21V4l8 3v14"/><path d="M17 21v-9l4 2v7"/><path d="M2 21h20M12 9h2M12 13h2M12 17h2"/></svg>'};
 function dvNav(items){let ref=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim()))||items[1];if(!ref)return;
- let want=[["status","สถานะโครงการ"],["city","ศูนย์ข้อมูลงาน"],...(mIsEng()?[["loans","ยืมสินค้า"],["stock","สต็อก Demo"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title]),...(wsPageAllowed("workflow")?[["workflow","ตั้งค่า Workflow"]]:[])],prev=ref;
+ let want=[["city","ศูนย์ข้อมูลงาน"],...(mIsEng()?[["loans","ยืมสินค้า"],["stock","สต็อก Demo"],["service","งานเซอร์วิส"]]:[]),...(mCanQuote()?[["quotes","ใบเสนอราคา"]]:[]),...wsUi().custom.filter(p=>wsPageAllowed("custom-"+p.id)).map(p=>["custom-"+p.id,p.title]),...(wsPageAllowed("workflow")?[["workflow","ตั้งค่า Workflow"]]:[])],prev=ref;
  for(let b of items)if(b.id?.startsWith("dvnav-custom-")&&!want.some(x=>b.id==="dvnav-"+x[0]))b.remove();
- for(let k of ["loans","stock","quotes","service","workflow"])if(!want.some(x=>x[0]===k))document.getElementById("dvnav-"+k)?.remove();
+ for(let k of ["status","loans","stock","quotes","service","workflow"])if(!want.some(x=>x[0]===k))document.getElementById("dvnav-"+k)?.remove();
  for(let[k,label]of want){let b=document.getElementById("dvnav-"+k);if(!b){b=document.createElement("button");b.type="button";b.id="dvnav-"+k;b.className="nav-item dv-nav";b.innerHTML=(k==="stock"?STK_IC.nav:dvNavIcon[k]||dvNavIcon.quotes)+"<span>"+mEsc(label)+"</span>";
    b.onclick=()=>{DV.page=k;let sb=document.querySelector(".sidebar.show .mobile-close");if(sb)sb.click();dvSync();dvRender();window.scrollTo(0,0)};}
   if(!b.parentElement)prev.after(b);if(b.querySelector("span")?.textContent!==label)b.querySelector("span").textContent=label;prev=b;b.classList.toggle("active",DV.page===k);b.setAttribute("aria-current",DV.page===k?"page":"false")}}
@@ -1806,8 +1806,8 @@ var dvTabIcon={home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
  loans:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'};
 function dvTabbar(items){let tb=document.getElementById("dv-tabbar");if(!tb){tb=document.createElement("nav");tb.id="dv-tabbar";tb.setAttribute("aria-label","เมนูหลัก");document.body.appendChild(tb)}
- let appr=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim())),home=items.find(x=>/^ภาพรวม/.test(x.textContent.trim())),tabs=[...(mWorkspaceAdmin()?[["home","ภาพรวม"]]:[]),["status","สถานะ"],["appr","รออนุมัติ"],...(mIsEng()?[["loans","ยืมสินค้า"],["stock","สต็อก"]]:[]),["menu","เมนู"]];
- tabs=tabs.filter(([k])=>k==="menu"||wsPageAllowed(k));let cur=DV.page==="status"||DV.page==="loans"||DV.page==="stock"?DV.page:DV.page?"menu":appr?.classList.contains("active")?"appr":home?.classList.contains("active")?"home":"";
+ let appr=items.find(x=>/^รออนุมัติ/.test(x.textContent.trim())),home=items.find(x=>/^ภาพรวม/.test(x.textContent.trim())),tabs=[...(mWorkspaceAdmin()?[["home","ภาพรวม"]]:[]),["status","โครงการ"],["appr","รออนุมัติ"],...(mIsEng()?[["loans","ยืมสินค้า"],["stock","สต็อก"]]:[]),["menu","เมนู"]];
+ tabs=tabs.filter(([k])=>k==="menu"||wsPageAllowed(k));let cur=DV.page==="projects"||DV.page==="status"?"status":DV.page==="loans"||DV.page==="stock"?DV.page:DV.page?"menu":appr?.classList.contains("active")?"appr":home?.classList.contains("active")?"home":"";
  let pend=(M.cache?.items||[]).filter(i=>mReqStatus(i.fields||{})==="pending"&&(mIsEng()||String(i.createdBy?.user?.email||"").toLowerCase()===String(M.profile?.email||"").toLowerCase())).length,key=tabs.map(t=>t[0]).join()+"|"+cur+"|"+pend;
  if(tb.dataset.k===key)return;tb.dataset.k=key;
  tb.innerHTML=tabs.map(([k,l])=>`<button type="button" data-t="${k}" class="${k===cur?"on":""}"${k===cur?' aria-current="page"':""}>${dvTabIcon[k]}<span>${l}</span>${k==="appr"&&pend?`<em aria-label="${pend} รายการ">${pend>99?"99+":pend}</em>`:""}</button>`).join("");
@@ -2141,11 +2141,10 @@ async function dvProjectsPage(host,id){let st=await dvState();if(!dvRenderCurren
  let stc=x=>x.s==="active"?`<span class="dv-st sub${x.sb?.dflt?" dflt":""}${x.sb?.over?" over":""}" style="--c:${STEPCOL[x.sb?.sub]||"#005CB9"}">${mEsc(x.sb?.m.t||"กำลังทำ")}</span><small>อยู่ที่ ${mEsc(x.sb?.m.who||"เรา")} · ${x.sb?.days??0} วัน</small>`:["pending","rejected"].includes(x.s)?`<span class="dv-st ${x.s==="rejected"?"no":"gry"}">${x.s==="rejected"&&M.cache?.track?.[Number(x.p.listItemId)]?.reqCancel?"ยกเลิกคำขอ":stl[x.s]}</span>`:dvPChip(x.s);
  let DP=mDups(st),DUPS=new Set([...DP.sp.map(z=>z[0]),...DP.tm.map(z=>z[0])]),engU=mIsEng();
  let row=x=>{let p=x.p,q=[p.code,p.name,p.client,x.sales,x.eng].join(" ").toLowerCase(),ch=mChanUrl(p),dup=DUPS.has(mCodeClean(p.code));
-  return`<tr class="dv-preg" data-q="${mEsc(q)}"><td><b class="dv-code">${mEsc(p.code)}</b>${dup?'<span class="dv-dupb" title="Project Code นี้ซ้ำ — ดูกล่องแจ้งเตือนด้านบน">ซ้ำ</span>':""}</td><td><b>${mEsc(p.name!==p.code?p.name:"")||"—"}</b><small>${mEsc(p.client&&p.client!=="—"?p.client:"")}</small></td><td>${mEsc(x.sales)}</td><td>${mEsc(x.eng||"—")}</td><td class="st">${stc(x)}</td><td class="dt">${p.createdAt?dvTH2(dvDay(Date.parse(p.createdAt))):""}</td>
+  return`<tr class="dv-preg" data-q="${mEsc(q)}"><td><button type="button" class="dv-popen" onclick="dvPanel('${mEsc(p.id)}')" title="เปิดรายละเอียดและคุยในทีม"><b class="dv-code">${mEsc(p.code)}</b>${dvUnreadDot(p)}</button>${dup?'<span class="dv-dupb" title="Project Code นี้ซ้ำ — ดูกล่องแจ้งเตือนด้านบน">ซ้ำ</span>':""}</td><td><b>${mEsc(p.name!==p.code?p.name:"")||"—"}</b><small>${mEsc(p.client&&p.client!=="—"?p.client:"")}</small></td><td>${mEsc(x.sales)}</td><td>${mEsc(x.eng||"—")}</td><td class="st">${stc(x)}</td><td class="dt">${p.createdAt?dvTH2(dvDay(Date.parse(p.createdAt))):""}</td>
    <td class="lk">${ch?`<a class="dv-ico" href="${mEsc(ch)}" target="_blank" rel="noreferrer" title="เปิด Teams Channel ของโครงการนี้" aria-label="เปิด Teams Channel">${dvRIco.teams}</a>`:""}${p.listItemUrl?`<a class="dv-ico" href="${mEsc(p.listItemUrl)}" target="_blank" rel="noreferrer" title="เปิดรายการใน SharePoint" aria-label="เปิดใน SharePoint">${dvRIco.sharepoint}</a>`:""}<button type="button" class="dv-ico" onclick="dvMailForCode('${mEsc(String(p.code).replace(/['\\]/g,""))}')" title="เปิดอีเมลล่าสุดของ ${mEsc(p.code)} ใน Outlook" aria-label="เปิดอีเมลล่าสุดใน Outlook">${dvRIco.outlook}</button>${x.s==="active"||x.s==="delivered"?`<button type="button" class="dv-ico" onclick="dvToStatus('${mEsc(String(p.code).replace(/['\\]/g,""))}','${x.s}')" title="ไปหน้าสถานะ / เปลี่ยนขั้นตอนของโครงการนี้" aria-label="ไปหน้าสถานะ">${dvRIco.status}</button>`:""}${x.s==="pending"&&(engU||p.accountId==="acc-"+me)?`<button type="button" class="dv-ico warn" onclick="dvCancelReq('${mEsc(p.id)}')" title="ยกเลิกคำขอนี้" aria-label="ยกเลิกคำขอ">${dvRIco.cancel}</button>`:""}${engU&&!["pending"].includes(x.s)?`<button type="button" class="dv-ico" onclick="dvReopen('${mEsc(p.id)}')" title="อนุมัติผิด? ถอยกลับไปรอพิจารณา" aria-label="ถอยกลับไปรอพิจารณา">${dvRIco.reopen}</button>`:""}${dvArchiveButton(p)}${engU?`<button type="button" class="dv-ico del" onclick="dvDelProject('${mEsc(p.id)}')" title="ลบโครงการ / Teams Channel" aria-label="ลบโครงการ">${dvRIco.trash}</button>`:""}</td></tr>`};
  let canNew=M.role!=="viewer",focus=dvSearchFocus(host);
- host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>ทะเบียนโครงการ</h1><p class="dv-sub">ทุกโครงการใน All Projects List พร้อมสถานะและขั้นตอนล่าสุด · เปลี่ยนสถานะได้ที่หน้า สถานะโครงการ</p></div>
-  <div class="dv-hact">${canNew?`<button type="button" class="dv-sb pri" onclick="dvNewProject()">+ สร้างโครงการ</button>`:""}<button type="button" class="dv-sb" id="dv-pcsv">ดาวน์โหลด CSV</button></div></header>
+ host.innerHTML=dvPHead("ทะเบียนทุกโครงการใน All Projects List รวมคำขอที่รออนุมัติ / ไม่อนุมัติ · กดที่ Project Code เพื่อดูรายละเอียดและคุยในทีม")+`
   ${dvDraftBox()}${dvDupCard(DP)}${accs.length>1?`<section class="dv-accs" aria-label="ตามเซลส์">${accs.map(a=>`<button type="button" class="dv-acc${fa===a.id?" on":""}" onclick="dvPF('pa','${fa===a.id?"":a.id}')" aria-pressed="${fa===a.id}"><b>${mEsc(a.name)}</b><span class="n">${a.n}</span><small>กำลังทำ ${a.act} · ส่งงาน ${a.dlv}${a.pend?` · รออนุมัติ ${a.pend}`:""} · WIN ${a.win} · LOSS ${a.lost}</small></button>`).join("")}</section>`:""}
   <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสถานะ">${[["","ทั้งหมด",all],["pending","รออนุมัติ",cnt("pending")],["active","กำลังทำ",cnt("active")],["delivered","ส่งงานแล้ว",cnt("delivered")],["closed","ปิดแล้ว",cnt("closed")],["rejected","ไม่อนุมัติ",cnt("rejected")]].filter(([k,,n])=>!k||n).map(([k,l,n])=>`<button type="button" class="${fs===k?"on":""}" aria-pressed="${fs===k}" onclick="dvPF('ps','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
    <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="pq" placeholder="ค้นหา Project Code / ชื่องาน / ลูกค้า / เซลส์ / Engineer" value="${mEsc(DV.pq||"")}" oninput="dvProjectSearch(this.value)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
@@ -2675,7 +2674,7 @@ function dvOvTop(st,keys,rl,staff,half,tplot){let P=st.projects.filter(p=>String
  let donut=dvDonut(segs,A.length,0,{center:"โครงการ",aria:"สัดส่วนสถานะโครงการ",cls:"dv-dn-ov",click:s=>`dvGo('status')`});
  let by={};for(let b of sbs){let x=by[b.sub]=by[b.sub]||{n:0,ov:0};x.n++;if(b.over)x.ov++}let mx=Math.max(1,...SUBORD.map(s=>by[s]?.n||0));
  let steps=`<div class="dv-stepbars">${SUBORD.map(s=>{let n=by[s]?.n||0,ov=by[s]?.ov||0,c=mCardName(s);return`<button type="button" class="dv-stepbar" onclick="dvGo('status');setTimeout(()=>window.dvSS&&dvSS('${s}'),60)" aria-label="${mEsc(c.label)} ${n} งาน${ov?" ค้าง "+ov:""}"><span class="l"><i style="background:${STEPCOL[s]||"#005CB9"}"></i>${mEsc(c.label)}${c.who?`<small>${mEsc(c.who)}</small>`:""}</span><span class="t"><i style="width:${n?Math.max(3,n/mx*100):0}%;background:${STEPCOL[s]||"#005CB9"}"></i></span><span class="v">${dvNum(n)}${ov?`<em>${dvIcon.warn}${ov}</em>`:""}</span></button>`}).join("")}</div>`;
- return`<section class="dv-sec dv-ovtop" aria-labelledby="dv-t0"><div class="dv-sec-h"><h2 id="dv-t0">ภาพรวมงาน</h2><button type="button" class="dv-link" onclick="dvGo('status')">ไปหน้าสถานะโครงการ →</button></div>${kpis}
+ return`<section class="dv-sec dv-ovtop" aria-labelledby="dv-t0"><div class="dv-sec-h"><h2 id="dv-t0">ภาพรวมงาน</h2><button type="button" class="dv-link" onclick="dvGo('projects')">ไปหน้าโครงการ →</button></div>${kpis}
   <div class="dv-ovgrid"><div class="dv-card"><h3>สัดส่วนสถานะโครงการ</h3><p class="dv-cap">โครงการที่อนุมัติแล้วทั้งหมด ${dvNum(A.length)} งาน · สถานะปัจจุบัน</p>${donut}</div>
    <div class="dv-card"><h3>งานที่กำลังทำ แยกตามขั้นตอน</h3><p class="dv-cap">งานอยู่ในมือใคร · ${dvIcon.warn} = ค้างเกินวันเตือน · กดเพื่อดูรายการ</p>${steps}</div></div>${tplot||""}</section>`}
 
@@ -2725,7 +2724,7 @@ async function dvBoardDrop(c,t,bd){let me=String(M.profile.email||"").toLowerCas
   mToast((r.queued?"รับคำสั่งแล้ว · ":"")+code+" · "+(a.action==="psub"?mCardName(a.sub).label:mPStatName(a.status))+(r.note?" — "+r.note:""));DV.stAt=0;M.cacheAt=0;dvRender()}
  catch(e){c.classList.remove("dv-saving");c.removeAttribute("aria-busy");if(home)home.insertBefore(c,next&&next.parentElement===home?next:null);mToast("ย้ายงานไม่สำเร็จ: "+(e.message||e),!0)}}
 
-async function dvStatusPage(host,id){let st=await dvState();if(!dvRenderCurrent(id,"status"))return;let eng=mIsEng(),me=String(M.profile.email||"").toLowerCase();DV.sig=dvSig();
+async function dvStatusPage(host,id){let st=await dvState();if(!dvRenderCurrent(id,"projects"))return;let eng=mIsEng(),me=String(M.profile.email||"").toLowerCase();DV.sig=dvSig();
  let acc=Object.fromEntries((st.accounts||[]).map(a=>[a.id,a])),all=dvStatusRows(st.projects,acc),people=dvStatusFilterPeople(all,DV.se,DV.sa),baseps=people.filter(x=>(!DV.sfrom||String(x.p.createdAt||'').slice(0,10)>=DV.sfrom)&&(!DV.sto||String(x.p.createdAt||'').slice(0,10)<=DV.sto)),ps=baseps,view=wsUi().status,card=k=>view.cards[k],subView=sb=>sb?{...sb,m:{...sb.m,t:card(sb.sub).label,who:card(sb.sub).who}}:null;
  let since=x=>x.p.pstat?.at||x.p.createdAt||"",days=iso=>iso?Math.floor((Date.now()-Date.parse(iso))/864e5):0,byChannel=new Map((TS.all||[]).map(r=>[r.channelId,r])),tsr=p=>TS.channels?.[p.id]||byChannel.get(p.channelId);
  let subs=ps.filter(x=>x.s==="active").map(x=>x.sb),wOther=subs.filter(b=>b&&b.m.who!=="เรา").length,wOver=subs.filter(b=>b&&b.over).length,cnt=k=>ps.filter(x=>x.s===k).length,stale=ps.filter(x=>x.s==="delivered"&&days([since(x),tsr(x.p)?.last].filter(Boolean).sort().pop())>=60).length,closed=ps.filter(x=>["won","lost","cancelled"].includes(x.s));
@@ -2740,16 +2739,16 @@ async function dvStatusPage(host,id){let st=await dvState();if(!dvRenderCurrent(
   return`<select class="dv-subsel" data-pid="${x.p.id}" data-code="${mEsc(x.p.code)}" aria-label="เปลี่ยนสถานะ ${mEsc(x.p.code)}"><option value="">เปลี่ยนสถานะ / ขั้นตอน…</option>${g.join("")}</select>`};
  let acts=x=>{let b=[subSel(x),dvArchiveButton(x.p)];if(eng&&x.s==="active")b.push(btn(x,"delivered",dvIcon.ok+" ส่งงานแล้ว","pri"));return b.join("")};
  let row=x=>{let r=tsr(x.p),d=days(since(x)),q=[x.p.code,x.p.name,x.p.client,acc[x.p.accountId]?.name].join(" ").toLowerCase();
-  return`<li class="dv-prow" data-q="${mEsc(q)}"><div class="dv-pmain"><p class="dv-code">${mEsc(x.p.code)}</p><b>${mEsc(x.p.name!==x.p.code?x.p.name:"")||"&nbsp;"}</b><span>${mEsc(acc[x.p.accountId]?.name||"")}${x.p.client&&x.p.client!=="—"?" · "+mEsc(x.p.client):""}</span><small class="ws-status-engineer">Engineer: ${mEsc(x.engineer.label)}</small></div>
+  return`<li class="dv-prow" data-q="${mEsc(q)}"><div class="dv-pmain"><button type="button" class="dv-popen" onclick="dvPanel('${mEsc(x.p.id)}')" title="เปิดรายละเอียดและคุยในทีม"><span class="dv-code">${mEsc(x.p.code)}</span>${dvUnreadDot(x.p)}</button><b>${mEsc(x.p.name!==x.p.code?x.p.name:"")||"&nbsp;"}</b><span>${mEsc(acc[x.p.accountId]?.name||"")}${x.p.client&&x.p.client!=="—"?" · "+mEsc(x.p.client):""}</span><small class="ws-status-engineer">Engineer: ${mEsc(x.engineer.label)}</small></div>
    <div class="dv-pst">${dvPChip(x.s)}${x.s==="active"?dvStepField(subView(x.sb)):""}<small>${x.p.pstat?.at?"ตั้งแต่ "+dvTH2(dvDay(Date.parse(x.p.pstat.at)))+" · "+d+" วัน"+(x.p.pstat.by?" · "+mEsc(x.p.pstat.by)+(x.p.pstat.via==="teams"?" (Teams)":""):""):"อนุมัติเมื่อ "+dvTH2(dvDay(Date.parse(x.p.createdAt||0)))}</small>${x.s==="delivered"&&d>=60?`<small class="dv-warn">${dvIcon.warn} รอลูกค้าเกิน 60 วัน</small>`:""}</div>
-   <div class="dv-pch">${r?`<a href="${mEsc(r.url||x.p.channelUrl||"#")}" target="_blank" rel="noreferrer">Teams ↗</a><small>${r.last?"ล่าสุด "+dvAgo(r.last)+"ที่แล้ว":"ยังไม่มีข้อความ"}</small>`:x.p.channelUrl?`<a href="${mEsc(x.p.channelUrl)}" target="_blank" rel="noreferrer">Teams ↗</a>`:`<small>ยังไม่มี Channel</small>`}</div>
+   <div class="dv-pch">${pnlChan(x.p).channelId?`<button type="button" class="dv-pchat" onclick="dvPanel('${mEsc(x.p.id)}','chat')">💬 คุยในทีม${dvUnreadDot(x.p)}</button>`:""}${r?`<a href="${mEsc(r.url||x.p.channelUrl||"#")}" target="_blank" rel="noreferrer">Teams ↗</a><small>${r.last?"ล่าสุด "+dvAgo(r.last)+"ที่แล้ว":"ยังไม่มีข้อความ"}</small>`:x.p.channelUrl?`<a href="${mEsc(x.p.channelUrl)}" target="_blank" rel="noreferrer">Teams ↗</a>`:`<small>ยังไม่มี Channel</small>`}</div>
    <div class="dv-pact">${acts(x)}</div></li>`};
  /* v16.17 มุมมองบอร์ด: คอลัมน์ตามขั้นตอน (งานอยู่ในมือใคร) */
  let bkey=x=>x.s==="active"?(x.sb?.sub||"recv"):["won","lost","cancelled"].includes(x.s)?"closed":x.s;
  let bcard=x=>{let sb=x.s==="active"?x.sb:null,r=tsr(x.p),own=x.p.accountId==="acc-"+me,u=r?.url||x.p.channelUrl,q=[x.p.code,x.p.name,x.p.client,acc[x.p.accountId]?.name].join(" ").toLowerCase();
   return`<li class="dv-bcard${sb?.over?" over":""}" data-q="${mEsc(q)}" data-pid="${x.p.id}" data-code="${mEsc(x.p.code)}" data-s="${x.s}" data-sub="${sb?.sub||""}" data-acc="${mEsc(x.p.accountId)}"${M.role!=="viewer"&&(eng||own)?' data-can="1" tabindex="0" aria-roledescription="การ์ดลากได้"':""}><p class="dv-code">${mEsc(x.p.code)}</p><b>${mEsc(x.p.name!==x.p.code?x.p.name:"")||"&nbsp;"}</b><span>${mEsc(acc[x.p.accountId]?.name||"")}${x.p.client&&x.p.client!=="—"?" · "+mEsc(x.p.client):""}</span><small class="ws-status-engineer">Engineer: ${mEsc(x.engineer.label)}</small>${dvBExtra(x,acc)}
    <small>${sb?sb.days+" วันในขั้นตอนนี้"+(sb.by?" · "+mEsc(sb.by):""):x.s==="active"?"กำลังทำ "+days(since(x))+" วัน":dvPChip(x.s)}${r?.last?" · Teams ล่าสุด "+dvAgo(r.last)+"ที่แล้ว":""}</small>${sb?.over?`<small class="dv-warn">${dvIcon.warn} ค้างเกิน ${sb.m.warn} วัน</small>`:""}
-   <div class="dv-bact">${u?`<a href="${mEsc(u)}" target="_blank" rel="noreferrer">Teams ↗</a>`:""}${(eng||own)?subSel(x):""}${dvArchiveButton(x.p)}</div></li>`};
+   <div class="dv-bact"><button type="button" class="dv-pchat" onclick="event.stopPropagation();dvPanel('${mEsc(x.p.id)}','chat')" aria-label="เปิด ${mEsc(x.p.code)} คุยในทีม">💬${dvUnreadDot(x.p)}</button>${u?`<a href="${mEsc(u)}" target="_blank" rel="noreferrer">Teams ↗</a>`:""}${(eng||own)?subSel(x):""}${dvArchiveButton(x.p)}</div></li>`};
  let board=rows=>{let cols=[...view.activeOrder,...view.afterOrder].map(k=>[k,card(k).label,card(k).who]),g={};rows.forEach(x=>(g[bkey(x)]=g[bkey(x)]||[]).push(x));
   return`${M.role!=="viewer"?'<p class="dv-bhint">ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนขั้นตอน · ลากไปช่องด้านล่างเพื่อปิดงาน (มือถือ: กดค้างแล้วลาก) · กด Enter ที่การ์ดเพื่อเลือก "ย้ายไป…"</p>':""}<div class="dv-board" role="list">${cols.filter(([k])=>g[k]?.length||((DV.sf==="active"||DV.sf==="all")&&k!=="closed")).map(([k,t,w])=>{let a=g[k]||[],ov=a.filter(x=>x.sb?.over).length;return`<section class="dv-bcol" role="listitem" aria-label="${mEsc(t)}" data-col="${k}" style="--c:${STEPCOL[k]||"#005CB9"}"><h4><span>${mEsc(t)}</span><em>${a.length}</em></h4><small>${w?"งานอยู่ที่ "+mEsc(w):""}${ov?` · <b class="dv-warn">${dvIcon.warn} ค้าง ${ov}</b>`:""}</small><ul>${a.slice(0,DV.slim||200).map(bcard).join("")}</ul>${a.length>(DV.slim||200)?`<p class="dv-bmore">อีก ${a.length-(DV.slim||200)} งาน</p>`:""}</section>`}).join("")}</div>`};
 
@@ -2761,18 +2760,18 @@ async function dvStatusPage(host,id){let st=await dvState();if(!dvRenderCurrent(
   return`<section class="dv-strip" aria-label="${mEsc(view.title)}"><div class="dv-sg"><h3>${mEsc(view.activeTitle)} <b>${dvNum(act.length)}</b> <small>รอเรา ${act.length-wOther} · รอคนอื่น ${wOther}${wOver?` · <em>${dvIcon.warn} ค้าง ${wOver}</em>`:""}${fil?` · <a href="javascript:void 0" onclick="dvSS('')">ล้างตัวกรอง</a>`:""}</small></h3>
    <div class="dv-actrow">${dvDonut(view.activeOrder.map(k=>({label:card(k).label,n:by[k]?.n||0,col:STEPCOL[k],on:fil&&DV.ss===k})),act.length,wOver,{click:(s,i)=>"dvSS('"+view.activeOrder[i]+"')"})}<div class="dv-sgr act">${view.activeOrder.map(k=>tile(card(k).label,card(k).who,by[k]?.n||0,by[k]?.ov||0,fil&&DV.ss===k,`dvSS('${k}')`,STEPCOL[k])).join("")}</div></div></div>
    <div class="dv-sg"><h3>${mEsc(view.afterTitle)}</h3><div class="dv-sgr aft">${view.afterOrder.map(k=>tile(card(k).label,card(k).who,k==="closed"?closed.length:cnt("delivered"),0,DV.sf===k,`dvSF('${k}')`,STEPCOL[k],k==="closed"?`WIN ${closed.filter(x=>x.s==="won").length} · LOSS ${closed.filter(x=>x.s==="lost").length} · ยกเลิก ${closed.filter(x=>x.s==="cancelled").length}`:stale?` <em>${dvIcon.warn} เกิน 60 วัน ${stale}</em>`:"")).join("")}</div></div></section>`};
- let focus=dvSearchFocus(host);host.innerHTML=`<header class="dv-head ws-status-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>${mEsc(view.title)}</h1><p class="dv-sub">${view.description?mEsc(view.description):eng?"Engineer กด <b>ส่งงานแล้ว</b> เมื่อส่งงานครบ · ปิดโครงการเมื่อรู้ผล WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b>":"แจ้งผลโครงการของคุณ: WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b> (ปุ่มด้านขวา หรือพิมพ์ใน Teams Channel)"}</p></div>${mWorkspaceAdmin()?'<button type="button" class="dv-btn ws-status-edit" onclick="wsStatusSettings()">ปรับแต่งหน้านี้</button>':""}</header>
+ let focus=dvSearchFocus(host);host.innerHTML=dvPHead((view.description?mEsc(view.description):eng?"กดที่งานเพื่อดูรายละเอียดและคุยในทีม · Engineer กด <b>ส่งงานแล้ว</b> เมื่อส่งงานครบ · ปิดโครงการเมื่อรู้ผล WIN / LOSS / ยกเลิก":"กดที่งานเพื่อดูรายละเอียดและคุยในทีม · แจ้งผลโครงการของคุณ: WIN / LOSS / ยกเลิก · ลูกค้าขอเพิ่มกด <b>เปิดงานใหม่</b>"),view.title&&view.title!=="สถานะโครงการ"?view.title:"โครงการ")+`${dvDraftBox()}${dvDupCard(mDups(st))}
   ${M.boReadErr?`<p class="bo-notice" role="alert">ยังอ่านทะเบียนกลางไม่สำเร็จ: ${mEsc(M.boReadErr)} · ข้อมูลอาจยังไม่ล่าสุด</p>`:''}${dvStatusPeopleBar(all,ps)}<div id="dv-status-summary">${strip()}</div>
   <details class="dv-tip-box"><summary><b>สั่งจาก Teams ได้</b> — <code>#ส่งงานแล้ว</code> <code>#win</code> <code>#loss</code> …</summary>พิมพ์ในข้อความของ Channel โครงการ — <code>#ส่งงานแล้ว</code> · <code>#win</code> · <code>#loss</code> · <code>#ยกเลิก</code> · <code>#เปิดงานใหม่</code> ระบบจะบันทึกและตอบกลับใน Thread (เซลส์ใช้ได้เฉพาะ #win #loss #ยกเลิก #เปิดงานใหม่ ในโครงการของตัวเอง)<br><b>ขั้นตอนระหว่างทำ</b> (บอกว่างานอยู่ในมือใคร): ${Object.values(SUBST).filter(m=>m.tag).map(m=>`<code>${m.tag}</code>`).join(" · ")} (อนุมัติแล้ว = รับงานแล้ว · กำลังดำเนินการ อัตโนมัติ) — ค้างเกินกำหนด (ของเรา ${M.cache?.settings?.workflowPolicy?.warnDays?.design??SUBST.design.warn} วัน · ซัพ/จัดซื้อ/ราคา ${M.cache?.settings?.workflowPolicy?.warnDays?.price??SUBST.price.warn} วัน · ลูกค้า ${M.cache?.settings?.workflowPolicy?.warnDays?.cust??SUBST.cust.warn} วัน) ระบบจะเตือนใน Channel${M.inboxAt?`<br><small>Power Automate อ่าน Teams ล่าสุด ${dvAgo(M.inboxAt)}ที่แล้ว (${M.inboxN||0} Channel)</small>`:""}</details>${(M.role==="admin"||M.isApprover)?`<div class="dv-card dv-oldc"><div><b>งานเก่า (ก่อนเปิดใช้ระบบ)</b><small>ตรวจว่าใครอนุมัติจากประวัติ SharePoint แล้วตั้งทั้งหมดเป็น "อนุมัติแล้ว · กำลังดำเนินการ"</small></div><button type="button" class="dv-sb" onclick="dvOldAudit()">ตรวจข้อมูลงานเก่า</button></div>`:""}${dvRecent(ps,acc)}${dvApprovalLog(DV.se||DV.sa?{...st,projects:ps.map(x=>x.p)}:st,acc)}
-  <div class="dv-fbar"><div class="dv-seg dv-vw" role="group" aria-label="มุมมอง">${[["list","รายการ"],["board","บอร์ด"]].map(([k,l])=>`<button type="button" class="${DV.stv===k?"on":""}" aria-pressed="${DV.stv===k}" onclick="dvSV('${k}')">${l}</button>`).join("")}</div><div class="dv-seg" role="group" aria-label="กรองสถานะ">${[["active","กำลังทำ",cnt("active")],["delivered","รอลูกค้า",cnt("delivered")],["closed","ปิดแล้ว",closed.length],["all","ทั้งหมด",ps.length]].map(([k,l,n])=>`<button type="button" class="${DV.sf===k?"on":""}" aria-pressed="${DV.sf===k}" data-status-count="${k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
+  <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสถานะ">${[["active","กำลังทำ",cnt("active")],["delivered","รอลูกค้า",cnt("delivered")],["closed","ปิดแล้ว",closed.length],["all","ทั้งหมด",ps.length]].map(([k,l,n])=>`<button type="button" class="${DV.sf===k?"on":""}" aria-pressed="${DV.sf===k}" data-status-count="${k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
    <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="q" placeholder="ค้นหาโค้ด / ชื่องาน / ลูกค้า / เซลส์ / Engineer" value="${mEsc(DV.q)}" oninput="dvStatusSearch(this.value)" onkeydown="dvQKey(event,this)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
   <div id="dv-sresults"></div>`;
- DV.statusPaint=()=>{if(DV.page!=="status")return;ps=dvMatchProjects(baseps,DV.q);subs=ps.filter(x=>x.s==="active").map(x=>x.sb);wOther=subs.filter(b=>b&&b.m.who!=="เรา").length;wOver=subs.filter(b=>b&&b.over).length;closed=ps.filter(x=>["won","lost","cancelled"].includes(x.s));stale=ps.filter(x=>x.s==="delivered"&&days([since(x),tsr(x.p)?.last].filter(Boolean).sort().pop())>=60).length;let summary=host.querySelector("#dv-status-summary");if(summary)summary.innerHTML=strip();host.querySelectorAll('[data-status-count]').forEach(b=>{let k=b.dataset.statusCount,em=b.querySelector('em');if(em)em.textContent=k==='all'?ps.length:k==='closed'?closed.length:cnt(k)});let note=host.querySelector(".ws-status-people p");if(note)note.textContent="ตัวกรองปัจจุบัน · "+ps.length+" จาก "+all.length+" โครงการ · ยอดการ์ด รายการ และบอร์ดใช้ชุดเดียวกัน";let result=host.querySelector("#dv-sresults");if(!result)return;
+ DV.statusPaint=()=>{if(!["projects","status"].includes(DV.page)||DV.stv==="table")return;ps=dvMatchProjects(baseps,DV.q);subs=ps.filter(x=>x.s==="active").map(x=>x.sb);wOther=subs.filter(b=>b&&b.m.who!=="เรา").length;wOver=subs.filter(b=>b&&b.over).length;closed=ps.filter(x=>["won","lost","cancelled"].includes(x.s));stale=ps.filter(x=>x.s==="delivered"&&days([since(x),tsr(x.p)?.last].filter(Boolean).sort().pop())>=60).length;let summary=host.querySelector("#dv-status-summary");if(summary)summary.innerHTML=strip();host.querySelectorAll('[data-status-count]').forEach(b=>{let k=b.dataset.statusCount,em=b.querySelector('em');if(em)em.textContent=k==='all'?ps.length:k==='closed'?closed.length:cnt(k)});let note=host.querySelector(".ws-status-people p");if(note)note.textContent="ตัวกรองปัจจุบัน · "+ps.length+" จาก "+all.length+" โครงการ · ยอดการ์ด รายการ และบอร์ดใช้ชุดเดียวกัน";let result=host.querySelector("#dv-sresults");if(!result)return;
   let rows=dvMatchProjects(list,DV.q),limit=DV.slim||200,more=DV.stv==="board"?Object.values(rows.reduce((g,x)=>{let k=bkey(x);g[k]=(g[k]||0)+1;return g},{})).some(n=>n>limit):rows.length>limit;
   result.innerHTML=!rows.length?`<p class="dv-empty">ไม่มีโครงการที่ตรงกับตัวกรอง</p>`:DV.stv==="board"?board(rows):`<ul class="dv-plist">${rows.slice(0,limit).map(row).join("")}</ul>`;
   if(more)result.insertAdjacentHTML("beforeend",`<p class="dv-bmore dv-paging">${DV.stv==="board"?"แสดงเป็นชุดในแต่ละคอลัมน์":"แสดง "+Math.min(limit,rows.length)+" จาก "+rows.length+" โครงการ"} <button type="button" class="dv-sb" onclick="dvSMore()">แสดงเพิ่ม</button></p>`);
-  dvQNote(DV.q,rows.length,"sf");dvStatusWire(result)};
- DV.statusPaint();dvRestoreSearch(host,focus)}
+  dvQNote(DV.q,rows.length,"sf");dvStatusWire(result);DV.scsvRows=rows};
+ DV.statusPaint();dvRestoreSearch(host,focus);dvPHeadWire(host,()=>DV.scsvRows||[])}
 function dvStatusWire(host){try{dvBoardDnD(host)}catch(e){console.warn("[9D] board dnd",e)}
  host.querySelectorAll(".dv-sb[data-pid]").forEach(b=>b.onclick=async()=>{let s=b.dataset.s,code=b.dataset.code;if(["won","lost","cancelled"].includes(s)&&!confirm("ปิดโครงการ "+code+" เป็น "+PSTAT[s].t+" ?"))return;if(s==="active"&&!confirm("เปิดงานใหม่ "+code+" ? สถานะจะกลับเป็น กำลังทำ"))return;
   b.disabled=!0;try{let r=await dvPost({action:"pstatus",projectId:b.dataset.pid,status:s});mToast((r.queued?"รับคำสั่งแล้ว · ":"")+code+" · "+PSTAT[s].t+(r.note?" — "+r.note:""))}catch(e){mToast("เปลี่ยนสถานะไม่สำเร็จ: "+e.message,!0)}DV.stAt=0;M.cacheAt=0;dvRender()});
@@ -3083,6 +3082,122 @@ window.dvStockCheck=()=>{if(!mIsEng())return;let S={bars:[],text:"",sig:"",photo
  d.showModal();stkLoanMap().then(m=>STK.lm=m);stkLib("zxing").catch(()=>{})};
 /* แนบรูปจากหน้าตรวจเข้ารายการเดิม แล้วเปิดฟอร์มให้กดบันทึก */
 window.dvStockFormPhoto=(id,p)=>{let d=dvStockForm(id);if(!p||!d)return;let dt=new DataTransfer();dt.items.add(new File([p.blob],p.name,{type:"image/jpeg"}));let inp=d.querySelector(".stk-add input");inp.files=dt.files;inp.dispatchEvent(new Event("change"));URL.revokeObjectURL(p.url)};
+/* v16.63 หัวหน้า "โครงการ" (ใช้ร่วมกันทุกมุมมอง) */
+function dvPHead(sub,title){let canNew=M.role!=="viewer",v=DV.stv==="board"||DV.stv==="table"?DV.stv:"list";
+ return`<header class="dv-head ws-status-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS</p><h1>${mEsc(title||"โครงการ")}</h1><p class="dv-sub">${sub||""}</p></div>
+  <div class="dv-hact">${canNew?`<button type="button" class="dv-sb pri" onclick="dvNewProject()">+ สร้างโครงการ</button>`:""}<button type="button" class="dv-sb" id="dv-pcsv">ดาวน์โหลด CSV</button>${v!=="table"&&mWorkspaceAdmin()?'<button type="button" class="dv-btn ws-status-edit" onclick="wsStatusSettings()">ปรับแต่งหน้านี้</button>':""}</div></header>
+  <div class="dv-pviews"><div class="dv-seg dv-vw" role="group" aria-label="มุมมอง">${[["list","ตามสถานะ"],["board","บอร์ด"],["table","ทะเบียนทั้งหมด (รวมรออนุมัติ)"]].map(([k,l])=>`<button type="button" class="${v===k?"on":""}" aria-pressed="${v===k}" onclick="dvSV('${k}')">${l}</button>`).join("")}</div></div>`}
+function dvPHeadWire(host,rowsFn){let b=host.querySelector("#dv-pcsv");if(!b||b.onclick)return;b.onclick=()=>{let q=v=>'"'+String(v??"").replace(/"/g,'""')+'"',rows=rowsFn(),acc=Object.fromEntries((DV.st?.accounts||[]).map(a=>[a.id,a]));
+ let csv="\ufeff"+[["Project Code","ชื่องาน","ลูกค้า","เซลส์","Engineer","สถานะ","ขั้นตอน","งานอยู่ที่","สร้างเมื่อ"].map(q).join(","),...rows.map(x=>[x.p.code,x.p.name,x.p.client,acc[x.p.accountId]?.name||"",x.engineer?.label||"",PSTAT[x.s]?.t||x.s,x.sb?mCardName(x.sb.sub).label:"",x.sb?mCardName(x.sb.sub).who:"",(x.p.createdAt||"").slice(0,10)].map(q).join(","))].join("\n"),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="9d-projects.csv";a.click()}}
+/* ===== v16.63 แผงงานด้านข้าง: รายละเอียด + "คุยในทีม" (อ่าน/ตอบ/แท็ก/แนบไฟล์ใน Teams Channel ของงาน โดยไม่ต้องเปิด Teams) =====
+   - ใช้สิทธิ์ของผู้ใช้เอง (ChannelMessage.Read.All / ChannelMessage.Send) → เห็นเฉพาะ Channel ที่ตัวเองเป็นสมาชิก เหมือนใน Teams
+   - ข้อความจาก Teams แปลงเป็นข้อความธรรมดา (เก็บตัวหนา/ลิงก์/@แท็ก) ไม่ฝัง HTML จาก Teams ลงหน้าเว็บตรง ๆ
+   - เช็คข้อความใหม่ทุก 30 วินาทีขณะเปิดแท็บคุยในทีม */
+var PNL={pid:null,tab:"info",timer:0,seen:{},reply:null,ments:[],files:[],members:null,msgs:null,err:"",busy:!1};
+try{PNL.seen=JSON.parse(localStorage.getItem("9d-seen")||"{}")||{}}catch(e){PNL.seen={}}
+function pnlSeenSave(){try{localStorage.setItem("9d-seen",JSON.stringify(PNL.seen))}catch(e){}}
+function pnlChan(p){let r=TS.channels?.[p.id]||(TS.all||[]).find(x=>x.pid===p.id)||(p.channelId?(TS.all||[]).find(x=>x.channelId===p.channelId):null);
+ return{teamId:p.teamId||r?.teamId||"",channelId:p.channelId||r?.channelId||"",url:(typeof mChanUrl==="function"?mChanUrl(p):"")||r?.url||p.channelUrl||"",last:r?.last||""}}
+/* จุด "ใหม่" ในรายการ: มีข้อความใน Channel หลังจากที่เราเปิดดูครั้งล่าสุด (ยังไม่เคยเปิด = ข้อความภายใน 24 ชม.) */
+function dvUnread(p){let c=pnlChan(p);if(!c.channelId||!c.last)return!1;let s=PNL.seen[c.channelId];return s?mT(c.last)>mT(s)+1e3:Date.now()-mT(c.last)<864e5}
+var dvUnreadDot=p=>dvUnread(p)?'<i class="pnl-dot" title="มีข้อความใหม่ใน Teams" aria-label="มีข้อความใหม่"></i>':"";
+/* ---- แปลงข้อความ Teams (HTML) เป็น HTML ที่ปลอดภัย ---- */
+function pnlSafe(html){let doc=new DOMParser().parseFromString("<div>"+String(html||"")+"</div>","text/html"),out=[];
+ let walk=n=>{for(let c of n.childNodes){if(c.nodeType===3){out.push(mEsc(c.textContent));continue}if(c.nodeType!==1)continue;let t=c.tagName.toLowerCase();
+   if(t==="br"){out.push("<br>");continue}
+   if(t==="script"||t==="style"||t==="attachment"||t==="systemeventmessage")continue;
+   if(t==="img"){out.push('<span class="pnl-img">[รูปภาพ — เปิดดูใน Teams]</span>');continue}
+   if(t==="at"){out.push('<b class="pnl-at">@'+mEsc(c.textContent)+"</b>");continue}
+   if(t==="a"){let h=c.getAttribute("href")||"";if(/^https:\/\//i.test(h)){out.push(`<a href="${mEsc(h)}" target="_blank" rel="noreferrer">`);walk(c);out.push("</a>")}else walk(c);continue}
+   if(["b","strong","i","em","u","code","s"].includes(t)){let k=t==="strong"?"b":t==="em"?"i":t;out.push("<"+k+">");walk(c);out.push("</"+k+">");continue}
+   if(t==="li"){out.push("• ");walk(c);out.push("<br>");continue}
+   if(t==="blockquote"){out.push('<span class="pnl-q">');walk(c);out.push("</span><br>");continue}
+   walk(c);if(["p","div","h1","h2","h3","h4","tr","pre"].includes(t))out.push("<br>")}};
+ walk(doc.body.firstChild||doc.body);return out.join("").replace(/(<br>\s*){3,}/g,"<br><br>").replace(/^(\s|<br>)+|(\s|<br>)+$/g,"")}
+function pnlBody(m){let b=m.body||{},h=b.contentType==="html"?pnlSafe(b.content):mEsc(b.content||"").replace(/\n/g,"<br>"),att=[];
+ for(let a of m.attachments||[]){if(a.contentType==="reference"&&/^https:\/\//i.test(a.contentUrl||""))att.push(`<a class="pnl-file" href="${mEsc(a.contentUrl)}" target="_blank" rel="noreferrer">📎 ${mEsc(a.name||"ไฟล์")}</a>`);
+  else if(/card/i.test(a.contentType||"")){let tx=[];try{let j=JSON.parse(a.content||"{}"),w=o=>{if(!o||typeof o!=="object")return;if(o.type==="TextBlock"&&o.text)tx.push(String(o.text));for(let v of Object.values(o))if(typeof v==="object")w(v)};w(j)}catch(e){}
+   att.push(`<span class="pnl-card"><b>การ์ด</b>${tx.length?" · "+mEsc(tx.slice(0,3).join(" · ")).slice(0,240):" (เปิดใน Teams เพื่อกดปุ่ม)"}</span>`)}}
+ return(h||(att.length?"":'<span class="pnl-mut">(ข้อความว่าง)</span>'))+(att.length?`<span class="pnl-atts">${att.join("")}</span>`:"")}
+var pnlWho=m=>m.from?.user?.displayName||m.from?.application?.displayName||"ระบบ",
+ pnlTime=iso=>{if(!iso)return"";let d=new Date(iso);return d.toLocaleString("th-TH",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})},
+ pnlIni=n=>String(n||"?").replace(/[^A-Za-zก-๙ ]/g,"").trim().split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase()||"?";
+/* ---- Graph ---- */
+async function pnlFetch(ch){let r=await mHttp(`${M_GRAPH}/teams/${ch.teamId}/channels/${encodeURIComponent(ch.channelId)}/messages?$top=40&$expand=replies`,{},"teams"),
+  ok=m=>m&&m.messageType==="message"&&!m.deletedDateTime,
+  th=(r.value||[]).filter(ok).map(m=>({m,rep:(m.replies||[]).filter(ok).sort((a,b)=>mT(a.createdDateTime)-mT(b.createdDateTime))}));
+ th.forEach(t=>t.at=Math.max(mT(t.m.createdDateTime),...t.rep.map(x=>mT(x.createdDateTime))));return th.sort((a,b)=>a.at-b.at)}
+async function pnlMembers(ch){if(PNL.members?.key===ch.channelId)return PNL.members.list;let list=[];try{list=((await G(`/teams/${ch.teamId}/channels/${encodeURIComponent(ch.channelId)}/members`)).value||[]).filter(m=>m.userId)}catch(e){list=[]}
+ PNL.members={key:ch.channelId,list};return list}
+async function pnlUpload(ch,file){let f=await G(`/teams/${ch.teamId}/channels/${encodeURIComponent(ch.channelId)}/filesFolder`),drive=f?.parentReference?.driveId;if(!drive)throw new PvErr("ยังเปิดแท็บ Files ของ Channel นี้ไม่ได้",409);
+ let name=String(file.name||"file").replace(/[\\/:*?"<>|#%]/g,"_"),path=`/drives/${drive}/items/${f.id}:/${encodeURIComponent(name)}:`;
+ if(file.size<=4e6)return await mHttp(`${M_GRAPH}${path}/content?@microsoft.graph.conflictBehavior=rename`,{method:"PUT",body:file,headers:{"Content-Type":file.type||"application/octet-stream"}});
+ let ss=await G(`${path}/createUploadSession`,{method:"POST",json:{item:{"@microsoft.graph.conflictBehavior":"rename"}}}),size=file.size,step=3276800,pos=0,last=null;
+ while(pos<size){let end=Math.min(pos+step,size),r=await fetch(ss.uploadUrl,{method:"PUT",headers:{"Content-Range":`bytes ${pos}-${end-1}/${size}`},body:file.slice(pos,end)});if(!r.ok)throw new Error("อัปโหลดไม่สำเร็จ (HTTP "+r.status+")");if(end>=size)try{last=await r.json()}catch(e){}pos=end}
+ return last||{name,webUrl:""}}
+async function pnlSend(ch,text){let ments=PNL.ments.map((m,i)=>({id:i,mentionText:m.name,mentioned:{user:{id:m.id,displayName:m.name,userIdentityType:"aadUser"}}}));
+ let html=(ments.length?ments.map(m=>`<at id="${m.id}">${mEsc(m.mentionText)}</at>`).join(" ")+" ":"")+mEsc(text).replace(/\n/g,"<br>")+
+  (PNL.files.length?"<br>"+PNL.files.map(f=>f.webUrl?`📎 <a href="${mEsc(f.webUrl)}">${mEsc(f.name)}</a>`:"📎 "+mEsc(f.name)).join("<br>"):"");
+ let base=`${M_GRAPH}/teams/${ch.teamId}/channels/${encodeURIComponent(ch.channelId)}/messages`;
+ return await mHttp(PNL.reply?`${base}/${encodeURIComponent(PNL.reply.id)}/replies`:base,{method:"POST",json:{body:{contentType:"html",content:html},...(ments.length?{mentions:ments}:{})}},"teams")}
+/* ---- เปิด/ปิดแผง ---- */
+function pnlFind(st,pid){return st.projects.find(x=>x.id===pid)}
+window.dvPanel=async(pid,tab)=>{let st=await dvState(),p=pnlFind(st,pid);if(!p){mToast("ไม่พบโครงการนี้",!0);return}
+ if(PNL.pid!==pid){PNL.reply=null;PNL.ments=[];PNL.files=[];PNL.msgs=null;PNL.err=""}PNL.pid=pid;if(tab)PNL.tab=tab;
+ let a=document.getElementById("pnl");if(!a){a=document.createElement("aside");a.id="pnl";a.setAttribute("role","dialog");a.setAttribute("aria-modal","false");a.setAttribute("aria-labelledby","pnl-h");document.body.appendChild(a);
+  let bd=document.createElement("div");bd.id="pnl-bd";bd.onclick=()=>dvPanelClose();document.body.appendChild(bd);
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&PNL.pid&&!document.querySelector("dialog[open]"))dvPanelClose()})}
+ document.body.classList.add("pnl-on");pnlPaint(st,p);if(PNL.tab==="chat")pnlLoad(!1);
+ clearInterval(PNL.timer);PNL.timer=setInterval(()=>{if(PNL.pid&&PNL.tab==="chat"&&!document.hidden&&!PNL.busy)pnlLoad(!0)},3e4);
+ setTimeout(()=>a.querySelector(".pnl-x")?.focus({preventScroll:!0}),30)};
+window.dvPanelClose=()=>{PNL.pid=null;clearInterval(PNL.timer);document.body.classList.remove("pnl-on");let a=document.getElementById("pnl");if(a)a.innerHTML=""};
+window.dvPanelTab=async t=>{PNL.tab=t;let st=await dvState(),p=pnlFind(st,PNL.pid);if(!p)return;pnlPaint(st,p);if(t==="chat")pnlLoad(!1)};
+function pnlPaint(st,p){let a=document.getElementById("pnl");if(!a)return;let acc=(st.accounts||[]).find(x=>x.id===p.accountId),s=mPStat(p),sb=s==="active"?mSubOf(p):null,ix=dvCityEng(p),eng=ix>=0?dvTitle(Hd[ix]):"—",ch=pnlChan(p),un=dvUnread(p);
+ let code=String(p.code).replace(/['\\]/g,"");
+ let chip=["pending","rejected"].includes(s)?`<span class="dv-st ${s==="rejected"?"no":"gry"}">${s==="rejected"?"ไม่อนุมัติ":"รออนุมัติ"}</span>`:dvPChip(s);
+ let info=`<dl class="pnl-dl"><div><dt>ลูกค้า</dt><dd>${mEsc(p.client&&p.client!=="—"?p.client:"—")}</dd></div><div><dt>เซลส์</dt><dd>${mEsc(acc?.name||"—")}</dd></div><div><dt>Engineer</dt><dd>${mEsc(eng)}</dd></div><div><dt>สร้างเมื่อ</dt><dd>${p.createdAt?mEsc(dvTH2(dvDay(Date.parse(p.createdAt)))):"—"}</dd></div>
+   ${sb?`<div class="w2"><dt>ขั้นตอนตอนนี้</dt><dd><span class="dv-st sub${sb.over?" over":""}" style="--c:${STEPCOL[sb.sub]||"#005CB9"}">${mEsc(mCardName(sb.sub).label)}</span> อยู่ที่ <b>${mEsc(mCardName(sb.sub).who||"เรา")}</b> · ${sb.days??0} วัน${sb.over?' · <em class="pnl-over">เกินกำหนด</em>':""}</dd></div>`:""}</dl>
+  <div class="pnl-links">${ch.url?`<a class="dv-btn" href="${mEsc(ch.url)}" target="_blank" rel="noreferrer">${dvRIco.teams} Teams</a>`:""}${p.listItemUrl?`<a class="dv-btn" href="${mEsc(p.listItemUrl)}" target="_blank" rel="noreferrer">${dvRIco.sharepoint} SharePoint</a>`:""}<button type="button" class="dv-btn" onclick="dvMailForCode('${mEsc(code)}')">${dvRIco.outlook} อีเมลล่าสุด</button>${["active","delivered"].includes(s)?`<button type="button" class="dv-btn" onclick="dvPanelClose();dvToStatus('${mEsc(code)}','${s}')">${dvRIco.status} เปลี่ยนสถานะ</button>`:""}</div>
+  ${p.serviceRequest?.notes?`<h3 class="pnl-h3">รายละเอียดคำขอ</h3><p class="pnl-note">${mEsc(String(p.serviceRequest.notes).slice(0,1200))}</p>`:""}
+  <h3 class="pnl-h3">ความเคลื่อนไหวล่าสุด</h3>${(p.activities||[]).length?`<ol class="pnl-tl">${(p.activities||[]).slice().sort((x,y)=>mT(y.createdAt)-mT(x.createdAt)).slice(0,15).map(x=>`<li><time>${mEsc(pnlTime(x.createdAt))}</time><b>${mEsc(x.action||"")}</b><span>${mEsc(x.actor||"")}${x.note?" · "+mEsc(String(x.note).slice(0,220)):""}</span></li>`).join("")}</ol>`:'<p class="pnl-mut">ยังไม่มีประวัติ</p>'}`;
+ a.innerHTML=`<header class="pnl-head"><div><p class="pnl-code">${mEsc(p.code)}</p><h2 id="pnl-h">${mEsc(p.name&&p.name!==p.code?p.name:p.client||p.code)}</h2><div class="pnl-chips">${chip}</div></div><button type="button" class="pnl-x" onclick="dvPanelClose()" aria-label="ปิดแผง">✕</button></header>
+  <div class="pnl-tabs" role="tablist"><button type="button" role="tab" aria-selected="${PNL.tab==="info"}" class="${PNL.tab==="info"?"on":""}" onclick="dvPanelTab('info')">รายละเอียด</button><button type="button" role="tab" aria-selected="${PNL.tab==="chat"}" class="${PNL.tab==="chat"?"on":""}" onclick="dvPanelTab('chat')">คุยในทีม${un?' <i class="pnl-dot" aria-label="มีข้อความใหม่"></i>':""}</button></div>
+  <div class="pnl-body" role="tabpanel">${PNL.tab==="info"?info:`<div class="pnl-chat" aria-live="polite"><p class="pnl-mut pnl-load">กำลังโหลดข้อความ…</p></div>${ch.channelId&&ch.teamId?pnlComposer():""}`}</div>`;
+ if(PNL.tab==="chat"){if(!ch.channelId||!ch.teamId)a.querySelector(".pnl-chat").innerHTML=`<div class="pnl-empty"><b>งานนี้ยังไม่มี Teams Channel</b><p>Channel จะถูกสร้างโดยคนที่กดอนุมัติงาน · ระหว่างนี้คุยผ่านเว็บไม่ได้</p></div>`;else{pnlWire(a,ch);if(PNL.msgs)pnlRender(a,ch)}}}
+function pnlComposer(){return`<form class="pnl-comp" novalidate><div class="pnl-replyto" hidden></div><div class="pnl-ments"></div><div class="pnl-pend"></div>
+  <label class="sr" for="pnl-ta">ข้อความ</label><textarea id="pnl-ta" rows="2" placeholder="พิมพ์ข้อความถึงทีม… (Ctrl+Enter เพื่อส่ง)"></textarea>
+  <div class="pnl-cbar"><button type="button" class="pnl-ib" data-a="tag" aria-label="แท็กคน" title="แท็กคน">@</button><label class="pnl-ib" title="แนบไฟล์" aria-label="แนบไฟล์">📎<input type="file" multiple hidden></label><span class="pnl-cmsg" role="status"></span><button type="submit" class="dv-new pnl-send">ส่ง</button></div>
+  <div class="pnl-pick" hidden></div></form>`}
+async function pnlLoad(silent){let pid=PNL.pid,st=await dvState(),p=pnlFind(st,pid),a=document.getElementById("pnl");if(!p||!a)return;let ch=pnlChan(p);if(!ch.channelId||!ch.teamId)return;
+ PNL.busy=!0;try{let th=await pnlFetch(ch);if(PNL.pid!==pid)return;PNL.msgs=th;PNL.err=""}catch(e){if(PNL.pid!==pid)return;PNL.err=e.status===403||/403|Forbidden/i.test(e.message)?"คุณไม่ได้เป็นสมาชิก Channel นี้ใน Teams จึงอ่านข้อความไม่ได้":"โหลดข้อความไม่สำเร็จ: "+e.message;if(silent)return}finally{PNL.busy=!1}
+ if(PNL.tab==="chat")pnlRender(a,ch)}
+function pnlRender(a,ch){let box=a.querySelector(".pnl-chat");if(!box)return;let near=box.scrollHeight-box.scrollTop-box.clientHeight<80||!box.dataset.k;
+ if(PNL.err&&!PNL.msgs){box.innerHTML=`<div class="pnl-empty"><b>${mEsc(PNL.err)}</b><p><button type="button" class="dv-btn" onclick="pnlRetry()">ลองอีกครั้ง</button>${ch.url?` · <a href="${mEsc(ch.url)}" target="_blank" rel="noreferrer">เปิดใน Teams ↗</a>`:""}</p></div>`;return}
+ let th=PNL.msgs||[],last=th.length?Math.max(...th.map(t=>t.at)):0,key=th.length+":"+last+":"+th.reduce((n,t)=>n+t.rep.length,0);if(box.dataset.k===key&&!PNL.err)return;box.dataset.k=key;
+ let seen=PNL.seen[ch.channelId]?mT(PNL.seen[ch.channelId]):0,me=String(M.profile?.oid||""),one=(m,root)=>{let mine=me&&m.from?.user?.id===me,nw=seen&&mT(m.createdDateTime)>seen;
+   return`<div class="pnl-msg${mine?" me":""}${nw?" nw":""}"><span class="pnl-av" aria-hidden="true">${mEsc(pnlIni(pnlWho(m)))}</span><div class="pnl-bub"><p class="pnl-meta"><b>${mEsc(pnlWho(m))}</b> <time>${mEsc(pnlTime(m.createdDateTime))}</time>${m.lastEditedDateTime?' <small>(แก้ไขแล้ว)</small>':""}${nw?' <em class="pnl-new">ใหม่</em>':""}</p>${root&&m.subject?`<p class="pnl-subj">${mEsc(m.subject)}</p>`:""}<div class="pnl-txt">${pnlBody(m)}</div></div></div>`};
+ box.innerHTML=th.length?th.map(t=>{let hide=t.rep.length>3&&!t.open?t.rep.length-3:0;return`<article class="pnl-th" data-id="${mEsc(t.m.id)}">${one(t.m,!0)}${t.rep.length?`<div class="pnl-reps">${hide?`<button type="button" class="pnl-more" data-open="${mEsc(t.m.id)}">ดูการตอบก่อนหน้า ${hide} ข้อความ</button>`:""}${t.rep.slice(hide).map(r=>one(r)).join("")}</div>`:""}<button type="button" class="pnl-rbtn" data-reply="${mEsc(t.m.id)}">↩ ตอบในเธรดนี้</button></article>`}).join(""):`<div class="pnl-empty"><b>ยังไม่มีข้อความใน Channel นี้</b><p>เริ่มคุยกับทีมได้จากช่องด้านล่าง</p></div>`;
+ if(PNL.err)box.insertAdjacentHTML("afterbegin",`<p class="pnl-warn">${mEsc(PNL.err)}</p>`);
+ box.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{let t=th.find(x=>x.m.id===b.dataset.open);if(t){t.open=!0;box.dataset.k="";pnlRender(a,ch)}});
+ box.querySelectorAll("[data-reply]").forEach(b=>b.onclick=()=>{let t=th.find(x=>x.m.id===b.dataset.reply);if(!t)return;PNL.reply={id:t.m.id,who:pnlWho(t.m),txt:(t.m.subject||new DOMParser().parseFromString(t.m.body?.content||"","text/html").body.textContent||"").trim().slice(0,60)};pnlCompPaint(a);a.querySelector("#pnl-ta")?.focus()});
+ if(near)box.scrollTop=box.scrollHeight;
+ if(last){PNL.seen[ch.channelId]=new Date(last).toISOString();pnlSeenSave();a.querySelector(".pnl-tabs .pnl-dot")?.remove()}}
+window.pnlRetry=()=>{PNL.err="";PNL.msgs=null;let a=document.getElementById("pnl"),b=a?.querySelector(".pnl-chat");if(b){b.dataset.k="";b.innerHTML='<p class="pnl-mut pnl-load">กำลังโหลดข้อความ…</p>'}pnlLoad(!1)};
+function pnlCompPaint(a){let r=a.querySelector(".pnl-replyto"),mt=a.querySelector(".pnl-ments"),pd=a.querySelector(".pnl-pend");if(!r)return;
+ r.hidden=!PNL.reply;r.innerHTML=PNL.reply?`↩ ตอบ <b>${mEsc(PNL.reply.who)}</b>: ${mEsc(PNL.reply.txt)}… <button type="button" class="pnl-chipx" data-x="reply" aria-label="ยกเลิกการตอบในเธรด">✕</button>`:"";
+ mt.innerHTML=PNL.ments.map((m,i)=>`<span class="pnl-mchip">@${mEsc(m.name)} <button type="button" class="pnl-chipx" data-m="${i}" aria-label="เอา ${mEsc(m.name)} ออก">✕</button></span>`).join("");
+ pd.innerHTML=PNL.files.map((f,i)=>`<span class="pnl-mchip">📎 ${mEsc(f.name)} <button type="button" class="pnl-chipx" data-f="${i}" aria-label="เอาไฟล์ออก">✕</button></span>`).join("");
+ a.querySelectorAll(".pnl-comp .pnl-chipx").forEach(b=>b.onclick=()=>{if(b.dataset.x)PNL.reply=null;else if(b.dataset.m!=null)PNL.ments.splice(+b.dataset.m,1);else PNL.files.splice(+b.dataset.f,1);pnlCompPaint(a)})}
+function pnlWire(a,ch){let F=a.querySelector(".pnl-comp");if(!F)return;let ta=F.querySelector("textarea"),msg=F.querySelector(".pnl-cmsg"),send=F.querySelector(".pnl-send"),pick=F.querySelector(".pnl-pick");pnlCompPaint(a);
+ ta.onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();F.requestSubmit()}};
+ F.querySelector("[data-a=tag]").onclick=async()=>{if(!pick.hidden){pick.hidden=!0;return}pick.hidden=!1;pick.innerHTML='<p class="pnl-mut">กำลังโหลดสมาชิก…</p>';let L=await pnlMembers(ch);
+  pick.innerHTML=L.length?`<p class="pnl-mut">แตะชื่อเพื่อแท็ก</p>${L.map(m=>`<button type="button" data-uid="${mEsc(m.userId)}" data-n="${mEsc(m.displayName||m.email||"")}">${mEsc(m.displayName||m.email||"")}${(m.roles||[]).includes("owner")?" <small>owner</small>":""}</button>`).join("")}`:'<p class="pnl-mut">โหลดรายชื่อสมาชิกไม่ได้</p>';
+  pick.querySelectorAll("[data-uid]").forEach(b=>b.onclick=()=>{if(!PNL.ments.some(m=>m.id===b.dataset.uid))PNL.ments.push({id:b.dataset.uid,name:b.dataset.n});pnlCompPaint(a);pick.hidden=!0;ta.focus()})};
+ F.querySelector("input[type=file]").onchange=async e=>{let fs=[...e.target.files];e.target.value="";for(let f of fs){if(f.size>250*1048576){msg.textContent=f.name+" ใหญ่เกิน 250MB";continue}msg.textContent="กำลังอัปโหลด "+f.name+"…";send.disabled=!0;
+   try{let it=await pnlUpload(ch,f);PNL.files.push({name:it.name||f.name,webUrl:it.webUrl||""});msg.textContent="อัปโหลดเข้า Files ของ Channel แล้ว"}catch(err){msg.textContent="อัปโหลดไม่สำเร็จ: "+err.message}finally{send.disabled=!1}}pnlCompPaint(a)};
+ F.onsubmit=async e=>{e.preventDefault();let t=ta.value.trim();if(!t&&!PNL.files.length){ta.focus();return}send.disabled=!0;msg.textContent="กำลังส่ง…";
+  try{await pnlSend(ch,t);ta.value="";PNL.reply=null;PNL.ments=[];PNL.files=[];pnlCompPaint(a);msg.textContent="ส่งแล้ว";let box=a.querySelector(".pnl-chat");if(box)box.dataset.k="";await pnlLoad(!1);let b2=a.querySelector(".pnl-chat");if(b2)b2.scrollTop=b2.scrollHeight}
+  catch(err){msg.textContent="ส่งไม่สำเร็จ: "+(err.status===403||/403/.test(err.message)?"บัญชีนี้ไม่มีสิทธิ์โพสต์ใน Channel นี้":err.message)}finally{send.disabled=!1}}}
 var dvOver=L=>L.status!=="คืนครบ"&&L.dueDate&&L.dueDate<dvToday();
 var dvLChip=L=>dvOver(L)?`<span class="dv-st no">${dvIcon.warn} เกินกำหนด ${Math.floor((Date.parse(dvToday())-Date.parse(L.dueDate))/864e5)} วัน</span>`:L.status==="คืนครบ"?`<span class="dv-st ok">${dvIcon.ok} คืนครบ</span>`:L.status==="คืนบางส่วน"?`<span class="dv-st dlv">${dvIcon.wait} คืนบางส่วน</span>`:`<span class="dv-st cur">${dvIcon.wait} ยืมอยู่</span>`;
 async function dvLoansPage(host,id){if(!mIsEng()){host.innerHTML=`<p class="dv-empty">หน้านี้สำหรับ Engineer เท่านั้น</p>`;return}DV.sig=dvSig();
@@ -3469,9 +3584,9 @@ window.dvSet=(k,v)=>{DV[k]=v;DV.slim=200;dvRender()};window.dvOldAudit=async()=>
  OLDAUD.busy=1;try{let rows=await mOldAudit((i,n)=>{let p=d.querySelector(".dv-oldb p");if(p)p.textContent="กำลังอ่านประวัติจาก SharePoint … "+i+" / "+n});draw("ข้อมูลจากประวัติเวอร์ชันของแต่ละรายการใน All Projects List (คนที่เปลี่ยน Request Status / Approval status เป็นอนุมัติครั้งแรก)",rows)}catch(e){draw("อ่านข้อมูลไม่สำเร็จ: "+mEsc(e.message),null)}OLDAUD.busy=0};
 window.dvNewProject=()=>{let nav=[...document.querySelectorAll(".sidebar .nav-item")].find(x=>/^โครงการทั้งหมด/.test(x.textContent.trim()));DV.page=null;DV.bypass=1;try{nav&&nav.click()}finally{DV.bypass=0}dvSync();
  let n=0,t=setInterval(()=>{let b=[...document.querySelectorAll("button.primary")].find(x=>/สร้างโครงการ/.test(x.textContent)&&x.offsetParent);if(b||++n>20){clearInterval(t);b?b.click():mToast("ไม่พบปุ่มสร้างโครงการ — ลองกดจากหน้า ภาพรวม",!0)}},150)};
-window.dvGoCert=()=>{DV.svb="cs";DV.cf="soon";dvGo("service")};window.dvSF=k=>{DV.ss="";DV.sf=k;DV.slim=200;dvRender()};window.dvPMore=()=>{DV.plim=(DV.plim||200)+200;dvRegistryResults()};window.dvToStatus=(c,sf)=>{DV.q=c;DV.sf=sf;DV.ss="";dvGo("status")};
+window.dvGoCert=()=>{DV.svb="cs";DV.cf="soon";dvGo("service")};window.dvSF=k=>{DV.ss="";DV.sf=k;DV.slim=200;dvRender()};window.dvPMore=()=>{DV.plim=(DV.plim||200)+200;dvRegistryResults()};window.dvToStatus=(c,sf)=>{DV.q=c;DV.sf=sf;DV.ss="";if(DV.stv==="table")DV.stv="list";dvGo("projects")};
 window.dvPF=(k,v)=>{DV[k]=v;DV.plim=200;dvRender()};
-window.dvSS=k=>{DV.sf="active";DV.ss=DV.ss===k?"":k;DV.slim=200;dvRender()};window.dvSV=v=>{try{localStorage.setItem("9d-sv",v)}catch(e){}dvSet("stv",v)};window.dvQ=(k,sel,v,tab)=>{DV[k]=v;let n=dvFilterRows(sel,v);dvQNote(v,n,tab)};window.dvGo=(page,lf)=>{if(!wsPageAllowed(page)){mToast("Admin ยังไม่เปิดหน้านี้ให้บัญชีของคุณ",true);return}DV.page=page;if(lf)DV.lf=lf;dvSync();dvRender();scrollTo(0,0)};
+window.dvSS=k=>{DV.sf="active";DV.ss=DV.ss===k?"":k;DV.slim=200;dvRender()};window.dvSV=v=>{try{localStorage.setItem("9d-sv",v)}catch(e){}dvSet("stv",v)};window.dvQ=(k,sel,v,tab)=>{DV[k]=v;let n=dvFilterRows(sel,v);dvQNote(v,n,tab)};window.dvGo=(page,lf)=>{if(page==="status")page="projects";if(!(wsPageAllowed(page)||page==="projects"&&wsPageAllowed("status"))){mToast("Admin ยังไม่เปิดหน้านี้ให้บัญชีของคุณ",true);return}DV.page=page;if(lf)DV.lf=lf;dvSync();dvRender();scrollTo(0,0)};
 /* ===== Router: หน้าเว็บเรียก /api/* → Microsoft 365 (ข้อมูลจริง) หรือร้านข้อมูลในเบราว์เซอร์ (ตัวอย่าง/ร่าง) ===== */
 var pvOrig=window.fetch.bind(window),isLocal=id=>/^(demo-|p-)/.test(String(id||""));
 window.fetch=async(e,a={})=>{let u=String(e),m=(a.method||"GET").toUpperCase(),J=(o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{"Content-Type":"application/json"}});
@@ -3629,7 +3744,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.62";
+var M_VER="v16.63";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4852,6 +4967,95 @@ body.dv-nosel{-webkit-user-select:none;user-select:none;cursor:grabbing}
  .stk-fields{grid-template-columns:1fr 1fr}
  .stk-reasons{grid-template-columns:1fr}
  .stk-fields input{font-size:16px}
+}
+</style>
+<style id="v1663">
+/* v16.63 หน้าโครงการรวม + แผงงานด้านข้าง */
+.dv-pviews{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 14px}
+.dv-pviews .dv-seg button{min-height:38px}
+.dv-popen{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-radius:4px}
+.dv-popen:hover .dv-code,.dv-popen:hover{text-decoration:underline;text-underline-offset:3px}
+.dv-popen:focus-visible{outline:2px solid #005CB9;outline-offset:2px}
+.dv-pchat{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:0 10px;border-radius:7px;border:1px solid #CBD3E0;background:#fff;color:#284397;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;position:relative}
+.dv-pchat:hover{background:#EEF3FC}
+.pnl-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#C2410C;box-shadow:0 0 0 2px #fff;vertical-align:middle}
+.dv-pchat .pnl-dot{position:absolute;top:-3px;right:-3px}
+#pnl{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);background:#fff;border-left:1px solid #DDE3EC;box-shadow:-12px 0 32px #0f1b3a1f;z-index:1200;display:flex;flex-direction:column;transform:translateX(105%);transition:transform .22s ease;font-size:14px;color:#151516}
+body.pnl-on #pnl{transform:none}
+#pnl-bd{display:none}
+body.pnl-on #pnl-bd{display:block;position:fixed;inset:0;background:#0f1b3a33;z-index:1199}
+@media (min-width:1280px){body.pnl-on #pnl-bd{background:transparent}}
+.pnl-head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:18px 20px 12px;border-bottom:1px solid #EDF0F5}
+.pnl-code{margin:0;font-size:12px;font-weight:700;letter-spacing:.05em;color:#284397}
+.pnl-head h2{margin:2px 0 8px;font-size:18px;line-height:1.35;overflow-wrap:anywhere}
+.pnl-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pnl-x{flex:none;width:40px;height:40px;border-radius:8px;border:1px solid #D5DCE7;background:#fff;font-size:16px;cursor:pointer;color:#3D475B}
+.pnl-x:hover{background:#F2F5F9}
+.pnl-tabs{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid #EDF0F5}
+.pnl-tabs button{font:inherit;font-size:14px;font-weight:600;color:#5A6478;background:none;border:0;border-bottom:3px solid transparent;padding:10px 12px;cursor:pointer;min-height:44px}
+.pnl-tabs button.on{color:#284397;border-bottom-color:#284397}
+.pnl-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;padding:16px 20px}
+.pnl-dl{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin:0}
+.pnl-dl .w2{grid-column:1/-1}
+.pnl-dl dt{font-size:12px;color:#5A6478;margin-bottom:2px}.pnl-dl dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+.pnl-over{font-style:normal;color:#B42318;font-weight:600}
+.pnl-links{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
+.pnl-links .dv-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px}
+.pnl-links svg{width:16px;height:16px}
+.pnl-h3{font-size:14px;margin:18px 0 8px;color:#3D475B}
+.pnl-note{margin:0;white-space:pre-wrap;font-size:13.5px;color:#3D475B;background:#F7F9FC;border-radius:8px;padding:10px 12px}
+.pnl-tl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.pnl-tl li{display:grid;grid-template-columns:96px 1fr;gap:2px 10px;font-size:13px}
+.pnl-tl time{grid-row:span 2;color:#5A6478;font-size:12px}
+.pnl-tl span{color:#5A6478;overflow-wrap:anywhere}
+.pnl-mut{color:#5A6478;font-size:13px;margin:0}
+.pnl-chat{flex:1;min-height:200px;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:2px 2px 10px;margin:-4px -4px 0}
+.pnl-empty{margin:auto;text-align:center;color:#3D475B;padding:24px 10px}.pnl-empty p{color:#5A6478;font-size:13px}
+.pnl-th{border:1px solid #E6EAF1;border-radius:12px;padding:10px 12px;background:#fff}
+.pnl-msg{display:flex;gap:10px;align-items:flex-start}
+.pnl-av{flex:none;width:30px;height:30px;border-radius:50%;background:#E8EEFA;color:#284397;font-size:11.5px;font-weight:700;display:grid;place-items:center}
+.pnl-msg.me .pnl-av{background:#284397;color:#fff}
+.pnl-bub{min-width:0;flex:1}
+.pnl-meta{margin:0 0 2px;font-size:12.5px;color:#5A6478}.pnl-meta b{color:#151516;font-weight:600}
+.pnl-new{font-style:normal;font-size:11px;font-weight:700;color:#fff;background:#C2410C;border-radius:4px;padding:0 5px;margin-left:4px}
+.pnl-subj{margin:0 0 2px;font-weight:700}
+.pnl-txt{font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.pnl-txt a{color:#005CB9}
+.pnl-at{color:#4F52B2;font-weight:600}
+.pnl-img,.pnl-card{display:inline-block;font-size:12.5px;color:#5A6478;background:#F2F5F9;border-radius:6px;padding:2px 8px;margin:2px 0}
+.pnl-q{display:block;border-left:3px solid #CBD3E0;padding-left:8px;color:#5A6478}
+.pnl-atts{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.pnl-file{font-size:13px}
+.pnl-reps{margin:8px 0 0 18px;padding-left:12px;border-left:2px solid #EDF0F5;display:flex;flex-direction:column;gap:10px}
+.pnl-reps .pnl-av{width:26px;height:26px;font-size:10.5px}
+.pnl-more,.pnl-rbtn{font:inherit;font-size:12.5px;font-weight:600;color:#005CB9;background:none;border:0;padding:6px 0;cursor:pointer;min-height:32px;text-align:left}
+.pnl-rbtn{margin:4px 0 0 40px}
+.pnl-msg.nw .pnl-bub{background:#FFF7ED;border-radius:6px;padding:2px 6px;margin:-2px -6px}
+.pnl-warn{margin:0;font-size:12.5px;color:#9A3412;background:#FFF1E6;border-radius:6px;padding:6px 10px}
+.pnl-comp{position:sticky;bottom:-16px;margin:8px -20px -16px;padding:10px 16px 14px;background:#fff;border-top:1px solid #EDF0F5;display:flex;flex-direction:column;gap:6px}
+.pnl-comp textarea{font:inherit;font-size:15px;line-height:1.45;border:1px solid #CBD3E0;border-radius:10px;padding:9px 12px;resize:vertical;min-height:44px;max-height:200px}
+.pnl-comp textarea:focus{outline:2px solid #9DB4E6;border-color:#284397}
+.pnl-replyto{font-size:12.5px;color:#3D475B;background:#EEF3FC;border-radius:8px;padding:6px 10px}
+.pnl-ments,.pnl-pend{display:flex;flex-wrap:wrap;gap:6px}.pnl-ments:empty,.pnl-pend:empty{display:none}
+.pnl-mchip{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;background:#F2F5F9;border-radius:999px;padding:2px 4px 2px 10px}
+.pnl-chipx{border:0;background:none;cursor:pointer;color:#5A6478;width:24px;height:24px;border-radius:50%;font-size:11px}
+.pnl-chipx:hover{background:#E1E6EE}
+.pnl-cbar{display:flex;align-items:center;gap:6px}
+.pnl-ib{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:8px;border:1px solid #D5DCE7;background:#fff;cursor:pointer;font:inherit;font-weight:700;color:#3D475B;position:relative}
+.pnl-ib:hover{background:#F2F5F9}.pnl-ib:focus-within{outline:2px solid #005CB9}
+.pnl-ib input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.pnl-cmsg{flex:1;font-size:12.5px;color:#5A6478;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pnl-send{min-height:40px;padding:0 18px}
+.pnl-pick[hidden],.pnl-replyto[hidden]{display:none!important}.pnl-pick{display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow:auto;border:1px solid #E1E6EE;border-radius:8px;padding:8px}
+.pnl-pick .pnl-mut{flex-basis:100%}
+.pnl-pick button{font:inherit;font-size:13px;border:1px solid #CBD3E0;background:#fff;border-radius:999px;padding:4px 12px;cursor:pointer;min-height:32px}
+.pnl-pick button:hover{background:#EEF3FC;border-color:#284397}
+@media (max-width:640px){
+ #pnl{width:100vw;border-left:0}
+ .pnl-dl{grid-template-columns:1fr}
+ .pnl-tl li{grid-template-columns:1fr}.pnl-tl time{grid-row:auto}
+ .pnl-reps{margin-left:6px}
+ .pnl-rbtn{margin-left:0}
 }
 </style>
 </body></html>
