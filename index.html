@@ -875,10 +875,10 @@ async function mTeamsSync(force){if(TS.busy)return TS.busy;if(!force&&TS.at&&Dat
   let pairs=Object.values(prim);
   let out={},ext=[],list=[],done=0;TS.progress={done:0,total:all.length};
   /* v16.21 อ่านแบบเพิ่มเฉพาะส่วนที่เปลี่ยน: Channel ที่เคยอ่านแล้ว เช็กบทสนทนาล่าสุด 1 รายการ ($top=1) ถ้าเหมือนเดิมใช้ผลเดิม; อ่านเต็มเมื่อมีข้อความใหม่ / ครบรอบอ่านเต็ม (6–24 ชม. สุ่มกระจาย, ครั้งละ ≤40 Channel) */
-  let prev={},nFull=0,KEEP=["msgs","days","last","lastBy","lastMent","lastId","cmds","subs","eng","recent","sig","fullExp"];for(let x of TS.all||[])if(x&&x.channelId)prev[x.channelId]=x;
+  let prev={},nFull=0,KEEP=["msgs","days","last","lastBy","lastMent","lastId","cmds","subs","eng","recent","sig","fullExp","ments"];for(let x of TS.all||[])if(x&&x.channelId)prev[x.channelId]=x;
   let sigOf=m=>{if(!m)return"-";let rs=m.replies||[],mx=m.lastModifiedDateTime||m.createdDateTime||"";for(let y of rs){let t=y.lastModifiedDateTime||y.createdDateTime||"";if(t>mx)mx=t}return m.id+"|"+rs.length+"|"+mx};
   TS.stat={light:0,full:0,same:0};
-  await mPool(all,8,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",lastMent:[],lastId:"",cmds:[],subs:[],eng:{},recent:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
+  await mPool(all,8,async({p,c,score:sc,manual,ignored})=>{let r={teamId:c.teamId,channelId:c.id,name:c.displayName,url:c.webUrl,teamName:c.teamName,msgs:0,days:{},last:"",lastBy:"",lastMent:[],lastId:"",cmds:[],subs:[],eng:{},recent:[],ments:[],pid:p?.id||"",manual:!!manual,ignored:!!ignored,score:sc||0};list.push(r);if(p){if(prim[p.id]?.c.id===c.id)out[p.id]=r}else ext.push(r);
    try{
    if(!M.teamsOK){r.error="ยังไม่ได้รับสิทธิ์อ่านข้อความ";return}
    let old=prev[c.id];
@@ -888,12 +888,12 @@ async function mTeamsSync(force){if(TS.busy)return TS.busy;if(!force&&TS.at&&Dat
    if(old&&Date.now()>(old.fullExp||0))nFull++;TS.stat.full++;
    let msgs=[],add=(x,root)=>{if(!x||x.messageType!=="message"||x.deletedDateTime)return;let u=x.from?.user;if(!u)return;let at=x.createdDateTime||"",by=u.displayName||"";r.msgs++;let dk=at?new Date(Date.parse(at)+252e5).toISOString().slice(0,10):"";if(dk)r.days[dk]=(r.days[dk]||0)+1;
     if(at>r.last){r.last=at;r.lastBy=by;r.lastId=x.id;r.lastMent=(x.mentions||[]).map(m=>m.mentioned?.user?.displayName||(m.mentioned?.conversation?"@"+(m.mentionText||"channel"):m.mentionText||"")).filter(Boolean)}let n=mEngName(by);if(n){let e=r.eng[n]=r.eng[n]||{n:0,last:"",first:at,days:{}};e.n++;if(at>e.last)e.last=at;if(at<e.first)e.first=at;if(dk)e.days[dk]=(e.days[dk]||0)+1}
-    let tx=mPlain(x.body?.content)||x.subject||"";msgs.push({id:x.id,at,by,text:(tx||"(ข้อความ)").slice(0,280)});let cm=mCmd(tx),sb=cm?"":mSub(tx);if((cm||sb)&&mT(at)>=mT(CFG.statusSince||"2026-10-17T00:00:00+07:00")){let o={id:x.id,root:root?root.id:x.id,at,by};if(cm)r.cmds.push({...o,cmd:cm});else r.subs.push({...o,sub:sb})}};
+    let tx=mPlain(x.body?.content)||x.subject||"";msgs.push({id:x.id,at,by,text:(tx||"(ข้อความ)").slice(0,280)});if(typeof mentIsMe==="function"&&mentIsMe(x,M.profile?.oid))r.ments.push({id:x.id,root:root?root.id:x.id,at,by,text:(tx||"(ข้อความ)").slice(0,280)});let cm=mCmd(tx),sb=cm?"":mSub(tx);if((cm||sb)&&mT(at)>=mT(CFG.statusSince||"2026-10-17T00:00:00+07:00")){let o={id:x.id,root:root?root.id:x.id,at,by};if(cm)r.cmds.push({...o,cmd:cm});else r.subs.push({...o,sub:sb})}};
    try{let u=`${M_GRAPH}/teams/${c.teamId}/channels/${c.id}/messages?$top=50&$expand=replies`,k=0;
     while(u&&k<4){let j=await mHttp(u,{},"teams");if(!k)r.sig=sigOf(j.value?.[0]);for(let m of j.value||[]){add(m);for(let y of m.replies||[])add(y,m)}u=j["@odata.nextLink"];k++}r.fullExp=Date.now()+(6+Math.random()*18)*36e5}catch(e){r.error=e.message;r.sig=""}
    r.recent=msgs.sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8)}finally{TS.progress.done=++done;if(done%10===0)try{typeof mDashRender==="function"&&mDashRender()}catch{}}});
   TS.channels=out;TS.extra=ext;TS.all=list;TS.live=liveIds;TS.liveTeams=okTeams;TS.gone=(TS.gone||[]).filter(x=>!liveIds.includes(x));TS.progress=null;TS.at=Date.now();TS.err=M.teamsOK?"":M.teamsErr;TS.teamsCount=teams.length;TS.chanCount=chans.length;
-  TS.cached=0;mTsSave();
+  TS.cached=0;mTsSave();try{typeof mentNotify==="function"&&mentNotify()}catch(e){console.warn("[9D] mentions",e)}
   let nlink=0;if(M.role!=="sales"&&M.role!=="viewer"&&M.tl)for(let{p,c}of pairs)if(!p.channelId&&nlink++<40){try{await mSaveTrack({...p,channelId:c.id,channelUrl:c.webUrl||"",teamId:c.teamId},[{id:"act-"+pvUid(),actor:M.profile.name,action:"เชื่อม Teams Channel อัตโนมัติ",note:"พบ Channel "+c.displayName+(c.teamName?" ใน Team "+c.teamName:""),createdAt:pvNow()}])}catch(e){}}
   M.cacheAt=0;mApprovalImportsInject()}catch(e){TS.err=e.message;console.error("[9D teams]",e)}finally{TS.busy=null}return TS})();return TS.busy}
 /* ผูก Channel กับโครงการด้วยมือ (Engineer/Admin) — เก็บใน settings.channelMap ของ 9D Project Tracking; "none" = ไม่ใช่ Channel งานโครงการ */
@@ -3225,7 +3225,7 @@ function pnlRender(a,ch){let box=a.querySelector(".pnl-chat");if(!box)return;let
  box.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{let t=th.find(x=>x.m.id===b.dataset.open);if(t){t.open=!0;box.dataset.k="";pnlRender(a,ch)}});
  box.querySelectorAll("[data-reply]").forEach(b=>b.onclick=()=>{let t=th.find(x=>x.m.id===b.dataset.reply);if(!t)return;PNL.reply={id:t.m.id,who:pnlWho(t.m),txt:(t.m.subject||new DOMParser().parseFromString(t.m.body?.content||"","text/html").body.textContent||"").trim().slice(0,60)};pnlCompPaint(a);a.querySelector("#pnl-ta")?.focus()});
  if(near)box.scrollTop=box.scrollHeight;
- if(last){PNL.seen[ch.channelId]=new Date(last).toISOString();pnlSeenSave();a.querySelector(".pnl-tabs .pnl-dot")?.remove()}}
+ if(last){PNL.seen[ch.channelId]=new Date(last).toISOString();pnlSeenSave();try{typeof mentSeenChan==="function"&&mentSeenChan(ch.channelId,last)}catch{}a.querySelector(".pnl-tabs .pnl-dot")?.remove()}}
 window.pnlRetry=()=>{PNL.err="";PNL.msgs=null;let a=document.getElementById("pnl"),b=a?.querySelector(".pnl-chat");if(b){b.dataset.k="";b.innerHTML='<p class="pnl-mut pnl-load">กำลังโหลดข้อความ…</p>'}pnlLoad(!1)};
 function pnlCompPaint(a){let r=a.querySelector(".pnl-replyto"),mt=a.querySelector(".pnl-ments"),pd=a.querySelector(".pnl-pend");if(!r)return;
  r.hidden=!PNL.reply;r.innerHTML=PNL.reply?`↩ ตอบ <b>${mEsc(PNL.reply.who)}</b>: ${mEsc(PNL.reply.txt)}… <button type="button" class="pnl-chipx" data-x="reply" aria-label="ยกเลิกการตอบในเธรด">✕</button>`:"";
@@ -3788,7 +3788,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.66";
+var M_VER="v16.67";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -3820,8 +3820,62 @@ function gate(kind,msg){let el=document.getElementById("gate"),ms='<span class="
  el.innerHTML=`<div class="g-card"><div class="g-brand">${window.NINE_LOGO?`<img class="g-logo" src="${window.NINE_LOGO}" alt="Nine Distribution">`:""}<span class="g-app">INTEGRATED OPERATIONS</span></div>${body}</div>`;pwaSlot();el.style.display="flex"}
 window.mLoginNow=()=>{gate("busy","กำลังไปหน้า Microsoft…");mLogin()};window.mLogoutNow=()=>mLogout();
 /* v16.36 การเปลี่ยนแปลงภายในแดชบอร์ดไม่ต้องสแกนเมนู/ฟอร์มทั้งหน้าอีก และรวมการอัปเดต React ต่อเฟรม */
+/* ===== v16.67 แจ้งเตือนเมื่อมีคนแท็กเรา (@ชื่อเรา) ใน Teams Channel =====
+   อ่านจากผลซิงค์ Teams (TS.all[].ments) · กระดิ่งบนแถบด้านบนแสดงจำนวนที่ยังไม่อ่าน · กดดูรายการ → เปิดแผง "คุยในทีม" ของงานนั้น
+   สถานะอ่านแล้วเก็บในเครื่อง (localStorage "9d-ment") */
+var MENT={seen:{},toast:{},init:0,pass:0};
+try{let o=JSON.parse(localStorage.getItem("9d-ment")||"{}");MENT.seen=o.seen||{};MENT.toast=o.toast||{};MENT.init=o.init||0}catch{}
+function mentSave(){try{let cut=Date.now()-45*864e5,f=o=>Object.fromEntries(Object.entries(o||{}).filter(([,t])=>t>cut));localStorage.setItem("9d-ment",JSON.stringify({seen:f(MENT.seen),toast:f(MENT.toast),init:MENT.init}))}catch{}}
+/* ข้อความนี้แท็กเราไหม: ตรงกับ Object ID ของเรา (ไม่นับข้อความที่เราเขียนเอง) */
+function mentIsMe(x,oid){oid=String(oid||"").toLowerCase();if(!oid||!x)return!1;if(String(x.from?.user?.id||"").toLowerCase()===oid)return!1;
+ return(x.mentions||[]).some(m=>String(m.mentioned?.user?.id||"").toLowerCase()===oid)}
+function mentList(all){let L=[],cut=Date.now()-30*864e5,seen=new Set();
+ for(let r of all||(typeof TS!=="undefined"?TS.all:[])||[])for(let m of r?.ments||[]){if(!m||!m.id||seen.has(m.id)||mT(m.at)<cut)continue;seen.add(m.id);L.push({...m,channelId:r.channelId,teamId:r.teamId,pid:r.pid||"",name:r.name||"",teamName:r.teamName||""})}
+ return L.sort((a,b)=>String(b.at).localeCompare(String(a.at)))}
+function mentUnread(L){return(L||mentList()).filter(x=>!MENT.seen[x.id])}
+function mentLink(x){return`https://teams.microsoft.com/l/message/${encodeURIComponent(x.channelId)}/${encodeURIComponent(x.id)}?groupId=${encodeURIComponent(x.teamId||"")}&parentMessageId=${encodeURIComponent(x.root||x.id)}${M.profile?.tid?"&tenantId="+encodeURIComponent(M.profile.tid):""}`}
+function mentRead(ids){let t=Date.now();for(let id of ids)MENT.seen[id]=t;mentSave();mentPaint()}
+/* เปิดแผง "คุยในทีม" ของ Channel นั้นแล้ว = อ่านแท็กที่เก่ากว่าข้อความล่าสุดแล้ว */
+function mentSeenChan(chId,last){let lt=mT(last)||Date.now(),ids=mentUnread().filter(x=>x.channelId===chId&&mT(x.at)<=lt).map(x=>x.id);if(ids.length)mentRead(ids)}
+/* หลังซิงค์ Teams: เด้งแจ้งเตือนแท็กใหม่ (ครั้งแรกที่ใช้: แท็กที่เก่ากว่า 2 วันนับว่าอ่านแล้ว ไม่ให้เด้งย้อนหลังทีเดียวเยอะ ๆ) */
+function mentNotify(){let L=mentList();if(!MENT.init){let cut=Date.now()-2*864e5,t=Date.now();for(let x of L){if(mT(x.at)<cut)MENT.seen[x.id]=t;MENT.toast[x.id]=t}MENT.init=t;mentSave();mentPaint();return 0}
+ let nw=mentUnread(L).filter(x=>!MENT.toast[x.id]);if(!nw.length){mentPaint();return 0}let t=Date.now();for(let x of nw)MENT.toast[x.id]=t;mentSave();mentPaint();
+ let x=nw[0];if(nw.length===1)mToast(`🔔 ${x.by||"มีคน"} แท็กคุณใน ${x.name}: ${String(x.text||"").slice(0,90)}`,!1,{label:"เปิดดู",fn:()=>mentOpen(x.id)});
+ else mToast(`🔔 มีคนแท็กคุณใน Teams ${nw.length} ข้อความใหม่`,!1,{label:"ดูทั้งหมด",fn:()=>mentPop()});
+ try{if(document.hidden&&"Notification"in window&&Notification.permission==="granted")for(let y of nw.slice(0,3)){let n=new Notification(`${y.by||"มีคน"} แท็กคุณใน ${y.name}`,{body:String(y.text||"").slice(0,140),tag:"9d-"+y.id});n.onclick=()=>{window.focus();mentOpen(y.id);n.close()}}}catch(e){console.warn("[9D] notification",e)}
+ return nw.length}
+/* กระดิ่งบนแถบด้านบน: ตัวเลขแท็กที่ยังไม่อ่าน + กดแล้วเปิดรายการแจ้งเตือน (งานที่ต้องติดตามยังกดได้จากในรายการ) */
+function mentPaint(){let n=M.profile?mentUnread().length:0;
+ document.querySelectorAll(".topbar .notification.icon-button,button.notification.icon-button").forEach(b=>{
+  if(!b.dataset.ment){b.dataset.ment="1";b.addEventListener("click",e=>{if(MENT.pass)return;e.preventDefault();e.stopPropagation();mentPop(b)},!0)}
+  let s=b.querySelector(".ment-badge");if(n){if(!s){s=document.createElement("span");s.className="ment-badge";s.setAttribute("aria-hidden","true");b.appendChild(s)}let tx=n>99?"99+":String(n);if(s.textContent!==tx)s.textContent=tx}else s?.remove();
+  let lb=n?`การแจ้งเตือน: มีคนแท็กคุณ ${n} ข้อความที่ยังไม่อ่าน`:"การแจ้งเตือน";if(b.getAttribute("aria-label")!==lb)b.setAttribute("aria-label",lb);b.setAttribute("aria-haspopup","dialog")})}
+function mentClose(){let p=document.getElementById("ment-pop");if(!p)return;p.remove();document.removeEventListener("mousedown",mentOut,!0);document.removeEventListener("keydown",mentKey,!0);MENT.btn?.focus?.()}
+function mentOut(e){let p=document.getElementById("ment-pop");if(p&&!p.contains(e.target)&&!e.target.closest?.(".notification.icon-button"))mentClose()}
+function mentKey(e){if(e.key==="Escape"){e.stopPropagation();mentClose()}}
+function mentHtml(){let L=mentList(),un=new Set(mentUnread(L).map(x=>x.id)),ts=typeof TS!=="undefined"?TS:{};
+ let item=x=>`<li class="ment-it${un.has(x.id)?" new":""}"><button type="button" class="ment-go" data-id="${mEsc(x.id)}"><span class="ment-av" aria-hidden="true">${mEsc(String(x.by||"?").trim().charAt(0).toUpperCase())}</span><span class="ment-tx"><span class="ment-h"><b>${mEsc(x.by||"มีคน")}</b> แท็กคุณใน <b>${mEsc(x.name)}</b></span><span class="ment-q">${mEsc(String(x.text||"").slice(0,160))}</span><small>${dvAgo(x.at)}ที่แล้ว${x.teamName?" · "+mEsc(x.teamName):""}${un.has(x.id)?' · <em>ใหม่</em>':""}</small></span></button><a class="ment-ext" href="${mEsc(mentLink(x))}" target="_blank" rel="noreferrer" data-id="${mEsc(x.id)}" title="เปิดใน Teams" aria-label="เปิดข้อความนี้ใน Teams">${typeof uiA==="function"?uiA("teams").replace(/<\/span>[^<]*$/,"</span>"):"Teams"}</a></li>`;
+ let canN="Notification"in window&&Notification.permission==="default";
+ return`<div class="ment-head"><h2 id="ment-h">การแจ้งเตือน</h2>${un.size?`<button type="button" class="dv-link ment-all">อ่านทั้งหมดแล้ว</button>`:""}<button type="button" class="dv-xbtn ment-x" aria-label="ปิด">✕</button></div>
+  <div class="ment-body"><h3>แท็กคุณใน Teams${un.size?` <span class="ment-n">${un.size} ใหม่</span>`:""}</h3>
+  ${L.length?`<ul class="ment-ul">${L.slice(0,40).map(item).join("")}</ul>`:`<p class="ment-empty">ยังไม่มีใครแท็กคุณใน 30 วันที่ผ่านมา</p>`}
+  <p class="ment-note">เช็กข้อความ Teams อัตโนมัติทุก 5 นาที${ts.at?" · ล่าสุด "+dvAgo(ts.at)+"ที่แล้ว":""} <button type="button" class="dv-link ment-sync"${ts.busy?" disabled":""}>${ts.busy?"กำลังเช็ก…":"เช็กตอนนี้"}</button></p>
+  ${canN?`<p class="ment-note"><button type="button" class="dv-link ment-perm">เปิดแจ้งเตือนบนเครื่อง</button> (เด้งเตือนแม้ไม่ได้ดูหน้านี้อยู่)</p>`:""}</div>
+  <div class="ment-foot"><button type="button" class="ment-fu">ดูงานที่ต้องติดตาม →</button></div>`}
+window.mentPop=b=>{b=b||document.querySelector(".topbar .notification.icon-button");if(document.getElementById("ment-pop")){mentClose();return}MENT.btn=b;
+ let p=document.createElement("div");p.id="ment-pop";p.setAttribute("role","dialog");p.setAttribute("aria-labelledby","ment-h");document.body.appendChild(p);
+ let place=()=>{let r=b?.getBoundingClientRect();if(r&&r.width){p.style.top=Math.round(r.bottom+8)+"px";if(innerWidth>640)p.style.right=Math.max(8,Math.round(innerWidth-r.right-8))+"px"}};
+ let paint=()=>{p.innerHTML=mentHtml();place();
+  p.querySelector(".ment-x").onclick=mentClose;p.querySelector(".ment-all")?.addEventListener("click",()=>{mentRead(mentUnread().map(x=>x.id));paint()});
+  p.querySelectorAll(".ment-go").forEach(e=>e.onclick=()=>mentOpen(e.dataset.id));p.querySelectorAll(".ment-ext").forEach(e=>e.addEventListener("click",()=>{mentRead([e.dataset.id]);setTimeout(paint,0)}));
+  p.querySelector(".ment-sync")?.addEventListener("click",async()=>{let s=TS.busy||mTeamsSync(!0);paint();try{await s}catch{}if(document.getElementById("ment-pop"))paint()});
+  p.querySelector(".ment-perm")?.addEventListener("click",async()=>{try{await Notification.requestPermission()}catch{}paint()});
+  p.querySelector(".ment-fu").onclick=()=>{mentClose();MENT.pass=1;try{(b||document.querySelector(".topbar .notification.icon-button"))?.click()}finally{MENT.pass=0}}};
+ paint();p.querySelector(".ment-go,.ment-x")?.focus();document.addEventListener("mousedown",mentOut,!0);document.addEventListener("keydown",mentKey,!0)};
+window.mentOpen=id=>{let x=mentList().find(y=>y.id===id);mentClose();if(!x)return;mentRead([id]);
+ if(x.pid&&typeof dvPanel==="function")dvPanel(x.pid,"chat");else window.open(mentLink(x),"_blank","noopener")};
 var mUiFrame=0;function mUiSchedule(records){if(records?.length&&records.every(r=>(r.target.nodeType===1?r.target:r.target.parentElement)?.closest?.("#dashv")))return;
- if(mUiFrame)return;mUiFrame=requestAnimationFrame(()=>{mUiFrame=0;mNavInject();dvSync();mCodeAuto();try{dvDraftInject();dvWorkspaceSettingsInject();wsApplyUi();mApprovalImportsInject()}catch(e){}})}
+ if(mUiFrame)return;mUiFrame=requestAnimationFrame(()=>{mUiFrame=0;mNavInject();dvSync();mCodeAuto();try{mentPaint()}catch{}try{dvDraftInject();dvWorkspaceSettingsInject();wsApplyUi();mApprovalImportsInject()}catch(e){}})}
 async function boot(){
  if(!window.isSecureContext||!crypto.subtle){gate("login","ต้องเปิดผ่าน https:// (หรือ http://localhost) เท่านั้น — ไฟล์ที่เปิดจากเครื่องโดยตรงเข้าสู่ระบบ Microsoft ไม่ได้");document.querySelector("#gate .go").disabled=!0;return}
  if(!CFG.clientId){gate("setup");return}
@@ -3842,7 +3896,7 @@ async function boot(){
  document.getElementById("gate").style.display="none";
  let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">${UI_IC.chat} Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{try{await mCancelSync()}catch(e){console.warn(e)}try{let rb=await mChanRebind();if(rb.length){mToast("ย้ายลิงก์ Teams ตาม Project Code ใหม่แล้ว "+rb.length+" งาน: "+rb.slice(0,5).join(", ")+(rb.length>5?" …":""));DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] rebind",e)}try{if(await mChanVerify()){DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] channel verify",e)}try{if(await mChanFilesFix()){DV.stAt=0}}catch(e){console.warn("[9D] files fix",e)}try{await mDupNotify()}catch(e){console.warn(e)}if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}try{await mWfAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(()=>boPoll(),10000);setInterval(syncAuto,10*60e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(mUiSchedule).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{try{await mCancelSync()}catch(e){console.warn(e)}try{let rb=await mChanRebind();if(rb.length){mToast("ย้ายลิงก์ Teams ตาม Project Code ใหม่แล้ว "+rb.length+" งาน: "+rb.slice(0,5).join(", ")+(rb.length>5?" …":""));DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] rebind",e)}try{if(await mChanVerify()){DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] channel verify",e)}try{if(await mChanFilesFix()){DV.stAt=0}}catch(e){console.warn("[9D] files fix",e)}try{await mDupNotify()}catch(e){console.warn(e)}if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}try{await mWfAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(()=>boPoll(),10000);setInterval(syncAuto,10*60e3);/* v16.67 เช็กแท็กใน Teams ถี่ขึ้น (ทุก 5 นาที แบบอ่านเฉพาะ Channel ที่มีข้อความใหม่) */setInterval(()=>{if(!TS.busy&&TS.at&&Date.now()-TS.at>=5*60e3-5e3)mTeamsSync(!0).catch(e=>console.warn(e))},60e3);setTimeout(()=>{try{mentPaint()}catch{}},2e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(mUiSchedule).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 /* ---- PWA: ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ / คอมพิวเตอร์ (v16.4) ---- */
@@ -5189,5 +5243,37 @@ body.pnl-on #pnl-bd{display:block;position:fixed;inset:0;background:#0f1b3a33;z-
  .dv-bcol.sel{display:flex!important;width:100%}
  .dv-bcol.sel ul{max-height:none!important}
 }
+</style>
+<style id="v1667">
+/* v16.67 แจ้งเตือนแท็กใน Teams */
+.notification.icon-button .ment-badge{position:absolute;top:2px;right:0;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:999px;background:#C2410C;color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;border:2px solid #fff;pointer-events:none;font-variant-numeric:tabular-nums}
+#ment-pop{position:fixed;top:64px;right:12px;z-index:1200;width:min(400px,calc(100vw - 16px));max-height:min(620px,calc(100vh - 90px));display:flex;flex-direction:column;background:#fff;border:1px solid #D5DCE7;border-radius:12px;box-shadow:0 12px 32px rgba(21,21,22,.18);overflow:hidden;color:#151516}
+.ment-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #EDF0F5}
+.ment-head h2{margin:0;font-size:16px;flex:1}
+.ment-body{overflow:auto;padding:10px 14px 4px}
+.ment-body h3{margin:2px 0 8px;font-size:13px;color:#5A6478;font-weight:600}
+.ment-n{display:inline-block;background:#FDECE3;color:#9A3412;border-radius:999px;padding:0 8px;font-size:11.5px;margin-left:4px}
+.ment-ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ment-it{display:flex;align-items:flex-start;gap:4px;border-radius:9px;border:1px solid transparent}
+.ment-it.new{background:#F2F6FD;border-color:#DCE5F7}
+.ment-go{all:unset;box-sizing:border-box;flex:1;min-width:0;display:flex;gap:10px;padding:9px 8px;cursor:pointer;border-radius:9px}
+.ment-go:hover{background:#EEF3FB}
+.ment-go:focus-visible{outline:2px solid #005CB9}
+.ment-av{flex:none;width:30px;height:30px;border-radius:50%;background:#284397;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.ment-tx{min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:1.4}
+.ment-h{overflow-wrap:anywhere}
+.ment-q{color:#3D475B;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.ment-tx small{color:#5A6478;font-size:11.5px}
+.ment-tx small em{font-style:normal;color:#C2410C;font-weight:700}
+.ment-ext{flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin:6px 4px 0 0;border-radius:8px;color:#284397}
+.ment-ext:hover{background:#EEF3FB}
+.ment-ext .ui-ic{margin:0}
+.ment-empty{margin:4px 0 10px;padding:14px;border:1px dashed #D5DCE7;border-radius:9px;color:#5A6478;font-size:13px;text-align:center}
+.ment-note{margin:10px 0 8px;font-size:12px;color:#5A6478}
+.ment-foot{border-top:1px solid #EDF0F5;padding:8px 10px}
+.ment-foot button{all:unset;box-sizing:border-box;width:100%;padding:9px 8px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#284397}
+.ment-foot button:hover{background:#F2F6FD}
+.ment-foot button:focus-visible{outline:2px solid #005CB9}
+@media (max-width:640px){#ment-pop{left:8px;right:8px;top:66px;width:auto;max-height:calc(100vh - 170px)}}
 </style>
 </body></html>
