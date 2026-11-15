@@ -107,10 +107,10 @@ test('ผู้ใช้เริ่มพิมพ์ระหว่างโ�
  }
 });
 test('สถานะ 2,000 งานจำกัดรายการหน้าจอ แต่ค้นหาท้ายชุดและสลับบอร์ดยังค้นเจอ',async()=>{
- const r=listSetup('status');await r.c.dvStatusPage(r.host);assert.equal((r.result.innerHTML.match(/class="dv-prow"/g)||[]).length,200);
+ const r=listSetup('status');await r.c.dvStatusPage(r.host);assert.equal((r.result.innerHTML.match(/class="dv-prow"/g)||[]).length,40);
  r.c.dvStatusSearch('TST02000');assert.match(r.result.innerHTML,/TST02000/);assert.equal(r.note().n,1);assert.equal(r.host.writes,1);
  r.c.DV.stv='board';await r.c.dvStatusPage(r.host);assert.match(r.result.innerHTML,/TST02000/);assert.equal((r.result.innerHTML.match(/class="dv-bcard/g)||[]).length,1);
- r.c.dvStatusSearch('');assert.equal((r.result.innerHTML.match(/class="dv-bcard/g)||[]).length,200);r.c.dvSMore();assert.equal((r.result.innerHTML.match(/class="dv-bcard/g)||[]).length,400);
+ r.c.dvStatusSearch('');assert.equal((r.result.innerHTML.match(/class="dv-bcard/g)||[]).length,40);r.c.dvSMore();assert.equal((r.result.innerHTML.match(/class="dv-bcard/g)||[]).length,80);
 });
 test('หน้าสถานะกรอง Engineer + Sales ก่อนคำนวณการ์ด รายการ บอร์ด และค้นหา',async()=>{
  const r=listSetup('status',24);for(let i=0;i<r.projects.length;i++){r.projects[i].engineer=i%2?'Engineer B':'Engineer A';r.projects[i].accountId=i%3?'acc-sales':'acc-other';r.projects[i].pstat.s=i%5?'active':'delivered'}
@@ -131,7 +131,7 @@ test('ข้อความ/ลำดับที่ตั้งใหม่ป�
  const r=listSetup('status',2),before=JSON.stringify(r.projects),view=r.c.wsUi().status;view.title='หัวข้อทดสอบ';view.cards.recv={label:'รับเรื่องและตรวจข้อมูล',who:'ฝ่ายวิศวกรรม'};view.afterOrder.reverse();r.c.wsUi=()=>({status:view});r.c.dvStepField=sb=>esc(sb.m.t)+' / '+esc(sb.m.who);await r.c.dvStatusPage(r.host);assert.match(r.host.markup,/<h1>หัวข้อทดสอบ<\/h1>/);assert.match(r.host.markup,/รับเรื่องและตรวจข้อมูล/);assert.match(r.result.innerHTML,/รับเรื่องและตรวจข้อมูล \/ ฝ่ายวิศวกรรม/);assert.match(r.result.innerHTML,/value="sub:recv" disabled>รับเรื่องและตรวจข้อมูล · ฝ่ายวิศวกรรม/);assert.equal(JSON.stringify(r.projects),before);assert.equal(r.c.SUBST.recv.t,'รับงานแล้ว');r.c.DV.stv='board';await r.c.dvStatusPage(r.host);assert.match(r.result.innerHTML,/aria-label="รับเรื่องและตรวจข้อมูล"/);
 });
 test('ล้างผู้รับผิดชอบคงคำค้น/สถานะไว้ รีเซ็ตชุดแสดง และคืนข้อมูลครบเฉพาะในสิทธิ์',async()=>{
- const r=listSetup('status',12);r.c.DV.se='eng:missing';r.c.DV.sa='account:private';r.c.DV.q='TST00012';r.c.DV.slim=1000;let renders=0;r.c.dvRender=()=>renders++;r.c.dvStatusPeopleClear();assert.equal(r.c.DV.se,'');assert.equal(r.c.DV.sa,'');assert.equal(r.c.DV.slim,200);assert.equal(r.c.DV.q,'TST00012');assert.equal(r.c.DV.sf,'active');assert.equal(renders,1);await r.c.dvStatusPage(r.host);assert.equal(r.note().n,1);assert.match(r.result.innerHTML,/TST00012/);
+ const r=listSetup('status',12);r.c.DV.se='eng:missing';r.c.DV.sa='account:private';r.c.DV.q='TST00012';r.c.DV.slim=1000;let renders=0;r.c.dvRender=()=>renders++;r.c.dvStatusPeopleClear();assert.equal(r.c.DV.se,'');assert.equal(r.c.DV.sa,'');assert.equal(r.c.DV.slim,40);assert.equal(r.c.DV.q,'TST00012');assert.equal(r.c.DV.sf,'active');assert.equal(renders,1);await r.c.dvStatusPage(r.host);assert.equal(r.note().n,1);assert.match(r.result.innerHTML,/TST00012/);
 });
 test('Admin เว้นข้อความอยู่ที่ว่าง: ขั้นตอนในรายการซ่อนคำค้าง แต่ยังแสดงผู้บันทึกและคำเตือน',()=>{
  const c=context({mEsc:esc,STEPCOL:{recv:'#123456'},dvIcon:{warn:''}},between('var dvStepField=','var dvPChip='));let sb={sub:'recv',m:{t:'รับเรื่อง',who:'',warn:3},days:4,by:'ผู้บันทึก',over:true};let result=c.dvStepField(sb);assert.doesNotMatch(result,/งานอยู่ที่/);assert.match(result,/รับเรื่อง/);assert.match(result,/ผู้บันทึก/);assert.match(result,/ค้างเกิน 3 วัน/);sb.m.who='ฝ่ายวิศวกรรม';assert.match(c.dvStepField(sb),/งานอยู่ที่ <b>ฝ่ายวิศวกรรม<\/b>/);
