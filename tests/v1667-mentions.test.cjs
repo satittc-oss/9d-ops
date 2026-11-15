@@ -4,7 +4,7 @@ const html=fs.readFileSync(__dirname+'/../index.html','utf8');
 const part=html.slice(html.indexOf('/* ===== v16.67 แจ้งเตือนเมื่อมีคนแท็กเรา'),html.indexOf('var mUiFrame=0;function mUiSchedule('));
 const ME='aaaa-me',now=Date.now(),iso=ms=>new Date(now-ms).toISOString();
 function ctx(all,store){const ls={...(store||{})},toasts=[];const c={console,Date,JSON,Object,Set,String,Math,
- localStorage:{getItem:k=>ls[k]??null,setItem:(k,v)=>{ls[k]=v}},document:{hidden:false,querySelectorAll:()=>[],getElementById:()=>null},window:{},
+ localStorage:{getItem:k=>ls[k]??null,setItem:(k,v)=>{ls[k]=v}},document:{hidden:false,querySelectorAll:()=>[],getElementById:()=>null,documentElement:{classList:{toggle(){}}}},window:{},setTimeout:()=>0,clearTimeout(){},dvToday:()=>new Date(now+252e5).toISOString().slice(0,10),mNorm:s=>String(s||'').toLowerCase().replace(/\s+/g,''),LOAN:{},
  M:{profile:{oid:ME,tid:'t1'}},TS:{all},mT:v=>Date.parse(v||0)||0,mToast:(m,e,a)=>toasts.push(m),mEsc:s=>String(s),dvAgo:()=>'1 นาที'};
  c.window=c;vm.createContext(c);vm.runInContext(part,c);c.toasts=toasts;c.ls=ls;return c}
 const msg=(id,from,ments)=>({id,from:{user:{id:from}},mentions:ments.map(u=>({mentioned:{user:{id:u}}}))});

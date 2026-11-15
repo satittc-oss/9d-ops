@@ -549,6 +549,7 @@ async function mLoadData(){
  if(ti){
   let slog={},alog={},sublog={},inbox=[],wfl=[],stk=[];for(let t of ti){let f=t.fields||{},pl={};try{pl=JSON.parse(f.Payload||"{}")}catch{}let pid=Number(f.ProjectItemId);if(pid===0){settings=Object.assign(settings,pl);M.settingsItem=t.id}
    else if(pid===M_PRES){let em=String(pl.email||"").toLowerCase();if(em&&(!pres[em]||mT(pl.at)>=mT(pres[em].at)))pres[em]={...pl,row:t.id}}
+   else if(pid===-9.6e9){if(String(pl.email||"").toLowerCase()===String(M.profile?.email||"").toLowerCase()&&(!M.mseen||mT(pl.at)>=mT(M.mseen.at)))M.mseen={...pl,row:t.id}}
    else if(pid===M_FLOWIX)M.flowIx={...pl,row:t.id};else if(pid===M_WFLOG)wfl.push({...pl,row:t.id});else if(pid===-9.5e9)stk.push({...pl,row:t.id});else if(pid===M_INBOX){if(pl.pid)inbox.push({...pl,row:t.id})}
    else if(pid<0){if(pl.s)(slog[-pid]=slog[-pid]||[]).push({...pl,row:t.id});else if(pl.sub)(sublog[-pid]=sublog[-pid]||[]).push({...pl,row:t.id});else if(pl.d)(alog[-pid]=alog[-pid]||[]).push(pl)}else if(pid){let n={itemId:t.id,...pl},o=track[pid];track[pid]=o?{...o,...n,pstat:mPsNewer(o.pstat,n.pstat),activities:[...(n.activities||[]),...(o.activities||[])].slice(0,120)}:n}}
    /* v16.1: บันทึกสถานะแบบเพิ่มแถว (ProjectItemId ติดลบ) — ไม่มีใครเขียนทับได้ → ใช้ตัวล่าสุดเสมอ */
@@ -2946,21 +2947,23 @@ function stkMatch(q){let codes=(q.codes||[]).map(stkF).filter(c=>c.length>=3),tx
 /* ใบยืมที่ยังไม่คืน → แผนที่ S/N, รหัสสินค้า */
 async function stkLoanMap(){let m={sn:{},code:{}};try{for(let L of await mLoans())if(L.status!=="คืนครบ")for(let x of L.items||[])if(!x.ret){let s=stkF(x.sn),c=stkF(x.code);if(s.length>=4)m.sn[s]=L;if(c.length>=3)(m.code[c]=m.code[c]||[]).push(L)}}catch(e){}return m}
 var stkLoanOf=(it,m)=>m?.sn[stkF(it.sn)]||null;
+/* v16.68 สถานะกำหนดคืนของใบยืม: เกิน (no) · ภายใน 3 วัน (dlv) · ปกติ (cur) */
+var stkDue=L=>{if(!L?.dueDate)return{cls:"cur",txt:"ในใบยืม "+(L?.no||""),n:99};let n=Math.round((Date.parse(L.dueDate)-Date.parse(dvToday()))/864e5);return{n,cls:n<0?"no":n<=3?"dlv":"cur",txt:`${L.no||"ใบยืม"} · ${n<0?"เกินกำหนดคืน "+(-n)+" วัน":n===0?"คืนวันนี้":n<=3?"คืนใน "+n+" วัน":"คืน "+dvTH(L.dueDate)}`}};
 var STK_DELR=["ขาย / ส่งมอบให้ลูกค้าแล้ว","คืนผู้ผลิต / Distributor","ชำรุด ใช้งานไม่ได้ / จำหน่ายทิ้ง","สูญหาย","บันทึกซ้ำ / ข้อมูลผิด","อื่นๆ"];
 /* ---------- หน้า สต็อก Demo ---------- */
 async function dvStockPage(host,id){if(!mIsEng()){host.innerHTML=`<p class="dv-empty">หน้านี้สำหรับ Engineer เท่านั้น</p>`;return}DV.sig=dvSig();
  let lm=await stkLoanMap();STK.lm=lm;if(!dvRenderCurrent(id,"stock"))return;
  let all=stkList(),gone=(M.stock||[]).filter(x=>x.deleted),pcs=a=>a.reduce((s,x)=>s+(Number(x.qty)||1),0),by=k=>all.filter(x=>(x.status||"ready")===k),onLoan=all.filter(x=>stkLoanOf(x,lm));
- let f={all:()=>!0,ready:x=>(x.status||"ready")==="ready"&&!stkLoanOf(x,lm),out:x=>x.status==="out"||!!stkLoanOf(x,lm),fix:x=>x.status==="repair"||x.status==="broken",gone:x=>x.status==="gone"},sf=DV.sf||"all",list=sf==="del"?gone:all.filter(f[sf]||f.all);
+ let f={all:()=>!0,ready:x=>(x.status||"ready")==="ready"&&!stkLoanOf(x,lm),out:x=>x.status==="out"||!!stkLoanOf(x,lm),fix:x=>x.status==="repair"||x.status==="broken",gone:x=>x.status==="gone",due:x=>{let L=stkLoanOf(x,lm);return!!L&&stkDue(L).n<=3}},sf=DV.sf||"all",list=sf==="del"?gone:all.filter(f[sf]||f.all);
  let head=`<header class="dv-head"><div><p class="dv-eyebrow">INTEGRATED OPERATIONS · ENGINEER</p><h1>${dvLbl("stock")}</h1><p class="dv-sub">เครื่อง Demo ของทีม Engineer · ถ่ายภาพฉลาก/บาร์โค้ดเพื่อเช็คว่ามีในระบบแล้วหรือยัง แล้วเพิ่มได้ทันที</p></div>
   <div class="dv-ctrl"><button type="button" class="dv-btn stk-cambtn" onclick="dvStockCheck()">${STK_IC.cam} ถ่ายภาพเช็คสินค้า</button><button type="button" class="dv-new" onclick="dvStockForm()"><span aria-hidden="true">+</span> สร้างรายการสินค้า</button><button type="button" class="dv-btn" onclick="dvStockExport()">${uiA("csv")}</button></div></header>`;
  if(!M.tl){host.innerHTML=head+`<p class="dv-empty dv-warnbox">${dvIcon.warn} ยังเชื่อมรายการ 9D Project Tracking ไม่ได้ ${mEsc(M.trackErr||"")}</p>`;return}
  let card=x=>{let L=!x.deleted&&stkLoanOf(x,lm),q=[x.id,x.name,x.brand,x.model,x.pn,x.sn,x.mac,x.barcode,x.cat,x.loc,x.holder,x.notes,L?.no,L?.customer,x.del?.reason,x.del?.note].join(" ").toLowerCase();
   return`<li class="stk-card${x.deleted?" del":""}" data-q="${mEsc(q)}"><button type="button" class="stk-tap" onclick="dvStockForm('${mEsc(x.id)}')" aria-label="เปิด ${mEsc(x.name)}"><span class="stk-ph">${x.thumb?`<img src="${mEsc(x.thumb)}" alt="" loading="lazy">`:STK_IC.box}</span>
    <span class="stk-tx"><small class="stk-id">${mEsc(x.id)}${x.cat?" · "+mEsc(x.cat):""}</small><b>${mEsc(x.name)}</b><small>${[x.brand,x.model,x.pn&&x.pn!==x.model&&"P/N "+x.pn].filter(Boolean).map(mEsc).join(" · ")||"—"}</small><small class="stk-sn">S/N ${mEsc(x.sn||"—")}</small></span></button>
-   <div class="stk-meta">${x.deleted?`<span class="stk-st no">ลบออกแล้ว</span><span class="stk-delr">${mEsc(x.del?.reason||"")}${x.del?.note?" — "+mEsc(x.del.note):""} · ${mEsc(x.del?.by||x.updatedBy||"")} ${x.del?.at?mEsc(dvTH2(dvDay(Date.parse(x.del.at)))):""}</span>`:`${stkChip(x.status)}${L?`<span class="stk-st cur" title="${mEsc(L.customer||"")}">ในใบยืม ${mEsc(L.no||"")}</span>`:""}${(Number(x.qty)||1)>1?`<span class="stk-q">× ${Number(x.qty)}</span>`:""}${x.loc?`<span>📍 ${mEsc(x.loc)}</span>`:""}${x.holder?`<span>👤 ${mEsc(x.holder)}</span>`:""}${(x.photos||[]).length?`<span>🖼 ${(x.photos||[]).length}</span>`:""}`}</div></li>`};
+   <div class="stk-meta">${x.deleted?`<span class="stk-st no">ลบออกแล้ว</span><span class="stk-delr">${mEsc(x.del?.reason||"")}${x.del?.note?" — "+mEsc(x.del.note):""} · ${mEsc(x.del?.by||x.updatedBy||"")} ${x.del?.at?mEsc(dvTH2(dvDay(Date.parse(x.del.at)))):""}</span>`:`${stkChip(x.status)}${L?(()=>{let u=stkDue(L);return`<span class="stk-st ${u.cls}" title="${mEsc((L.customer||"")+(L.engineer?" · "+L.engineer:""))}">${mEsc(u.txt)}</span>`})():""}${(Number(x.qty)||1)>1?`<span class="stk-q">× ${Number(x.qty)}</span>`:""}${x.loc?`<span>📍 ${mEsc(x.loc)}</span>`:""}${x.holder?`<span>👤 ${mEsc(x.holder)}</span>`:""}${(x.photos||[]).length?`<span>🖼 ${(x.photos||[]).length}</span>`:""}`}</div></li>`};
  host.innerHTML=head+`<div class="dv-kpis">${dvKpi("รายการในสต็อก",dvNum(all.length),"รวม "+dvNum(pcs(all))+" ชิ้น")}${dvKpi("พร้อมใช้",dvNum(all.filter(f.ready).length),"ยืม Demo ได้ทันที")}${dvKpi("ยืมออก / อยู่กับลูกค้า",dvNum(all.filter(f.out).length),onLoan.length?"ผูกกับใบยืม "+onLoan.length+" รายการ":"ตาม S/N ในใบยืม")}${dvKpi(dvIcon.warn+" ซ่อม / ชำรุด",dvNum(by("repair").length+by("broken").length),"ต้องติดตาม",by("repair").length+by("broken").length?"warn":"")}</div>
-  <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสต็อก">${[["all","ทั้งหมด",all.length],["ready","พร้อมใช้",all.filter(f.ready).length],["out","ยืมออก",all.filter(f.out).length],["fix","ซ่อม/ชำรุด",all.filter(f.fix).length],["gone","ตัดออก",all.filter(f.gone).length],["del","ลบออกแล้ว",gone.length]].map(([k,l,n])=>`<button type="button" class="${sf===k?"on":""}" aria-pressed="${sf===k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
+  <div class="dv-fbar"><div class="dv-seg" role="group" aria-label="กรองสต็อก">${[["all","ทั้งหมด",all.length],["ready","พร้อมใช้",all.filter(f.ready).length],["out","ยืมออก",all.filter(f.out).length],...(all.some(f.due)?[["due","ใกล้/เกินกำหนดคืน",all.filter(f.due).length]]:[]),["fix","ซ่อม/ชำรุด",all.filter(f.fix).length],["gone","ตัดออก",all.filter(f.gone).length],["del","ลบออกแล้ว",gone.length]].map(([k,l,n])=>`<button type="button" class="${sf===k?"on":""}" aria-pressed="${sf===k}" onclick="dvSet('sf','${k}')">${l} <em>${n}</em></button>`).join("")}</div>
    <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" data-qk="skq" placeholder="ค้นหา ชื่อ / รุ่น / P/N / S/N / MAC / ที่เก็บ" value="${mEsc(DV.skq||"")}" oninput="dvQ('skq','.stk-card',this.value,'sf')" onkeydown="dvQKey(event,this)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
   ${list.length?`<ul class="stk-grid">${list.map(card).join("")}</ul>`:all.length||sf==="del"?`<p class="dv-empty ok">${dvIcon.ok} ไม่มีรายการในกลุ่มนี้</p>`:`<div class="dv-card stk-empty">${STK_IC.box}<h3>ยังไม่มีสินค้า Demo ในระบบ</h3><p class="dv-cap">กด “ถ่ายภาพเช็คสินค้า” แล้วถ่ายฉลาก S/N หรือบาร์โค้ด ระบบจะเช็คให้ว่ามีอยู่แล้วหรือยัง ถ้ายังไม่มีกดเพิ่มได้เลย</p><button type="button" class="dv-new" onclick="dvStockCheck()">${STK_IC.cam} ถ่ายภาพเช็คสินค้า</button></div>`}`;
  if(DV.skq)dvQ("skq",".stk-card",DV.skq,"sf")}
@@ -3001,12 +3004,13 @@ window.dvStockForm=(id,pre)=>{if(!mIsEng())return;let old=id?(M.stock||[]).find(
   <datalist id="stk-cats">${STK_CAT.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-engs">${engs.map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist><datalist id="stk-brands">${[...new Set([...stkList().map(s=>s.brand),...STK_BRANDS.map(b=>b[0])].filter(Boolean))].map(c=>`<option value="${mEsc(c)}">`).join("")}</datalist>
   ${old?.log?.length?`<details class="stk-log"><summary>ประวัติ (${old.log.length})</summary><ol>${old.log.map(g=>`<li><time>${mEsc(dvTH2(dvDay(Date.parse(g.at))))}</time> ${mEsc(g.by)} — ${mEsc(g.act)}</li>`).join("")}</ol></details>`:""}
   <p class="dv-ferr stk-err" role="alert"></p>
-  <div class="stk-foot">${old?old.deleted?`<button type="button" class="dv-btn" data-a="undel">กู้คืนเข้าสต็อก</button>`:`<button type="button" class="dv-x2" data-a="del">ลบออกจากสต็อก</button>`:""}<span></span><button type="button" class="dv-btn" data-a="x">ยกเลิก</button>${old?.deleted?"":`<button type="submit" class="dv-new" data-a="save">บันทึก</button>`}</div></form>`;
+  <div class="stk-foot">${old&&!old.deleted&&!L?`<button type="button" class="dv-btn" data-a="loan">สร้างใบยืมจากสินค้านี้</button>`:""}${old?old.deleted?`<button type="button" class="dv-btn" data-a="undel">กู้คืนเข้าสต็อก</button>`:`<button type="button" class="dv-x2" data-a="del">ลบออกจากสต็อก</button>`:""}<span></span><button type="button" class="dv-btn" data-a="x">ยกเลิก</button>${old?.deleted?"":`<button type="submit" class="dv-new" data-a="save">บันทึก</button>`}</div></form>`;
  document.body.appendChild(d);let F=d.querySelector("form"),er=d.querySelector(".stk-err"),strip=d.querySelector(".stk-strip");
  let paint=()=>{strip.innerHTML=keep.map((p,i)=>`<figure>${i===0&&x.thumb&&p.name===(x.photos||[])[0]?.name?`<img src="${mEsc(x.thumb)}" alt="">`:STK_IC.box}<figcaption>${p.url?`<a href="${mEsc(p.url)}" target="_blank" rel="noreferrer">เปิดรูป ↗</a>`:"รูป "+(i+1)}</figcaption><button type="button" class="stk-rm" data-k="${i}" aria-label="เอารูปนี้ออก">✕</button></figure>`).join("")+pend.map((p,i)=>`<figure class="new"><img src="${p.url}" alt=""><figcaption>รูปใหม่</figcaption><button type="button" class="stk-rm" data-p="${i}" aria-label="เอารูปนี้ออก">✕</button></figure>`).join("")||`<p class="stk-nophoto">ยังไม่มีรูป · แนะนำถ่ายตัวเครื่อง 1 รูป + ฉลาก S/N 1 รูป</p>`;
   strip.querySelectorAll(".stk-rm").forEach(b=>b.onclick=()=>{if(b.dataset.p!=null)pend.splice(+b.dataset.p,1);else keep.splice(+b.dataset.k,1);paint()})};paint();
  d.querySelector(".stk-add input").onchange=async e=>{let fs=[...e.target.files].slice(0,6);e.target.value="";er.textContent="";for(let f of fs){try{pend.push(await stkPrep(f))}catch(err){er.textContent=err.message}}paint()};
  d.querySelectorAll("[data-a=x]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{pend.forEach(p=>URL.revokeObjectURL(p.url));d.remove()});
+ d.querySelector("[data-a=loan]")?.addEventListener("click",()=>{d.close();dvLoanForm(null,{items:[{code:old.pn||old.model||old.id,desc:[old.brand,old.name].filter(Boolean).join(" "),sn:old.sn||"",qty:Number(old.qty)||1,ret:""}],notes:"สินค้า Demo "+old.id})});
  let busy=!1,save=async(mode,dl)=>{if(busy)return;er.textContent="";let v=k=>String(F.elements[k].value||"").trim(),del=mode==="del";
   let n={...x,name:v("name"),brand:v("brand"),model:v("model").toUpperCase(),pn:v("pn").toUpperCase(),sn:v("sn").toUpperCase(),mac:stkMac(v("mac"))||v("mac").toUpperCase(),barcode:v("barcode"),cat:v("cat"),qty:Math.max(1,parseInt(v("qty"))||1),status:F.elements.status.value,loc:v("loc"),holder:v("holder"),notes:v("notes")};
   if(mode==="undel")n={...x,deleted:!1};
@@ -3288,7 +3292,7 @@ function dvSignPad(title){return new Promise(res=>{let d=document.createElement(
   if(x1<0){done(null);return}let pad=4*dpr;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(w-1,x1+pad);y1=Math.min(h-1,y1+pad);let cw=x1-x0+1,ch=y1-y0+1,k=Math.min(1,360/cw,130/ch),o=document.createElement("canvas");
   o.width=Math.max(1,Math.round(cw*k));o.height=Math.max(1,Math.round(ch*k));let ox=o.getContext("2d");ox.imageSmoothingQuality="high";ox.drawImage(cv,x0,y0,cw,ch,0,0,o.width,o.height);done(o.toDataURL("image/png"))}})}
 /* ฟอร์มสร้าง/แก้ไขใบยืม */
-window.dvLoanForm=id=>{let cfg=dvLoanCfg(),L=id?(LOAN.items||[]).find(x=>x.id===id):{customer:"",contact:"",phone:"",project:"",engineer:M.profile.name,loanDate:dvToday(),dueDate:new Date(Date.now()+252e5+14*864e5).toISOString().slice(0,10),items:[{code:"",desc:"",sn:"",qty:1,ret:""}],notes:"",doc:{},sign:{}};if(!L)return;
+window.dvLoanForm=(id,pre)=>{let cfg=dvLoanCfg(),L=id?(LOAN.items||[]).find(x=>x.id===id):{customer:"",contact:"",phone:"",project:"",engineer:M.profile.name,loanDate:dvToday(),dueDate:new Date(Date.now()+252e5+14*864e5).toISOString().slice(0,10),items:pre?.items||[{code:"",desc:"",sn:"",qty:1,ret:""}],notes:pre?.notes||"",doc:{},sign:{}};if(!L)return;
  let D={purpose:DV_PURP[0],...(L.doc||{})},sg=JSON.parse(JSON.stringify(L.sign||{})),engs=[...new Set([M.profile.name,...Hd.map(n=>dvTitle(n)),L.engineer].filter(Boolean))];
  let nm=k=>D[k+"Name"]??(k==="sender"?L.engineer:k==="receiver"?L.contact:cfg.approver.name)??"",ps=k=>D[k+"Pos"]??(k==="sender"?"Engineer":k==="approver"?cfg.approver.pos:L.doc?.contactPos)??"";
  let inp=(n,label,v,o={})=>`<label class="${o.cls||""}">${label}${o.req?" *":""}${o.area?`<textarea name="${n}" rows="2">${mEsc(v||"")}</textarea>`:`<input name="${n}" value="${mEsc(v||"")}"${o.req?" required":""}${o.type?` type="${o.type}"`:""}${o.im?` inputmode="${o.im}"`:""}${o.ph?` placeholder="${mEsc(o.ph)}"`:""}${o.list?` list="${o.list}"`:""}>`}</label>`;
@@ -3788,7 +3792,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.67";
+var M_VER="v16.68";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -3823,9 +3827,9 @@ window.mLoginNow=()=>{gate("busy","กำลังไปหน้า Microsoft�
 /* ===== v16.67 แจ้งเตือนเมื่อมีคนแท็กเรา (@ชื่อเรา) ใน Teams Channel =====
    อ่านจากผลซิงค์ Teams (TS.all[].ments) · กระดิ่งบนแถบด้านบนแสดงจำนวนที่ยังไม่อ่าน · กดดูรายการ → เปิดแผง "คุยในทีม" ของงานนั้น
    สถานะอ่านแล้วเก็บในเครื่อง (localStorage "9d-ment") */
-var MENT={seen:{},toast:{},init:0,pass:0};
-try{let o=JSON.parse(localStorage.getItem("9d-ment")||"{}");MENT.seen=o.seen||{};MENT.toast=o.toast||{};MENT.init=o.init||0}catch{}
-function mentSave(){try{let cut=Date.now()-45*864e5,f=o=>Object.fromEntries(Object.entries(o||{}).filter(([,t])=>t>cut));localStorage.setItem("9d-ment",JSON.stringify({seen:f(MENT.seen),toast:f(MENT.toast),init:MENT.init}))}catch{}}
+var MENT={seen:{},toast:{},init:0,pass:0,loans:[],ltoast:{},lack:{}};
+try{let o=JSON.parse(localStorage.getItem("9d-ment")||"{}");MENT.seen=o.seen||{};MENT.toast=o.toast||{};MENT.init=o.init||0;MENT.ltoast=o.ltoast||{};MENT.lack=o.lack||{}}catch{}
+function mentSave(){try{let cut=Date.now()-45*864e5,f=o=>Object.fromEntries(Object.entries(o||{}).filter(([,t])=>t>cut));localStorage.setItem("9d-ment",JSON.stringify({seen:f(MENT.seen),toast:f(MENT.toast),init:MENT.init,ltoast:MENT.ltoast,lack:MENT.lack}))}catch{}}
 /* ข้อความนี้แท็กเราไหม: ตรงกับ Object ID ของเรา (ไม่นับข้อความที่เราเขียนเอง) */
 function mentIsMe(x,oid){oid=String(oid||"").toLowerCase();if(!oid||!x)return!1;if(String(x.from?.user?.id||"").toLowerCase()===oid)return!1;
  return(x.mentions||[]).some(m=>String(m.mentioned?.user?.id||"").toLowerCase()===oid)}
@@ -3834,22 +3838,22 @@ function mentList(all){let L=[],cut=Date.now()-30*864e5,seen=new Set();
  return L.sort((a,b)=>String(b.at).localeCompare(String(a.at)))}
 function mentUnread(L){return(L||mentList()).filter(x=>!MENT.seen[x.id])}
 function mentLink(x){return`https://teams.microsoft.com/l/message/${encodeURIComponent(x.channelId)}/${encodeURIComponent(x.id)}?groupId=${encodeURIComponent(x.teamId||"")}&parentMessageId=${encodeURIComponent(x.root||x.id)}${M.profile?.tid?"&tenantId="+encodeURIComponent(M.profile.tid):""}`}
-function mentRead(ids){let t=Date.now();for(let id of ids)MENT.seen[id]=t;mentSave();mentPaint()}
+function mentRead(ids){let t=Date.now();for(let id of ids)MENT.seen[id]=t;mentSave();mentPaint();if(ids.length&&typeof mentPushLater==="function")mentPushLater()}
 /* เปิดแผง "คุยในทีม" ของ Channel นั้นแล้ว = อ่านแท็กที่เก่ากว่าข้อความล่าสุดแล้ว */
 function mentSeenChan(chId,last){let lt=mT(last)||Date.now(),ids=mentUnread().filter(x=>x.channelId===chId&&mT(x.at)<=lt).map(x=>x.id);if(ids.length)mentRead(ids)}
 /* หลังซิงค์ Teams: เด้งแจ้งเตือนแท็กใหม่ (ครั้งแรกที่ใช้: แท็กที่เก่ากว่า 2 วันนับว่าอ่านแล้ว ไม่ให้เด้งย้อนหลังทีเดียวเยอะ ๆ) */
-function mentNotify(){let L=mentList();if(!MENT.init){let cut=Date.now()-2*864e5,t=Date.now();for(let x of L){if(mT(x.at)<cut)MENT.seen[x.id]=t;MENT.toast[x.id]=t}MENT.init=t;mentSave();mentPaint();return 0}
+function mentNotify(){let L=mentList();if(!MENT.init){let cut=Date.now()-2*864e5,t=Date.now();for(let x of L){if(mT(x.at)<cut)MENT.seen[x.id]=t;MENT.toast[x.id]=t}MENT.init=t;mentSave();mentPaint();if(typeof mentPushLater==="function")mentPushLater();return 0}
  let nw=mentUnread(L).filter(x=>!MENT.toast[x.id]);if(!nw.length){mentPaint();return 0}let t=Date.now();for(let x of nw)MENT.toast[x.id]=t;mentSave();mentPaint();
  let x=nw[0];if(nw.length===1)mToast(`🔔 ${x.by||"มีคน"} แท็กคุณใน ${x.name}: ${String(x.text||"").slice(0,90)}`,!1,{label:"เปิดดู",fn:()=>mentOpen(x.id)});
  else mToast(`🔔 มีคนแท็กคุณใน Teams ${nw.length} ข้อความใหม่`,!1,{label:"ดูทั้งหมด",fn:()=>mentPop()});
  try{if(document.hidden&&"Notification"in window&&Notification.permission==="granted")for(let y of nw.slice(0,3)){let n=new Notification(`${y.by||"มีคน"} แท็กคุณใน ${y.name}`,{body:String(y.text||"").slice(0,140),tag:"9d-"+y.id});n.onclick=()=>{window.focus();mentOpen(y.id);n.close()}}}catch(e){console.warn("[9D] notification",e)}
  return nw.length}
 /* กระดิ่งบนแถบด้านบน: ตัวเลขแท็กที่ยังไม่อ่าน + กดแล้วเปิดรายการแจ้งเตือน (งานที่ต้องติดตามยังกดได้จากในรายการ) */
-function mentPaint(){let n=M.profile?mentUnread().length:0;
+function mentPaint(){try{typeof mentMerge==="function"&&mentMerge()}catch{}let day=typeof dvToday==="function"?dvToday():"",n=M.profile?mentUnread().length+(MENT.loans||[]).filter(L=>MENT.lack[L.id]!==day).length:0;
  document.querySelectorAll(".topbar .notification.icon-button,button.notification.icon-button").forEach(b=>{
   if(!b.dataset.ment){b.dataset.ment="1";b.addEventListener("click",e=>{if(MENT.pass)return;e.preventDefault();e.stopPropagation();mentPop(b)},!0)}
   let s=b.querySelector(".ment-badge");if(n){if(!s){s=document.createElement("span");s.className="ment-badge";s.setAttribute("aria-hidden","true");b.appendChild(s)}let tx=n>99?"99+":String(n);if(s.textContent!==tx)s.textContent=tx}else s?.remove();
-  let lb=n?`การแจ้งเตือน: มีคนแท็กคุณ ${n} ข้อความที่ยังไม่อ่าน`:"การแจ้งเตือน";if(b.getAttribute("aria-label")!==lb)b.setAttribute("aria-label",lb);b.setAttribute("aria-haspopup","dialog")})}
+  let lb=n?`การแจ้งเตือน: ${n} รายการใหม่`:"การแจ้งเตือน";if(b.getAttribute("aria-label")!==lb)b.setAttribute("aria-label",lb);b.setAttribute("aria-haspopup","dialog")})}
 function mentClose(){let p=document.getElementById("ment-pop");if(!p)return;p.remove();document.removeEventListener("mousedown",mentOut,!0);document.removeEventListener("keydown",mentKey,!0);MENT.btn?.focus?.()}
 function mentOut(e){let p=document.getElementById("ment-pop");if(p&&!p.contains(e.target)&&!e.target.closest?.(".notification.icon-button"))mentClose()}
 function mentKey(e){if(e.key==="Escape"){e.stopPropagation();mentClose()}}
@@ -3857,9 +3861,9 @@ function mentHtml(){let L=mentList(),un=new Set(mentUnread(L).map(x=>x.id)),ts=t
  let item=x=>`<li class="ment-it${un.has(x.id)?" new":""}"><button type="button" class="ment-go" data-id="${mEsc(x.id)}"><span class="ment-av" aria-hidden="true">${mEsc(String(x.by||"?").trim().charAt(0).toUpperCase())}</span><span class="ment-tx"><span class="ment-h"><b>${mEsc(x.by||"มีคน")}</b> แท็กคุณใน <b>${mEsc(x.name)}</b></span><span class="ment-q">${mEsc(String(x.text||"").slice(0,160))}</span><small>${dvAgo(x.at)}ที่แล้ว${x.teamName?" · "+mEsc(x.teamName):""}${un.has(x.id)?' · <em>ใหม่</em>':""}</small></span></button><a class="ment-ext" href="${mEsc(mentLink(x))}" target="_blank" rel="noreferrer" data-id="${mEsc(x.id)}" title="เปิดใน Teams" aria-label="เปิดข้อความนี้ใน Teams">${typeof uiA==="function"?uiA("teams").replace(/<\/span>[^<]*$/,"</span>"):"Teams"}</a></li>`;
  let canN="Notification"in window&&Notification.permission==="default";
  return`<div class="ment-head"><h2 id="ment-h">การแจ้งเตือน</h2>${un.size?`<button type="button" class="dv-link ment-all">อ่านทั้งหมดแล้ว</button>`:""}<button type="button" class="dv-xbtn ment-x" aria-label="ปิด">✕</button></div>
-  <div class="ment-body"><h3>แท็กคุณใน Teams${un.size?` <span class="ment-n">${un.size} ใหม่</span>`:""}</h3>
+  <div class="ment-body">${(MENT.loans||[]).length?`<h3>ใบยืมของคุณที่ใกล้ / เกินกำหนดคืน</h3><ul class="ment-ul ment-loans">${MENT.loans.slice(0,10).map(L=>`<li class="ment-it${mentDays(L.dueDate)<0?" over":" new"}"><button type="button" class="ment-go ment-ln" data-ln="${mEsc(L.id)}"><span class="ment-av ln" aria-hidden="true">${typeof STK_IC!=="undefined"?STK_IC.box.replace(/width="34" height="34"/,'width="18" height="18"'):""}</span><span class="ment-tx"><span class="ment-h"><b>${mEsc(L.no)}</b> · ${mEsc(L.customer)}</span><span class="ment-q">${mEsc(L.items.filter(x=>!x.ret).map(x=>x.code+(x.sn?" ("+x.sn+")":"")).join(", "))}</span><small><em>${mentLoanTxt(L)}</em> · กำหนดคืน ${mEsc(dvTH2(L.dueDate))}</small></span></button></li>`).join("")}</ul>`:""}<h3>แท็กคุณใน Teams${un.size?` <span class="ment-n">${un.size} ใหม่</span>`:""}</h3>
   ${L.length?`<ul class="ment-ul">${L.slice(0,40).map(item).join("")}</ul>`:`<p class="ment-empty">ยังไม่มีใครแท็กคุณใน 30 วันที่ผ่านมา</p>`}
-  <p class="ment-note">เช็กข้อความ Teams อัตโนมัติทุก 5 นาที${ts.at?" · ล่าสุด "+dvAgo(ts.at)+"ที่แล้ว":""} <button type="button" class="dv-link ment-sync"${ts.busy?" disabled":""}>${ts.busy?"กำลังเช็ก…":"เช็กตอนนี้"}</button></p>
+  <p class="ment-note">เช็กข้อความ Teams ใหม่ทุก ~1.5 นาทีขณะเปิดหน้านี้${ts.at?" · ล่าสุด "+dvAgo(ts.at)+"ที่แล้ว":""} <button type="button" class="dv-link ment-sync"${ts.busy?" disabled":""}>${ts.busy?"กำลังเช็ก…":"เช็กตอนนี้"}</button></p>
   ${canN?`<p class="ment-note"><button type="button" class="dv-link ment-perm">เปิดแจ้งเตือนบนเครื่อง</button> (เด้งเตือนแม้ไม่ได้ดูหน้านี้อยู่)</p>`:""}</div>
   <div class="ment-foot"><button type="button" class="ment-fu">ดูงานที่ต้องติดตาม →</button></div>`}
 window.mentPop=b=>{b=b||document.querySelector(".topbar .notification.icon-button");if(document.getElementById("ment-pop")){mentClose();return}MENT.btn=b;
@@ -3867,13 +3871,65 @@ window.mentPop=b=>{b=b||document.querySelector(".topbar .notification.icon-butto
  let place=()=>{let r=b?.getBoundingClientRect();if(r&&r.width){p.style.top=Math.round(r.bottom+8)+"px";if(innerWidth>640)p.style.right=Math.max(8,Math.round(innerWidth-r.right-8))+"px"}};
  let paint=()=>{p.innerHTML=mentHtml();place();
   p.querySelector(".ment-x").onclick=mentClose;p.querySelector(".ment-all")?.addEventListener("click",()=>{mentRead(mentUnread().map(x=>x.id));paint()});
-  p.querySelectorAll(".ment-go").forEach(e=>e.onclick=()=>mentOpen(e.dataset.id));p.querySelectorAll(".ment-ext").forEach(e=>e.addEventListener("click",()=>{mentRead([e.dataset.id]);setTimeout(paint,0)}));
+  p.querySelectorAll(".ment-go:not(.ment-ln)").forEach(e=>e.onclick=()=>mentOpen(e.dataset.id));p.querySelectorAll(".ment-ln").forEach(e=>e.onclick=()=>{mentClose();typeof dvGo==="function"&&dvGo("loans","open")});p.querySelectorAll(".ment-ext").forEach(e=>e.addEventListener("click",()=>{mentRead([e.dataset.id]);setTimeout(paint,0)}));
   p.querySelector(".ment-sync")?.addEventListener("click",async()=>{let s=TS.busy||mTeamsSync(!0);paint();try{await s}catch{}if(document.getElementById("ment-pop"))paint()});
   p.querySelector(".ment-perm")?.addEventListener("click",async()=>{try{await Notification.requestPermission()}catch{}paint()});
   p.querySelector(".ment-fu").onclick=()=>{mentClose();MENT.pass=1;try{(b||document.querySelector(".topbar .notification.icon-button"))?.click()}finally{MENT.pass=0}}};
- paint();p.querySelector(".ment-go,.ment-x")?.focus();document.addEventListener("mousedown",mentOut,!0);document.addEventListener("keydown",mentKey,!0)};
+ {let day=dvToday(),ch=0;for(let L of MENT.loans||[])if(MENT.lack[L.id]!==day){MENT.lack[L.id]=day;ch=1}if(ch){mentSave();setTimeout(mentPaint,0)}}paint();p.querySelector(".ment-go,.ment-x")?.focus();document.addEventListener("mousedown",mentOut,!0);document.addEventListener("keydown",mentKey,!0)};
 window.mentOpen=id=>{let x=mentList().find(y=>y.id===id);mentClose();if(!x)return;mentRead([id]);
  if(x.pid&&typeof dvPanel==="function")dvPanel(x.pid,"chat");else window.open(mentLink(x),"_blank","noopener")};
+/* ===== v16.68 (1) สถานะ "อ่านแล้ว" ของการแท็กตรงกันทุกเครื่อง: เก็บใน 9D Project Tracking แถวละผู้ใช้ (ProjectItemId -9.6e9) ===== */
+var M_MSEEN=-9.6e9;
+function mentMerge(){let r=M.mseen;if(!r||MENT.mref===r)return;MENT.mref=r;let ch=0;
+ for(let[id,t]of Object.entries(r.seen||{}))if(!MENT.seen[id]||MENT.seen[id]<t){MENT.seen[id]=t;ch=1}
+ if(r.init&&!MENT.init){MENT.init=r.init;ch=1}if(ch)mentSave()}
+function mentPushLater(){clearTimeout(MENT.pt);MENT.pt=setTimeout(()=>mentPush().catch(e=>console.warn("[9D] mention sync",e)),2500)}
+async function mentPush(){if(!M.tl||!M.sid||!M.profile?.email||MENT.noSync)return;let em=String(M.profile.email).toLowerCase(),cut=Date.now()-45*864e5,row=M.mseen?.row,cur={};
+ try{if(row){let j=await G(`/sites/${M.sid}/lists/${M.tl}/items/${row}?$expand=fields($select=Payload)`);cur=JSON.parse(j?.fields?.Payload||"{}")}}catch(e){if(e?.status===404)row=null}
+ let seen={...(cur.seen||{})};for(let[id,t]of Object.entries(MENT.seen))if(!seen[id]||seen[id]<t)seen[id]=t;seen=Object.fromEntries(Object.entries(seen).filter(([,t])=>t>cut));
+ let pl={email:em,init:MENT.init||cur.init||0,seen,at:new Date().toISOString()},body={Title:"mention-seen:"+em,ProjectItemId:M_MSEEN,Payload:JSON.stringify(pl)};
+ try{if(row)await G(`/sites/${M.sid}/lists/${M.tl}/items/${row}/fields`,{method:"PATCH",json:body});else{let r=await G(`/sites/${M.sid}/lists/${M.tl}/items`,{method:"POST",json:{fields:body}});row=r?.id}}
+ catch(e){if(e?.status===403||e?.status===401)MENT.noSync=1;throw e}
+ M.mseen={...pl,row};MENT.mref=M.mseen;for(let[id,t]of Object.entries(seen))if(!MENT.seen[id]||MENT.seen[id]<t)MENT.seen[id]=t;mentSave()}
+
+/* ===== v16.68 (2) เช็กแท็กเร็วขึ้น: ทุก 90 วินาที (ขณะเปิดหน้าเว็บอยู่) เช็กเฉพาะ Channel ที่มีความเคลื่อนไหวใน 14 วัน (สูงสุด 20 ห้อง)
+   ถ้ามีข้อความใหม่ → ซิงค์ Teams (อ่านเต็มเฉพาะห้องที่เปลี่ยน) → แจ้งเตือนแท็กทันที ===== */
+function mentSig(m){if(!m)return"-";let rs=m.replies||[],mx=m.lastModifiedDateTime||m.createdDateTime||"";for(let y of rs){let t=y.lastModifiedDateTime||y.createdDateTime||"";if(t>mx)mx=t}return m.id+"|"+rs.length+"|"+mx}
+function mentHotList(all,now){now=now||Date.now();return(all||[]).filter(r=>r&&r.channelId&&r.teamId&&r.sig&&!r.error&&mT(r.last)>now-14*864e5).sort((a,b)=>String(b.last).localeCompare(String(a.last))).slice(0,20)}
+async function mentHot(){if(MENT.hotBusy||TS.busy||!M.teamsOK||document.hidden||!TS.at)return 0;MENT.hotBusy=1;let ch=0;
+ try{await mPool(mentHotList(TS.all),4,async r=>{if(ch)return;try{let j=await mHttp(`${M_GRAPH}/teams/${r.teamId}/channels/${r.channelId}/messages?$top=1&$expand=replies`,{},"teams");if(mentSig(j.value?.[0])!==r.sig)ch=1}catch(e){}});
+  if(ch&&!TS.busy)await mTeamsSync(!0)}finally{MENT.hotBusy=0}return ch}
+
+/* ===== v16.68 (8) ใบยืมใกล้ / เกินกำหนดคืน → ขึ้นในกระดิ่งของ Engineer ที่เป็นผู้ยืม + เตือนวันละครั้ง ===== */
+function mentDays(d){return Math.round((Date.parse(d)-Date.parse(dvToday()))/864e5)}
+function mentMyLoans(all,me){let k=mNorm(me||M.profile?.name||"");return(all||[]).filter(L=>L.status!=="คืนครบ"&&L.dueDate&&mentDays(L.dueDate)<=2&&k&&(mNorm(L.engineer)===k||mNorm(L.createdBy)===k)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate))}
+async function mentLoans(){if(typeof mIsEng!=="function"||!mIsEng()||typeof mLoans!=="function")return;try{let all=await mLoans();if(LOAN.missing)return;MENT.loans=mentMyLoans(all)}catch(e){return}
+ let day=dvToday(),nw=MENT.loans.filter(L=>MENT.ltoast[L.id]!==day);mentPaint();if(!nw.length)return;for(let L of nw)MENT.ltoast[L.id]=day;mentSave();
+ let o=nw.filter(L=>mentDays(L.dueDate)<0).length;mToast(`📦 ใบยืมของคุณ${o?" เกินกำหนดคืน "+o+" ใบ":""}${nw.length-o?(o?" · ":" ")+"ใกล้ครบกำหนด "+(nw.length-o)+" ใบ":""}`,!1,{label:"ดู",fn:()=>mentPop()})}
+function mentLoanTxt(L){let n=mentDays(L.dueDate);return n<0?`เกินกำหนดคืน ${-n} วัน`:n===0?"ครบกำหนดคืนวันนี้":`ครบกำหนดคืนใน ${n} วัน`}
+
+/* ===== v16.68 (4) สำรองข้อมูล SharePoint List อัตโนมัติทุกสัปดาห์ → Documents › "9D Backups/<ปี-สัปดาห์>/" (ไฟล์ JSON ต่อ List)
+   ทำโดย Engineer / Admin คนแรกที่เปิดเว็บในสัปดาห์นั้น · ไม่ลบไฟล์เก่า ===== */
+var BK_ROOT="9D Backups";
+function mBkWeek(d){d=new Date((d||Date.now())+252e5);let t=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())),dn=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-dn);let y=t.getUTCFullYear(),w=Math.ceil(((t-Date.UTC(y,0,1))/864e5+1)/7);return y+"-W"+String(w).padStart(2,"0")}
+function mBkPick(lists,known){let K=new Set((known||[]).filter(Boolean).map(String));return(lists||[]).filter(l=>K.has(String(l.id))||(!l.list?.hidden&&l.list?.template==="genericList"&&/^9D\b/i.test(String(l.displayName||""))))}
+async function mBackupAuto(force){if(!M.sid||(M.role!=="admin"&&!(typeof mIsEng==="function"&&mIsEng())))return null;let wk=mBkWeek(),k="9d-bk-"+M.sid;
+ if(!force){try{if(localStorage.getItem(k)===wk)return null}catch{}}
+ let base=`${M_GRAPH}/sites/${M.sid}/drive/root:/${mDrivePath(BK_ROOT+"/"+wk)}`;
+ if(!force){try{let j=await mHttp(base+":/children?$select=name&$top=50",{});if((j.value||[]).some(x=>/\.json$/i.test(x.name))){try{localStorage.setItem(k,wk)}catch{}return null}}catch(e){if(e?.status&&e.status!==404)throw e}}
+ let known=[M.lid,M.tl];try{known.push(await mLoanList(!1))}catch{}
+ let lists=mBkPick(await gAll(`/sites/${M.sid}/lists?$select=id,displayName,list`),known),done=[];
+ for(let l of lists){let items=await gAll(`/sites/${M.sid}/lists/${l.id}/items?$expand=fields&$select=id,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy&$top=500`);
+  let blob=new Blob([JSON.stringify({list:l.displayName,listId:l.id,exportedAt:new Date().toISOString(),by:M.profile?.name||"",count:items.length,items},null,1)],{type:"application/json"});
+  await mHttp(`${base}/${encodeURIComponent(mFsName(l.displayName)+".json")}:/content?@microsoft.graph.conflictBehavior=replace`,{method:"PUT",body:blob,headers:{"Content-Type":"application/json"}});done.push(l.displayName+" ("+items.length+")")}
+ try{localStorage.setItem(k,wk)}catch{}console.info("[9D] backup",wk,done);return{week:wk,lists:done}}
+window.dvBackupNow=async()=>{mToast("กำลังสำรองข้อมูล List…");try{let r=await mBackupAuto(!0);mToast(r?`สำรองข้อมูลแล้ว ${r.lists.length} List → Documents › ${BK_ROOT}/${r.week}`:"ไม่มีสิทธิ์สำรองข้อมูล")}catch(e){mToast("สำรองข้อมูลไม่สำเร็จ: "+e.message,!0)}};
+
+/* ===== v16.68 (9) ธีมพาสเทล: สลับได้ เก็บค่าในเครื่อง ===== */
+function mTheme(){try{return localStorage.getItem("9d-theme")||""}catch{return""}}
+function mThemeApply(){let p=mTheme()==="pastel";if(p&&!document.getElementById("th-font")){let l=document.createElement("link");l.id="th-font";l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600&display=swap";document.head.appendChild(l)}document.documentElement.classList.toggle("th-pastel",p);document.querySelectorAll(".th-tgl").forEach(b=>{b.setAttribute("aria-pressed",p);b.querySelector("span")&&(b.querySelector("span").textContent=p?"ธีมพาสเทล":"ธีมปกติ")})}
+window.mThemeToggle=()=>{try{localStorage.setItem("9d-theme",mTheme()==="pastel"?"":"pastel")}catch{}mThemeApply();mToast(mTheme()==="pastel"?"เปลี่ยนเป็นธีมพาสเทลแล้ว (เฉพาะเครื่องนี้)":"กลับเป็นธีมปกติแล้ว")};
+mThemeApply();
 var mUiFrame=0;function mUiSchedule(records){if(records?.length&&records.every(r=>(r.target.nodeType===1?r.target:r.target.parentElement)?.closest?.("#dashv")))return;
  if(mUiFrame)return;mUiFrame=requestAnimationFrame(()=>{mUiFrame=0;mNavInject();dvSync();mCodeAuto();try{mentPaint()}catch{}try{dvDraftInject();dvWorkspaceSettingsInject();wsApplyUi();mApprovalImportsInject()}catch(e){}})}
 async function boot(){
@@ -3894,9 +3950,9 @@ async function boot(){
  PV_KEY="9d-ops-v13-"+pr.oid;PV=pvLoad();PV.session={userId:pr.oid,name:pr.name,email:pr.email,role:"sales"};pvSave();
  PV_PROFILE.name=pr.name;PV_PROFILE.email=pr.email;M.role=mRole(pr.email);
  document.getElementById("gate").style.display="none";
- let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">${UI_IC.chat} Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();
+ let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">${UI_IC.chat} Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <button type="button" class="th-tgl" aria-pressed="false" onclick="mThemeToggle()" title="สลับธีม (เฉพาะเครื่องนี้)"><i aria-hidden="true"></i><span>ธีมปกติ</span></button>${M.role==="admin"?` · <a href="#" onclick="dvBackupNow();return false">สำรองข้อมูล List</a>`:""} · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();try{mThemeApply()}catch{}
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
- let syncAuto=()=>mTeamsSync().then(async()=>{try{await mCancelSync()}catch(e){console.warn(e)}try{let rb=await mChanRebind();if(rb.length){mToast("ย้ายลิงก์ Teams ตาม Project Code ใหม่แล้ว "+rb.length+" งาน: "+rb.slice(0,5).join(", ")+(rb.length>5?" …":""));DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] rebind",e)}try{if(await mChanVerify()){DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] channel verify",e)}try{if(await mChanFilesFix()){DV.stAt=0}}catch(e){console.warn("[9D] files fix",e)}try{await mDupNotify()}catch(e){console.warn(e)}if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}try{await mWfAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(()=>boPoll(),10000);setInterval(syncAuto,10*60e3);/* v16.67 เช็กแท็กใน Teams ถี่ขึ้น (ทุก 5 นาที แบบอ่านเฉพาะ Channel ที่มีข้อความใหม่) */setInterval(()=>{if(!TS.busy&&TS.at&&Date.now()-TS.at>=5*60e3-5e3)mTeamsSync(!0).catch(e=>console.warn(e))},60e3);setTimeout(()=>{try{mentPaint()}catch{}},2e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(mUiSchedule).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
+ let syncAuto=()=>mTeamsSync().then(async()=>{try{await mCancelSync()}catch(e){console.warn(e)}try{let rb=await mChanRebind();if(rb.length){mToast("ย้ายลิงก์ Teams ตาม Project Code ใหม่แล้ว "+rb.length+" งาน: "+rb.slice(0,5).join(", ")+(rb.length>5?" …":""));DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] rebind",e)}try{if(await mChanVerify()){DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] channel verify",e)}try{if(await mChanFilesFix()){DV.stAt=0}}catch(e){console.warn("[9D] files fix",e)}try{await mDupNotify()}catch(e){console.warn(e)}if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}try{await mWfAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(()=>boPoll(),10000);setInterval(syncAuto,10*60e3);/* v16.67 เช็กแท็กใน Teams ถี่ขึ้น (ทุก 5 นาที แบบอ่านเฉพาะ Channel ที่มีข้อความใหม่) */setInterval(()=>{if(!TS.busy&&TS.at&&Date.now()-TS.at>=5*60e3-5e3)mTeamsSync(!0).catch(e=>console.warn(e))},60e3);setTimeout(()=>{try{mentPaint()}catch{}},2e3);/* v16.68 */setInterval(()=>{mentHot().catch(e=>console.warn("[9D] hot",e))},90e3);setTimeout(()=>mentLoans(),9e3);setInterval(()=>mentLoans(),30*60e3);setTimeout(()=>mBackupAuto().then(r=>{if(r)console.info("[9D] สำรองข้อมูลแล้ว",r)}).catch(e=>console.warn("[9D] backup",e)),25e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(mUiSchedule).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
 window.pvReset=()=>{if(confirm("ล้างร่างคำขอและข้อมูลตัวอย่างในเบราว์เซอร์นี้?")){try{localStorage.removeItem(PV_KEY)}catch{}location.reload()}};
 /* ---- PWA: ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ / คอมพิวเตอร์ (v16.4) ---- */
@@ -5275,5 +5331,69 @@ body.pnl-on #pnl-bd{display:block;position:fixed;inset:0;background:#0f1b3a33;z-
 .ment-foot button:hover{background:#F2F6FD}
 .ment-foot button:focus-visible{outline:2px solid #005CB9}
 @media (max-width:640px){#ment-pop{left:8px;right:8px;top:66px;width:auto;max-height:calc(100vh - 170px)}}
+</style>
+<style id="v1668">
+/* v16.68 ธีมพาสเทล (html.th-pastel) — สลับได้จากปุ่ม "ธีม" บนแถบบัญชี · ค่าเก็บในเครื่อง */
+.th-tgl{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border-radius:999px;border:1px solid #D5DCE7;background:#fff;color:#284397;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;vertical-align:middle}
+.th-tgl i{width:12px;height:12px;border-radius:50%;background:conic-gradient(#F7B8C0 0 25%,#A9CDEE 0 50%,#F8DD8C 0 75%,#B7DDA8 0)}
+.th-tgl[aria-pressed=true]{background:#FDE8EB;border-color:#F3C9CF;color:#8E1B2E}
+html.th-pastel{--pa-bg:#FFFCF6;--pa-ink:#2B2A33;--pa-line:#ECE6DA;--pa-pink:#FDE8EB;--pa-pink2:#F6CCD3;--pa-blue:#E3EFFA;--pa-blue2:#C5DCF2;--pa-yel:#FDF3D2;--pa-yel2:#F3E0A2;--pa-grn:#E6F4E0;--pa-grn2:#C7E5BB;--pa-head:'Mitr','Noto Sans Thai',sans-serif}
+html.th-pastel body,html.th-pastel .main-shell,html.th-pastel .main-content,html.th-pastel #dashv{background:var(--pa-bg)!important}
+html.th-pastel .topbar,html.th-pastel .app-shell .topbar{background:var(--pa-bg)!important;border-bottom:2px solid var(--pa-line)!important}
+html.th-pastel .offline-notice{background:#F3F7FC!important}
+html.th-pastel .sidebar{background:#F3F7FC!important;border-right:2px solid #E4ECF6!important}
+html.th-pastel .sidebar .brand{background:none!important}
+html.th-pastel .nav-item{border-radius:14px!important}
+html.th-pastel .nav-item.active{background:#FBDDE1!important;color:#8E1B2E!important;font-weight:700!important;box-shadow:none!important}
+html.th-pastel .nav-item.active svg{color:#C0394F!important}
+html.th-pastel .nav-item.active::before,html.th-pastel .nav-item.active::after{display:none!important}
+html.th-pastel .notification.icon-button{border-radius:50%;background:var(--pa-pink)!important}
+/* หัวหน้า */
+html.th-pastel #dashv .dv-head{background:var(--pa-blue)!important;background-image:none!important;color:var(--pa-ink)!important;border:0!important;border-radius:26px!important;box-shadow:none!important}
+html.th-pastel #dashv .dv-head::before,html.th-pastel #dashv .dv-head::after{display:none!important}
+html.th-pastel #dashv .dv-head h1{display:inline-block;background:#fff;border-radius:22px;padding:0 18px;color:var(--pa-ink)!important;font-family:var(--pa-head)!important;font-weight:600!important}
+html.th-pastel #dashv .dv-head .dv-eyebrow{color:#3F78B8!important}
+html.th-pastel #dashv .dv-head .dv-sub,html.th-pastel #dashv .dv-head p,html.th-pastel #dashv .dv-head small,html.th-pastel #dashv .dv-head span{color:#3D475B}
+html.th-pastel #dashv .dv-head .dv-btn{background:#fff!important;color:#284397!important;border:1px solid var(--pa-blue2)!important;border-radius:999px!important}
+html.th-pastel #dashv .dv-head .dv-seg{background:#fff!important;border-radius:999px!important;padding:3px!important}
+html.th-pastel #dashv .dv-head .dv-seg button{color:var(--pa-ink)!important;border-radius:999px!important}
+html.th-pastel #dashv .dv-head .dv-seg button.on,html.th-pastel #dashv .dv-head .dv-seg button[aria-pressed=true]{background:#FCEBB2!important;color:var(--pa-ink)!important}
+html.th-pastel #dashv .dv-new{background:#284397!important;border-radius:999px!important}
+html.th-pastel #dashv .dv-btn{border-radius:999px}
+/* หัวข้อ */
+html.th-pastel #dashv h1,html.th-pastel #dashv h2,html.th-pastel #dashv h3,html.th-pastel #ment-pop h2,html.th-pastel #pnl h2{font-family:var(--pa-head)!important;font-weight:500}
+/* การ์ด */
+html.th-pastel #dashv .dv-sec,html.th-pastel #dashv .dv-card{border-radius:22px!important;border:2px solid var(--pa-line)!important;box-shadow:0 4px 0 #F1ECE2!important;background:#fff!important}
+html.th-pastel #dashv .dv-sec .dv-card{box-shadow:none!important}
+html.th-pastel #dashv .dv-kpi{background-image:none!important;border-radius:22px!important;border:2px solid var(--pa-pink2)!important;background:var(--pa-pink)!important;color:var(--pa-ink)!important;box-shadow:none!important}
+html.th-pastel #dashv .dv-kpi:nth-child(4n+2){background:var(--pa-blue)!important;border-color:var(--pa-blue2)!important}
+html.th-pastel #dashv .dv-kpi:nth-child(4n+3){background:var(--pa-yel)!important;border-color:var(--pa-yel2)!important}
+html.th-pastel #dashv .dv-kpi:nth-child(4n+4){background:var(--pa-grn)!important;border-color:var(--pa-grn2)!important}
+html.th-pastel #dashv .dv-kpi.warn{background:#FDE7D6!important;border-color:#F4BE95!important}
+html.th-pastel #dashv .dv-kpi *{color:var(--pa-ink)!important}
+html.th-pastel #dashv .dv-kpi b{font-family:var(--pa-head)!important;font-weight:600!important;color:#1F2A4D!important}
+html.th-pastel #dashv .dv-kpi:nth-child(4n+1) b{color:#A51D35!important}
+html.th-pastel #dashv .dv-kpi:nth-child(4n+3) b{color:#7A5200!important}
+html.th-pastel #dashv .dv-kpi:nth-child(4n+4) b{color:#2E6B22!important}
+html.th-pastel #dashv .dv-kpi.warn b,html.th-pastel #dashv .dv-kpi.warn small{color:#9A3412!important}
+html.th-pastel #dashv .dv-kpi svg,html.th-pastel #dashv .dv-kpi canvas{opacity:.55}
+/* ปุ่ม / แท็บ / ชิป */
+html.th-pastel #dashv .dv-seg{border-radius:999px!important}
+html.th-pastel #dashv .dv-seg button{border-radius:999px!important}
+html.th-pastel #dashv .dv-seg button.on{background:#FBDDE1!important;color:#8E1B2E!important;border-color:#F3C9CF!important}
+html.th-pastel #dashv .ui-act,html.th-pastel #dashv .dv-mini{border-radius:999px}
+html.th-pastel #dashv .dv-sbr .tr,html.th-pastel #dashv .dv-sbr .bar{border-radius:999px}
+html.th-pastel #dashv .dv-prow,html.th-pastel #dashv .stk-card,html.th-pastel #dashv .dv-bcol{border-radius:18px!important}
+html.th-pastel .dv-dlg,html.th-pastel #ment-pop,html.th-pastel #pnl{border-radius:22px}
+html.th-pastel #dv-tabbar{background:var(--pa-bg)!important;border-top:2px solid var(--pa-line)!important}
+html.th-pastel #dv-tabbar button[aria-current=page],html.th-pastel #dv-tabbar button.on{background:#FBDDE1!important;color:#8E1B2E!important;border-radius:14px}
+/* v16.68 ใบยืมในกระดิ่ง */
+.ment-it.over{background:#FDECE3;border-color:#F4BE95}
+.ment-it.over em{color:#9A3412}
+.ment-av.ln{background:#FDF3D2;color:#7A5200}
+.ment-av.ln svg{width:18px;height:18px}
+html.th-pastel #dashv .dv-new,html.th-pastel #dashv .dv-new *{color:#fff!important}
+html.th-pastel body .app-shell .sidebar button.nav-item.active.active.active{background:#FBDDE1!important;color:#8E1B2E!important;border-radius:14px!important;box-shadow:none!important}
+html.th-pastel body .app-shell .sidebar button.nav-item.active.active.active svg{color:#C0394F!important}
 </style>
 </body></html>
