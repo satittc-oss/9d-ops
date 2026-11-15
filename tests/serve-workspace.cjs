@@ -59,7 +59,7 @@ async function uiStart(){${baseline?'':`if(M.role==='admin'){uiFixture.faults.te
 }
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
- res.setHeader('Content-Security-Policy',"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; frame-src 'self' blob:");
+ res.setHeader('Content-Security-Policy',"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; frame-src 'self' blob:");
  res.setHeader('Cache-Control','no-store');
  if(u.pathname==='/'||u.pathname==='/before'){
   try{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(page(u.pathname==='/before'?before:fs.readFileSync(root+'/index.html','utf8'),Math.max(20,Math.min(2000,Number(u.searchParams.get('n'))||360)),u.pathname==='/before',['admin','engineer','sales','viewer'].includes(u.searchParams.get('role'))?u.searchParams.get('role'):'admin',Math.max(0,Math.min(2000,Number(u.searchParams.get('people'))||120)),Math.max(0,Math.min(500,Number(u.searchParams.get('orphans')??2)||0))))}catch(e){res.writeHead(500).end(e.message)}return;

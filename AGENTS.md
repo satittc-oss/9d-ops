@@ -3,7 +3,7 @@
 คู่มือสำหรับ AI coding agent (Codex / Claude / อื่น ๆ) ที่จะแก้ repo นี้ต่อ · อ่านให้จบก่อนแก้โค้ด
 
 ## ภาพรวม
-- เว็บแอปของ Nine Distribution: รับ Service Request จากเซลส์ → อนุมัติ → สร้าง Teams Private Channel อัตโนมัติ → ติดตามสถานะ/ขั้นตอนงาน + ยืมสินค้า, งานเซอร์วิส (AEM/CommScope), ใบเสนอราคานอกระบบ ERP, เมืองจำลอง 3 มิติ
+- เว็บแอปของ Nine Distribution: รับ Service Request จากเซลส์ → อนุมัติ → สร้าง Teams Private Channel อัตโนมัติ → ติดตามสถานะ/ขั้นตอนงาน + ยืมสินค้า, งานเซอร์วิส (AEM/CommScope), ใบเสนอราคานอกระบบ ERP, สต็อก Demo (สแกนบาร์โค้ด/ฉลาก)
 - ข้อมูลทั้งหมดอยู่ใน Microsoft 365 ของบริษัท (SharePoint Lists + Teams) — ไม่มี backend ของตัวเอง เบราว์เซอร์เรียก Microsoft Graph / SharePoint REST ตรงด้วยบัญชีของผู้ใช้ (OAuth PKCE, delegated)
 - โฮสต์: GitHub Pages จาก branch `main` / root → https://satittc-oss.github.io/9d-ops/ (push แล้วขึ้นเว็บเองใน 1–2 นาที)
 
@@ -11,7 +11,8 @@
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `index.html` | **ซอร์สหลัก (ไฟล์เดียว ~1 MB)** — React app ที่ build แล้ว + โค้ด 9D ทั้งหมด (สคริปต์ inline ก้อนที่ 3) + CSS ต่อท้ายเป็น `<style id="v16xx">` ก่อน `</body>` |
-| `city.html` | เมืองจำลอง 3 มิติ (three.js r128 ใน `vendor/`) รับข้อมูลจาก index.html ผ่าน `postMessage` (`{t:"9d-city",v:1,...}`) |
+| `city.html` | เมืองจำลอง 3 มิติ (เลิกแสดงในเมนูตั้งแต่ v16.70 — เก็บไฟล์ไว้เฉย ๆ) |
+| `vendor/scan/` | ตัวสแกนโฮสต์เอง (v16.70): ZXing-C++ wasm (`zxing-reader.js` + `zxing_reader.wasm`, zxing-wasm 3.1.6) · Tesseract.js 5.1.1 (`tesseract.min.js`, `worker.min.js`, core LSTM/SIMD) · `lang/eng.traineddata.gz` (4.0.0_best_int) — อัปเดตต้องเปลี่ยน `?v=` ใน `scanLib` |
 | `version.json` | `{"v":"v16.xx"}` ต้องตรงกับ `M_VER` ใน index.html เสมอ — หน้าที่เปิดค้างใช้ไฟล์นี้เช็กว่ามีเวอร์ชันใหม่ |
 | `sw.js`, `manifest.webmanifest`, ไอคอน | PWA (ติดตั้งเป็นแอป) — แก้ไอคอน/manifest ให้เปลี่ยนชื่อ cache `C` ใน sw.js |
 | `README.md` | บันทึกการเปลี่ยนแปลงแต่ละเวอร์ชัน (ภาษาไทย) |
