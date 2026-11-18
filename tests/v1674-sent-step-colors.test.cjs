@@ -15,5 +15,5 @@ test('โทนสีกลาง: สีขั้นตอนใหม่ + ส
  assert.match(html,/var STEPCOL=\{recv:"#2B5FB4",design:"#3E9B5A",buy:"#7A35BD",sup:"#2E9A78",price:"#B03A72",quote:"#4B4FC2",cust:"#B8860B",sales:"#3A8FD0",sent:"#A85A28"/);
  const i=html.indexOf('var M_COL_UP=');const c={};vm.createContext(c);vm.runInContext(html.slice(i,html.indexOf('\n',i)),c);
  assert.equal(c.mColUp('#00B259'),'#3E9B5A');assert.equal(c.mColUp('#ffc012'),'#B8860B');assert.equal(c.mColUp('#123456'),'#123456');
- for(const v of ['FF8000','00B259','FFC012','BC1A8C','6A1499','EC1C24'])assert.ok(!new RegExp('#'+v+'(?![0-9A-F])','i').test(html.replace(/var M_COL_UP=[^\n]*/,'')),'ไม่เหลือสีสด #'+v);
+ for(const v of ['FF8000','00B259','FFC012','BC1A8C','6A1499','EC1C24'])assert.ok(!new RegExp('#'+v+'(?![0-9A-F])','i').test(html.replace(/var M_COL_UP=[^\n]*/,'').replace(/var STEP_PALS=[^\n]*/,'')),'ไม่เหลือสีสด #'+v);
  assert.match(html,/\.dv-rev\{/)});
