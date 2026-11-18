@@ -1752,7 +1752,7 @@ async function dvRender(){let host=document.getElementById("dashv");if(!host)ret
    certSec=`<section class="dv-sec" aria-labelledby="dv-t6"><div class="dv-sec-h"><h2 id="dv-t6">Cert CommScope</h2><button type="button" class="dv-link" onclick="dvGoCert()">ไปหน้า Certification →</button></div>
    <div class="dv-grid ${half?"two-even":""}"><div class="dv-kpis two">${dvKpi(dvIcon.warn+" ควรชวนสอบใหม่",dvNum(risk.length),"บริษัทที่ไม่ครบเงื่อนไขแล้ว",risk.length?"warn":"")}${dvKpi(dvIcon.ok+" ยังครบเงื่อนไข",dvNum(info.length),"มีใบใกล้หมดอายุ แต่ยังพอ")}</div>
    <div class="dv-card"><h3>บริษัทที่ควรชวนอบรม/สอบใหม่</h3>${risk.length?`<ol class="dv-list">${risk.slice(0,5).map(([c,a])=>`<li><span class="dv-li-l"><b>${mEsc(c)}</b><span>${a.length} ใบใกล้หมดอายุ · ${mEsc([...new Set(a.map(r=>r.code))].join(", "))}</span></span><em>${dvTH2(a[0].expiry)}</em></li>`).join("")}</ol>`:`<p class="dv-empty ok">${dvIcon.ok} ทุกบริษัทยังครบเงื่อนไข System Warranty</p>`}${info.length?`<p class="dv-cap dv-cert-note">${dvIcon.ok} อีก ${info.length} บริษัทมีใบใกล้หมดอายุแต่ยังครบเงื่อนไข — แจ้งเป็นข้อมูลได้ ไม่เร่งด่วน</p>`:""}</div></div></section>`}}catch(e){console.warn("[9D] cert",e)}}
-  if(!dvRenderCurrent(id,page))return;host.innerHTML=head+dvOvTop(st,keys,rl,staff,half,tplot)+teams+(loanSec&&svcSec?`<div class="dv-pair">${loanSec}${svcSec}</div>`:loanSec+svcSec)+certSec+reqs+(M.role==="admin"?dvPrefixCard(st):"");
+  if(!dvRenderCurrent(id,page))return;host.innerHTML=head+(()=>{try{return dvTodayBox(st)}catch(e){console.warn("[9D] today",e);return""}})()+dvOvTop(st,keys,rl,staff,half,tplot)+teams+(loanSec&&svcSec?`<div class="dv-pair">${loanSec}${svcSec}</div>`:loanSec+svcSec)+certSec+reqs+(M.role==="admin"?dvPrefixCard(st):"");
   let pts=null;if(staff&&TS.at){let chans=(TS.all||[]).filter(r=>!r.ignored);pts=keys.map(d=>({d,v:chans.reduce((s,r)=>s+((r.days||{})[d]||0),0)}));if(pts.length>120){let w=[];for(let i=0;i<pts.length;i+=7){let c=pts.slice(i,i+7);w.push({d:c[0].d,e:c[c.length-1].d,v:c.reduce((s,p)=>s+p.v,0),wk:!0})}pts=w}}
   let plot=host.querySelector(".dv-plot");if(plot&&pts)plot.innerHTML=dvLine(pts,Math.max(240,plot.clientWidth));
   dvWire(host,pts)}
@@ -2553,8 +2553,8 @@ async function dvQuotesPage(host,id){if(!mCanQuote()){host.innerHTML=`<p class="
    <label class="dv-search"><span class="sr">ค้นหา</span><input type="search" enterkeyhint="search" placeholder="ค้นหา เลขที่ / ลูกค้า / Project Code / รหัสสินค้า" value="${e(DV.qq||"")}" oninput="dvQ('qq','.dv-qtr',this.value)"></label></div><p class="dv-qnote" aria-live="polite" hidden></p>
   ${shown.length?`<div class="dv-pregw"><table class="dv-pregt"><thead><tr><th>เลขที่</th><th>ลูกค้า / โครงการ</th><th>วันที่ · ยืนราคา</th><th class="r">ยอดสุทธิ</th><th>สถานะ</th><th></th></tr></thead><tbody>${shown.map(q=>{let c=qtCalc(q),exp=q.until&&q.until<dvToday()&&["ร่าง","ส่งลูกค้าแล้ว"].includes(q.status);
    return`<tr class="dv-qtr" data-q="${e([q.no,q.cust?.name,q.job,q.jobDes,...(q.items||[]).map(x=>x.code)].join(" ").toLowerCase())}"><td><b class="dv-code">${e(String(q.no).startsWith("QT-PENDING-")?"รอออกเลขเอกสาร":q.no)}</b><small>${e(q.maker||q.by||"")}</small></td><td><b>${e(q.cust?.name||"")}</b><small>${e([q.job,q.jobDes].filter(Boolean).join(" · "))}</small></td><td>${q.date?dvTH2(q.date):""}<small>${q.until?"ถึง "+dvTH2(q.until):""}${exp?' · <span class="dv-red">หมดอายุ</span>':""}</small></td><td class="r"><b>${qtF(c.net)}</b>${c.hasCost?`<small>กำไร ${c.pct}%</small>`:""}</td>
-    <td><select class="qt-st ${QT_ST[q.status]||""}" aria-label="สถานะ ${e(q.no)}" onchange="dvQtStatus('${q.id}',this.value)">${Object.keys(QT_ST).map(s=>`<option${s===q.status?" selected":""}>${s}</option>`).join("")}</select></td>
-    <td class="lk"><button type="button" class="qt-row-action" onclick="dvQtView('${q.id}')">ดู / PDF</button><button type="button" class="dv-qtshare qt-row-action" data-id="${e(q.id)}" onclick="dvQtShare(this.dataset.id,undefined,this)">แชร์</button><button type="button" class="qt-row-action" onclick="dvQtMail('${q.id}')">อีเมล</button><button type="button" class="qt-row-action" onclick="dvQtForm('${q.id}')">แก้ไข</button><button type="button" class="qt-row-action" onclick="dvQtForm('${q.id}',1)">ทำซ้ำ</button></td></tr>`}).join("")}</tbody></table></div>`:`<p class="dv-empty">${list.length?"ไม่มีใบเสนอราคาในกลุ่มนี้":"ยังไม่มีใบเสนอราคา — กด \"+ สร้างใบเสนอราคา\""}</p>`}`;
+    <td><span class="dv-st qt-badge ${({gry:"gry",cur:"cur",ok:"ok",no:"no"})[QT_ST[q.status]]||"gry"}">${e(q.status||"ร่าง")}</span></td>
+    <td class="lk"><div class="qt-acts"><button type="button" class="qt-row-action qt-view" onclick="dvQtView('${q.id}')">ดู / PDF</button><details class="qt-menu"><summary class="qt-row-action" aria-label="จัดการ ${e(q.no)}">จัดการ</summary><div class="qt-mlist" role="menu"><button type="button" role="menuitem" class="dv-qtshare qt-row-action" data-id="${e(q.id)}" onclick="dvQtShare(this.dataset.id,undefined,this)">แชร์ลิงก์</button><button type="button" role="menuitem" class="qt-row-action" onclick="dvQtMail('${q.id}')">ส่งอีเมล</button><button type="button" role="menuitem" class="qt-row-action" onclick="dvQtForm('${q.id}')">แก้ไข</button><button type="button" role="menuitem" class="qt-row-action" onclick="dvQtForm('${q.id}',1)">ทำซ้ำเป็นใบใหม่</button><p class="qt-mh">เปลี่ยนสถานะเป็น</p>${Object.keys(QT_ST).filter(s=>s!==q.status).map(s=>`<button type="button" role="menuitem" class="qt-row-action qt-sto ${QT_ST[s]}" data-s="${e(s)}" onclick="dvQtStatus('${q.id}',this.dataset.s)">${e(s)}</button>`).join("")}</div></details></div></td></tr>`}).join("")}</tbody></table></div>`:`<p class="dv-empty">${list.length?"ไม่มีใบเสนอราคาในกลุ่มนี้":"ยังไม่มีใบเสนอราคา — กด \"+ สร้างใบเสนอราคา\""}</p>`}`;
  if(DV.qq)dvQ("qq",".dv-qtr",DV.qq)}
 
 /* ===== v16.29 ยกเลิกคำขอ + ส่งคำขอซ้ำ ===== */
@@ -2670,6 +2670,26 @@ function dvDonut(segs,total,over,opt={}){let R=78,SW=26,C=2*Math.PI*R,off=0,tot=
  return`<div class="dv-dn${opt.cls?" "+opt.cls:""}"><svg class="dv-donut" viewBox="0 0 200 200" role="img" aria-label="${mEsc(opt.aria||"สัดส่วนงานที่กำลังทำแต่ละขั้นตอน")} รวม ${tot} งาน"><circle r="${R}" cx="100" cy="100" fill="none" stroke="#EEF1F5" stroke-width="${SW}"/>${arcs}<text x="100" y="${over?94:100}" text-anchor="middle" class="dv-donut-n">${dvNum(tot)}</text><text x="100" y="${over?118:124}" text-anchor="middle" class="dv-donut-l">${mEsc(opt.center||"กำลังทำ")}</text>${over?`<text x="100" y="140" text-anchor="middle" class="dv-donut-o">ค้าง ${over}</text>`:""}</svg><ul class="dv-dleg">${leg}</ul></div>`}
 window.dvDnHl=(el,i)=>{let w=el.closest(".dv-dn");if(!w)return;w.classList.toggle("hl",i>=0);w.querySelectorAll(".dv-arc").forEach(c=>c.classList.toggle("on",Number(c.dataset.i)===i))};
 
+/* ===== v16.72 หน้าภาพรวม: กล่อง "วันนี้ต้องทำอะไร" (บนสุด) ===== */
+function dvTodayData(st,me,eng){me=String(me||"").toLowerCase();let P=(st.projects||[]).filter(p=>String(p.id).startsWith("sp-")),mine=p=>String(p.accountId||"").toLowerCase()==="acc-"+me;
+ let act=P.filter(p=>p.listApproval==="approved"&&mPStat(p)==="active").map(p=>({p,b:mSubOf(p)})).filter(x=>x.b),scope=eng?act:act.filter(x=>mine(x.p));
+ let wait=eng?scope.filter(x=>(SUBST[x.b.sub]?.z||"E")==="E"):scope.filter(x=>SUBST[x.b.sub]?.z==="S"||SUBST[x.b.sub]?.who==="Sales");
+ let over=scope.filter(x=>x.b.over),pend=P.filter(p=>p.listApproval==="pending"&&(eng||mine(p)));
+ let dlv=eng?[]:P.filter(p=>mine(p)&&p.listApproval==="approved"&&mPStat(p)==="delivered");
+ let top=[...wait].sort((a,b)=>(b.b.over?1:0)-(a.b.over?1:0)||(b.b.days||0)-(a.b.days||0)).slice(0,5);
+ return{wait,over,pend,dlv,top}}
+function dvTodayBox(st){let eng=mIsEng(),d=dvTodayData(st,M.profile?.email,eng),men=typeof mentUnread==="function"?mentUnread().length:0,ln=eng&&typeof MENT!=="undefined"?(MENT.loans||[]).length:0;
+ let tile=(cls,label,n,sub,click,warn)=>`<button type="button" class="dv-tt${n?"":" zero"}${warn&&n?" warn":""} ${cls}" onclick="${click}"><span class="l">${label}</span><b>${dvNum(n)}</b><small>${sub}</small></button>`;
+ let tiles=[eng?tile("t-us","รอทีม Engineer",d.wait.length,"งานที่ขั้นตอนอยู่ที่เรา","dvGo('projects')"):tile("t-us","รอฉัน (เซลส์)",d.wait.length,"งานที่ขั้นตอนอยู่ที่เซลส์","dvGo('projects')"),
+  tile("t-ov",dvIcon.warn+" ค้างเกินกำหนด",d.over.length,eng?"ทุกขั้นตอน":"งานของฉัน","dvGo('projects')",1),
+  eng?tile("t-ap","รออนุมัติ",d.pend.length,"คำขอใหม่จากเซลส์","dvNavReact('รออนุมัติ')"):tile("t-ap","คำขอของฉันรออนุมัติ",d.pend.length,"ยังไม่มีคนพิจารณา","dvGo('projects')"),
+  tile("t-mn","แท็กใหม่ใน Teams",men,"มีคน @ถึงคุณ","mentPop()",1),
+  ...(eng?[tile("t-ln","ใบยืมใกล้ / เกินกำหนดคืน",ln,"ของคุณ","dvGo('loans','over')",1)]:[tile("t-dl","รอลูกค้า",d.dlv.length,"ส่งงานแล้ว ควรตามลูกค้า","dvGo('projects')")])].join("");
+ let list=d.top.length?`<ol class="dv-tlist">${d.top.map(x=>`<li><button type="button" onclick="dvPanel('${mEsc(x.p.id)}')"><span class="dv-code">${mEsc(x.p.code)}</span><b>${mEsc(x.p.name&&x.p.name!==x.p.code?x.p.name:x.p.client||"")}</b><span class="dv-tstep">${mEsc(mCardName(x.b.sub).label)}</span><em class="${x.b.over?"over":""}">${x.b.days??0} วัน${x.b.over?" · เกินกำหนด":""}</em></button></li>`).join("")}</ol>`:`<p class="dv-empty ok">${dvIcon.ok} ไม่มีงานค้างที่${eng?"ทีม Engineer":"คุณ"}</p>`;
+ return`<section class="dv-sec dv-today" aria-labelledby="dv-tdy"><div class="dv-sec-h"><h2 id="dv-tdy">วันนี้ต้องทำอะไร</h2><small>${mEsc(dvTH2(dvToday()))}</small></div><div class="dv-ttiles">${tiles}</div>
+  <h3 class="dv-th3">${eng?"งานที่รอทีมเรานานที่สุด":"งานที่รอคุณนานที่สุด"}</h3>${list}</section>`}
+window.dvNavReact=t=>{let it=[...document.querySelectorAll(".sidebar .nav-item")].find(x=>x.textContent.trim().startsWith(t));if(it)it.click();else document.querySelector(`#dv-tabbar button[data-t="appr"]`)?.click()};
+window.dvChT=o=>{DV.chOpen=!!o};
 /* ===== v16.47 หน้าภาพรวม: แผนภูมิภาพรวมงานอยู่บนสุด ===== */
 function dvSpark(vals){let n=vals.length;if(n<2)return"";let mx=Math.max(1,...vals),W=120,H=34,X=i=>(i*(W-2)/(n-1)+1).toFixed(1),Y=v=>(H-3-v/mx*(H-8)).toFixed(1),line=vals.map((v,i)=>(i?"L":"M")+X(i)+","+Y(v)).join("");
  return`<svg class="dv-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${line}L${X(n-1)},${H}L${X(0)},${H}Z" fill="currentColor" opacity=".18"/><path d="${line}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`}
@@ -2685,8 +2705,8 @@ function dvOvTop(st,keys,rl,staff,half,tplot){let P=st.projects.filter(p=>String
  let by={};for(let b of sbs){let x=by[b.sub]=by[b.sub]||{n:0,ov:0};x.n++;if(b.over)x.ov++}let mx=Math.max(1,...SUBORD.map(s=>by[s]?.n||0));
  let steps=`<div class="dv-stepbars">${SUBORD.map(s=>{let n=by[s]?.n||0,ov=by[s]?.ov||0,c=mCardName(s);return`<button type="button" class="dv-stepbar" onclick="dvGo('status');setTimeout(()=>window.dvSS&&dvSS('${s}'),60)" aria-label="${mEsc(c.label)} ${n} งาน${ov?" ค้าง "+ov:""}"><span class="l"><i style="background:${STEPCOL[s]||"#005CB9"}"></i>${mEsc(c.label)}${c.who?`<small>${mEsc(c.who)}</small>`:""}</span><span class="t"><i style="width:${n?Math.max(3,n/mx*100):0}%;background:${STEPCOL[s]||"#005CB9"}"></i></span><span class="v">${dvNum(n)}${ov?`<em>${dvIcon.warn}${ov}</em>`:""}</span></button>`}).join("")}</div>`;
  return`<section class="dv-sec dv-ovtop" aria-labelledby="dv-t0"><div class="dv-sec-h"><h2 id="dv-t0">ภาพรวมงาน</h2><button type="button" class="dv-link" onclick="dvGo('projects')">ไปหน้าโครงการ →</button></div>${kpis}
-  <div class="dv-ovgrid"><div class="dv-card"><h3>สัดส่วนสถานะโครงการ</h3><p class="dv-cap">โครงการที่อนุมัติแล้วทั้งหมด ${dvNum(A.length)} งาน · สถานะปัจจุบัน</p>${donut}</div>
-   <div class="dv-card"><h3>งานที่กำลังทำ แยกตามขั้นตอน</h3><p class="dv-cap">งานอยู่ในมือใคร · ${dvIcon.warn} = ค้างเกินวันเตือน · กดเพื่อดูรายการ</p>${steps}</div></div>${tplot||""}</section>`}
+  <details class="dv-ovfold dv-chfold"${(DV.chOpen??(typeof innerWidth==="number"?innerWidth>760:!0))?" open":""} ontoggle="dvChT(this.open)"><summary>กราฟ <small>สัดส่วนสถานะ · งานแยกตามขั้นตอน${tplot?" · ความเคลื่อนไหวใน Teams":""}</small></summary><div class="dv-ovgrid"><div class="dv-card"><h3>สัดส่วนสถานะโครงการ</h3><p class="dv-cap">โครงการที่อนุมัติแล้วทั้งหมด ${dvNum(A.length)} งาน · สถานะปัจจุบัน</p>${donut}</div>
+   <div class="dv-card"><h3>งานที่กำลังทำ แยกตามขั้นตอน</h3><p class="dv-cap">งานอยู่ในมือใคร · ${dvIcon.warn} = ค้างเกินวันเตือน · กดเพื่อดูรายการ</p>${steps}</div></div>${tplot||""}</details></section>`}
 
 /* ===== v16.47 บอร์ดสถานะ: ลากวาง (drag & drop) ===== */
 /* ตัดสินว่าการวางการ์ด (สถานะ s, ขั้นตอน sub) ลงเป้าหมาย t ทำอะไร — ฟังก์ชันบริสุทธิ์ (ทดสอบได้) */
@@ -3620,7 +3640,11 @@ window.dvSvcForm=(id,type,pre)=>{let r=id?(SVC.items||[]).find(x=>x.id===id):{cu
 var dvCertSt=(r,remind)=>{if(!r.expiry)return"nodate";let d=Math.round((Date.parse(r.expiry)-Date.parse(dvToday()))/864e5);return d<0?"over":d<=remind?"soon":"ok"};
 var dvCertDays=r=>r.expiry?Math.round((Date.parse(r.expiry)-Date.parse(dvToday()))/864e5):null;
 var dvCertChip=(r,remind)=>{let s=dvCertSt(r,remind),d=dvCertDays(r);return s==="over"?`<span class="dv-st no">หมดอายุแล้ว${d>-366?" "+(-d)+" วัน":""}</span>`:s==="soon"?`<span class="dv-st warn">${dvIcon.wait} อีก ${d} วัน</span>`:s==="ok"?`<span class="dv-st ok">ใช้ได้ถึง ${dvTH2(r.expiry)}</span>`:`<span class="dv-st gry">ไม่มีวันหมดอายุ</span>`};
-var dvBrandNav=()=>`<nav class="dv-svnav" aria-label="แบรนด์"><div class="dv-brands">${[["aem","AEM"],["cs","CommScope"]].map(([k,l])=>`<button type="button" class="dv-brand${(DV.svb||"aem")===k?" on":""}" aria-pressed="${(DV.svb||"aem")===k}" onclick="dvSet('svb','${k}')">${l}</button>`).join("")}</div>${(DV.svb||"aem")==="aem"?`<div class="dv-seg" role="tablist">${[["cal","Calibration"],["svc","Service"]].map(([k,l])=>`<button type="button" role="tab" class="${DV.sv===k?"on":""}" aria-selected="${DV.sv===k}" onclick="dvSet('sv','${k}')">${l}</button>`).join("")}</div>`:`<div class="dv-seg" role="tablist"><button type="button" role="tab" class="on" aria-selected="true">Certification</button></div>`}</nav>`;
+/* v16.72 รวมปุ่มสลับ 2 ชุดเป็นแถบเดียว */
+window.dvSvTab=(b,v)=>{DV.svb=b;if(v)DV.sv=v;dvRender()};
+var dvBrandNav=()=>{let b=DV.svb||"aem",v=DV.sv||"cal",T=[["aem","cal","AEM","Calibration"],["aem","svc","AEM","Service"],["cs","","CommScope","Certification"]];
+ return`<nav class="dv-svnav dv-svtabs" aria-label="ประเภทงานเซอร์วิส"><div class="dv-utabs" role="tablist">${T.map(([kb,kv,br,l])=>{let on=b===kb&&(!kv||v===kv);return`<button type="button" role="tab" aria-selected="${on}" class="${on?"on":""}" onclick="dvSvTab('${kb}','${kv}')"><small>${br}</small><b>${l}</b></button>`}).join("")}</div></nav>`};
+var dvBrandNavOld=()=>`<nav class="dv-svnav" aria-label="แบรนด์"><div class="dv-brands">${[["aem","AEM"],["cs","CommScope"]].map(([k,l])=>`<button type="button" class="dv-brand${(DV.svb||"aem")===k?" on":""}" aria-pressed="${(DV.svb||"aem")===k}" onclick="dvSet('svb','${k}')">${l}</button>`).join("")}</div>${(DV.svb||"aem")==="aem"?`<div class="dv-seg" role="tablist">${[["cal","Calibration"],["svc","Service"]].map(([k,l])=>`<button type="button" role="tab" class="${DV.sv===k?"on":""}" aria-selected="${DV.sv===k}" onclick="dvSet('sv','${k}')">${l}</button>`).join("")}</div>`:`<div class="dv-seg" role="tablist"><button type="button" role="tab" class="on" aria-selected="true">Certification</button></div>`}</nav>`;
 var dvCertGroup=items=>{let g={};for(let r of items){let k=r.company.toLowerCase().replace(/[^a-z0-9ก-๙]+/g,"");(g[k]=g[k]||{company:r.company,folder:r.folder,rows:[]}).rows.push(r);if(!g[k].folder&&r.folder)g[k].folder=r.folder}return Object.values(g)};
 async function dvCertPage(host,id){DV.sig=dvSig();let items;try{items=await mCerts()}catch(e){if(!dvRenderCurrent(id,"service"))return;host.innerHTML=dvCertHead()+`<p class="dv-empty dv-warnbox">${dvIcon.warn} เปิด List “${mEsc(CERT.list)}” ไม่ได้: ${mEsc(e.message)}</p>`;return}
  if(!dvRenderCurrent(id,"service"))return;if(CERT.missing){host.innerHTML=dvCertHead(!0)+`<div class="dv-card dv-setup"><h3>ยังไม่มี List สำหรับเก็บข้อมูลผู้สอบ</h3><p class="dv-cap">กดปุ่มด้านล่างเพื่อสร้าง SharePoint List “<b>${CERT.list}</b>” ในไซต์ 9D Engineer (ทำครั้งเดียว) แล้วนำเข้าข้อมูลเดิมด้วยไฟล์ CSV หรือบันทึกผลสอบใหม่ได้เลย</p><button type="button" class="dv-new" onclick="dvCertCreate()">สร้าง List</button></div>`;return}
@@ -3890,7 +3914,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.71";
+var M_VER="v16.72";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -4023,11 +4047,7 @@ async function mBackupAuto(force){if(!M.sid||(M.role!=="admin"&&!(typeof mIsEng=
  try{localStorage.setItem(k,wk)}catch{}console.info("[9D] backup",wk,done);return{week:wk,lists:done}}
 window.dvBackupNow=async()=>{mToast("กำลังสำรองข้อมูล List…");try{let r=await mBackupAuto(!0);mToast(r?`สำรองข้อมูลแล้ว ${r.lists.length} List → Documents › ${BK_ROOT}/${r.week}`:"ไม่มีสิทธิ์สำรองข้อมูล")}catch(e){mToast("สำรองข้อมูลไม่สำเร็จ: "+e.message,!0)}};
 
-/* ===== v16.68 (9) ธีมพาสเทล: สลับได้ เก็บค่าในเครื่อง ===== */
-function mTheme(){try{return localStorage.getItem("9d-theme")||""}catch{return""}}
-function mThemeApply(){let p=mTheme()==="pastel";document.documentElement.classList.toggle("th-pastel",p);document.querySelectorAll(".th-tgl").forEach(b=>{b.setAttribute("aria-pressed",p);b.querySelector("span")&&(b.querySelector("span").textContent=p?"ธีมพาสเทล":"ธีมปกติ")})}
-window.mThemeToggle=()=>{try{localStorage.setItem("9d-theme",mTheme()==="pastel"?"":"pastel")}catch{}mThemeApply();mToast(mTheme()==="pastel"?"เปลี่ยนเป็นธีมพาสเทลแล้ว (เฉพาะเครื่องนี้)":"กลับเป็นธีมปกติแล้ว")};
-mThemeApply();
+/* v16.72 เลิกใช้ธีมพาสเทล — ล้างค่าที่เคยเลือกไว้ */try{localStorage.removeItem("9d-theme")}catch{}
 /* ===== v16.71 หน้า "รออนุมัติ": ปุ่ม "ข้อมูลการซิงค์" แทนกล่องคำอธิบาย 3 กล่อง ===== */
 function apNotesPaint(){let h=document.querySelector(".main-content>.page-heading .heading-actions");if(!h||!h.querySelector(".teams-import-entry"))return;
  let b=h.querySelector(".ap-notes-btn"),on=document.documentElement.classList.contains("ap-notes"),bad=!!document.querySelector(".main-content>.modebar .system-status:not(.ready)");
@@ -4038,6 +4058,10 @@ try{if(localStorage.getItem("9d-apnotes")==="1")document.documentElement.classLi
 function pnlActs(a,pid){let s=a.querySelector(".pnl-body");if(!s||PNL.tab!=="info")return;let pb=[...document.querySelectorAll("#dashv .dv-prow .dv-popen")].find(b=>(b.getAttribute("onclick")||"").includes("'"+pid+"'")),act=pb?.closest(".dv-prow")?.querySelector(".dv-pact");
  if(!act||!act.children.length)return;let box=document.createElement("section");box.className="pnl-acts";box.innerHTML='<h3 class="pnl-h3">จัดการงานนี้</h3>';let c=act.cloneNode(!0);box.appendChild(c);s.insertBefore(box,s.firstChild);
  c.querySelectorAll("select").forEach(x=>x.value="");try{dvStatusWire(box)}catch(e){console.warn("[9D] panel acts",e)}}
+/* v16.72 เมนู "จัดการ" ในใบเสนอราคา: เปิดได้ทีละอัน · กดนอกเมนูหรือเลือกรายการแล้วปิด */
+document.addEventListener("click",e=>{document.querySelectorAll("details.qt-menu[open]").forEach(d=>{if(!d.contains(e.target)||e.target.closest(".qt-mlist button"))setTimeout(()=>{d.open=!1},0)})});
+document.addEventListener("toggle",e=>{let d=e.target;if(d.matches?.("details.qt-menu")&&d.open)document.querySelectorAll("details.qt-menu[open]").forEach(x=>{if(x!==d)x.open=!1})},!0);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll("details.qt-menu[open]").forEach(d=>{d.open=!1;d.querySelector("summary")?.focus()})});
 var mUiFrame=0;function mUiSchedule(records){if(records?.length&&records.every(r=>(r.target.nodeType===1?r.target:r.target.parentElement)?.closest?.("#dashv")))return;
  if(mUiFrame)return;mUiFrame=requestAnimationFrame(()=>{mUiFrame=0;mNavInject();dvSync();mCodeAuto();try{mentPaint()}catch{}try{apNotesPaint()}catch{}try{dvDraftInject();dvWorkspaceSettingsInject();wsApplyUi();mApprovalImportsInject()}catch(e){}})}
 async function boot(){
@@ -4058,7 +4082,7 @@ async function boot(){
  PV_KEY="9d-ops-v13-"+pr.oid;PV=pvLoad();PV.session={userId:pr.oid,name:pr.name,email:pr.email,role:"sales"};pvSave();
  PV_PROFILE.name=pr.name;PV_PROFILE.email=pr.email;M.role=mRole(pr.email);
  document.getElementById("gate").style.display="none";
- let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">${UI_IC.chat} Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span> · <button type="button" class="th-tgl" aria-pressed="false" onclick="mThemeToggle()" title="สลับธีม (เฉพาะเครื่องนี้)"><i aria-hidden="true"></i><span>ธีมปกติ</span></button>${M.role==="admin"?` · <a href="#" onclick="dvBackupNow();return false">สำรองข้อมูล List</a>`:""} · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();try{mThemeApply()}catch{}
+ let bar=document.querySelector(".offline-notice");bar.innerHTML=`<span class="dot"></span> <span class="ob-x">Microsoft 365 · </span>${mEsc(pr.name)}<span class="ob-x"> (${mEsc(pr.email)})</span> · ${({admin:"Admin",engineer:"Engineer",sales:"Sales<span class=\"ob-x\"> — เห็นเฉพาะงานของตนเอง</span>",viewer:"Viewer"})[M.role]+(M.isApprover?" · ผู้อนุมัติ":"")}${M.trackErr?` · <b>${mEsc(M.trackErr)}</b>`:""} ${M.role!=="sales"&&M.role!=="viewer"?` · <a href="#" class="dash-open" onclick="mDash();return false">${UI_IC.chat} Teams Monitor</a>`:""} · <a href="${M.listWebUrl}" target="_blank" rel="noreferrer">All Projects List ↗</a><span class="pwa-slot"></span>${M.role==="admin"?` · <a href="#" onclick="dvBackupNow();return false">สำรองข้อมูล List</a>`:""} · <span class="ver">${M_VER}</span> · <a href="#" onclick="mLogoutNow();return false">ออกจากระบบ</a>`;bar.style.display="block";pwaSlot();
  (0,og.createRoot)(document.getElementById("root")).render((0,sg.jsx)(Xi,{}));
  let syncAuto=()=>mTeamsSync().then(async()=>{try{await mCancelSync()}catch(e){console.warn(e)}try{let rb=await mChanRebind();if(rb.length){mToast("ย้ายลิงก์ Teams ตาม Project Code ใหม่แล้ว "+rb.length+" งาน: "+rb.slice(0,5).join(", ")+(rb.length>5?" …":""));DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] rebind",e)}try{if(await mChanVerify()){DV.stAt=0;dvRender()}}catch(e){console.warn("[9D] channel verify",e)}try{if(await mChanFilesFix()){DV.stAt=0}}catch(e){console.warn("[9D] files fix",e)}try{await mDupNotify()}catch(e){console.warn(e)}if(document.getElementById("dash")?.style.display==="flex")mDashRender();try{await mAutoRequests()}catch(e){console.warn(e)}try{await mAutoChannels()}catch(e){console.warn(e)}try{await mStatusAuto()}catch(e){console.warn(e)}try{await mWfAuto()}catch(e){console.warn(e)}});setTimeout(syncAuto,1500);setTimeout(()=>mAutoRequests().catch(e=>console.warn(e)),2500);let rfAuto=()=>mReqFilesAuto().then(n=>{if(n)mToast("แนบไฟล์ของคำขอเข้ารายการแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(rfAuto,6000);setInterval(rfAuto,5*60e3);let pfAuto=()=>mPermFixAuto().then(n=>{if(n)mToast("เพิ่ม Owner / เซลส์ เข้า Channel ครบแล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(pfAuto,12000);setInterval(pfAuto,10*60e3);let cfAuto=()=>mChanFilesAuto().then(n=>{if(n)mToast("คัดลอกไฟล์แนบเข้า Teams Channel แล้ว "+n+" งาน")}).catch(e=>console.warn(e));setTimeout(cfAuto,18000);setInterval(cfAuto,10*60e3);setInterval(()=>boPoll(),10000);setInterval(syncAuto,10*60e3);/* v16.67 เช็กแท็กใน Teams ถี่ขึ้น (ทุก 5 นาที แบบอ่านเฉพาะ Channel ที่มีข้อความใหม่) */setInterval(()=>{if(!TS.busy&&TS.at&&Date.now()-TS.at>=5*60e3-5e3)mTeamsSync(!0).catch(e=>console.warn(e))},60e3);setTimeout(()=>{try{mentPaint()}catch{}},2e3);/* v16.68 */setInterval(()=>{mentHot().catch(e=>console.warn("[9D] hot",e))},90e3);setTimeout(()=>mentLoans(),9e3);setInterval(()=>mentLoans(),30*60e3);setTimeout(()=>mBackupAuto().then(r=>{if(r)console.info("[9D] สำรองข้อมูลแล้ว",r)}).catch(e=>console.warn("[9D] backup",e)),25e3);setInterval(mVerWatch,5*60e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)mVerWatch()});new MutationObserver(mUiSchedule).observe(document.getElementById("root"),{childList:!0,subtree:!0});setTimeout(()=>{mNavInject();dvSync()},300);olBoot();if(location.hash==="#dashboard"&&M.role!=="sales")mDash()}
 Pd=()=>({busy:!1,connected:!!M.profile,graphReady:!!M.sid,sharePointReady:!!M.sid,inspection:M.profile?{profile:{name:M.profile.name,email:M.profile.email}}:null,error:"",connect:async()=>mLogin()});
@@ -5441,85 +5465,32 @@ body.pnl-on #pnl-bd{display:block;position:fixed;inset:0;background:#0f1b3a33;z-
 @media (max-width:640px){#ment-pop{left:8px;right:8px;top:66px;width:auto;max-height:calc(100vh - 170px)}}
 </style>
 <style id="v1668">
-/* v16.68 ธีมพาสเทล (html.th-pastel) — สลับได้จากปุ่ม "ธีม" บนแถบบัญชี · ค่าเก็บในเครื่อง */
-.th-tgl{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border-radius:999px;border:1px solid #D5DCE7;background:#fff;color:#284397;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;vertical-align:middle}
-.th-tgl i{width:12px;height:12px;border-radius:50%;background:conic-gradient(#F7B8C0 0 25%,#A9CDEE 0 50%,#F8DD8C 0 75%,#B7DDA8 0)}
-.th-tgl[aria-pressed=true]{background:#FDE8EB;border-color:#F3C9CF;color:#8E1B2E}
-html.th-pastel{--pa-bg:#FFFCF6;--pa-ink:#2B2A33;--pa-line:#ECE6DA;--pa-pink:#FDE8EB;--pa-pink2:#F6CCD3;--pa-blue:#E3EFFA;--pa-blue2:#C5DCF2;--pa-yel:#FDF3D2;--pa-yel2:#F3E0A2;--pa-grn:#E6F4E0;--pa-grn2:#C7E5BB;--pa-head:'IBM Plex Sans Thai','IBM Plex Sans',sans-serif}
-html.th-pastel body,html.th-pastel .main-shell,html.th-pastel .main-content,html.th-pastel #dashv{background:var(--pa-bg)!important}
-html.th-pastel .topbar,html.th-pastel .app-shell .topbar{background:var(--pa-bg)!important;border-bottom:2px solid var(--pa-line)!important}
-html.th-pastel .offline-notice{background:#F3F7FC!important}
-html.th-pastel .sidebar{background:#F3F7FC!important;border-right:2px solid #E4ECF6!important}
-html.th-pastel .sidebar .brand{background:none!important}
-html.th-pastel .nav-item{border-radius:14px!important}
-html.th-pastel .nav-item.active{background:#FBDDE1!important;color:#8E1B2E!important;font-weight:700!important;box-shadow:none!important}
-html.th-pastel .nav-item.active svg{color:#C0394F!important}
-html.th-pastel .nav-item.active::before,html.th-pastel .nav-item.active::after{display:none!important}
-html.th-pastel .notification.icon-button{border-radius:50%;background:var(--pa-pink)!important}
 /* หัวหน้า */
-html.th-pastel #dashv .dv-head{background:var(--pa-blue)!important;background-image:none!important;color:var(--pa-ink)!important;border:0!important;border-radius:26px!important;box-shadow:none!important}
-html.th-pastel #dashv .dv-head::before,html.th-pastel #dashv .dv-head::after{display:none!important}
-html.th-pastel #dashv .dv-head h1{display:inline-block;background:#fff;border-radius:22px;padding:0 18px;color:var(--pa-ink)!important;font-family:var(--pa-head)!important;font-weight:600!important}
-html.th-pastel #dashv .dv-head .dv-eyebrow{color:#3F78B8!important}
-html.th-pastel #dashv .dv-head .dv-sub,html.th-pastel #dashv .dv-head p,html.th-pastel #dashv .dv-head small,html.th-pastel #dashv .dv-head span{color:#3D475B}
-html.th-pastel #dashv .dv-head .dv-btn{background:#fff!important;color:#284397!important;border:1px solid var(--pa-blue2)!important;border-radius:999px!important}
-html.th-pastel #dashv .dv-head .dv-seg{background:#fff!important;border-radius:999px!important;padding:3px!important}
-html.th-pastel #dashv .dv-head .dv-seg button{color:var(--pa-ink)!important;border-radius:999px!important}
-html.th-pastel #dashv .dv-head .dv-seg button.on,html.th-pastel #dashv .dv-head .dv-seg button[aria-pressed=true]{background:#FCEBB2!important;color:var(--pa-ink)!important}
-html.th-pastel #dashv .dv-new{background:#284397!important;border-radius:999px!important}
-html.th-pastel #dashv .dv-btn{border-radius:999px}
 /* หัวข้อ */
-html.th-pastel #dashv h1,html.th-pastel #dashv h2,html.th-pastel #dashv h3,html.th-pastel #ment-pop h2,html.th-pastel #pnl h2{font-family:var(--pa-head)!important;font-weight:500}
 /* การ์ด */
-html.th-pastel #dashv .dv-sec,html.th-pastel #dashv .dv-card{border-radius:22px!important;border:2px solid var(--pa-line)!important;box-shadow:0 4px 0 #F1ECE2!important;background:#fff!important}
-html.th-pastel #dashv .dv-sec .dv-card{box-shadow:none!important}
-html.th-pastel #dashv .dv-kpi{background-image:none!important;border-radius:22px!important;border:2px solid var(--pa-pink2)!important;background:var(--pa-pink)!important;color:var(--pa-ink)!important;box-shadow:none!important}
-html.th-pastel #dashv .dv-kpi:nth-child(4n+2){background:var(--pa-blue)!important;border-color:var(--pa-blue2)!important}
-html.th-pastel #dashv .dv-kpi:nth-child(4n+3){background:var(--pa-yel)!important;border-color:var(--pa-yel2)!important}
-html.th-pastel #dashv .dv-kpi:nth-child(4n+4){background:var(--pa-grn)!important;border-color:var(--pa-grn2)!important}
-html.th-pastel #dashv .dv-kpi.warn{background:#FDE7D6!important;border-color:#F4BE95!important}
-html.th-pastel #dashv .dv-kpi *{color:var(--pa-ink)!important}
-html.th-pastel #dashv .dv-kpi b{font-family:var(--pa-head)!important;font-weight:600!important;color:#1F2A4D!important}
-html.th-pastel #dashv .dv-kpi:nth-child(4n+1) b{color:#A51D35!important}
-html.th-pastel #dashv .dv-kpi:nth-child(4n+3) b{color:#7A5200!important}
-html.th-pastel #dashv .dv-kpi:nth-child(4n+4) b{color:#2E6B22!important}
-html.th-pastel #dashv .dv-kpi.warn b,html.th-pastel #dashv .dv-kpi.warn small{color:#9A3412!important}
-html.th-pastel #dashv .dv-kpi svg,html.th-pastel #dashv .dv-kpi canvas{opacity:.55}
 /* ปุ่ม / แท็บ / ชิป */
-html.th-pastel #dashv .dv-seg{border-radius:999px!important}
-html.th-pastel #dashv .dv-seg button{border-radius:999px!important}
-html.th-pastel #dashv .dv-seg button.on{background:#FBDDE1!important;color:#8E1B2E!important;border-color:#F3C9CF!important}
-html.th-pastel #dashv .ui-act,html.th-pastel #dashv .dv-mini{border-radius:999px}
-html.th-pastel #dashv .dv-sbr .tr,html.th-pastel #dashv .dv-sbr .bar{border-radius:999px}
-html.th-pastel #dashv .dv-prow,html.th-pastel #dashv .stk-card,html.th-pastel #dashv .dv-bcol{border-radius:18px!important}
-html.th-pastel .dv-dlg,html.th-pastel #ment-pop,html.th-pastel #pnl{border-radius:22px}
-html.th-pastel #dv-tabbar{background:var(--pa-bg)!important;border-top:2px solid var(--pa-line)!important}
-html.th-pastel #dv-tabbar button[aria-current=page],html.th-pastel #dv-tabbar button.on{background:#FBDDE1!important;color:#8E1B2E!important;border-radius:14px}
 /* v16.68 ใบยืมในกระดิ่ง */
 .ment-it.over{background:#FDECE3;border-color:#F4BE95}
 .ment-it.over em{color:#9A3412}
 .ment-av.ln{background:#FDF3D2;color:#7A5200}
 .ment-av.ln svg{width:18px;height:18px}
-html.th-pastel #dashv .dv-new,html.th-pastel #dashv .dv-new *{color:#fff!important}
-html.th-pastel body .app-shell .sidebar button.nav-item.active.active.active{background:#FBDDE1!important;color:#8E1B2E!important;border-radius:14px!important;box-shadow:none!important}
-html.th-pastel body .app-shell .sidebar button.nav-item.active.active.active svg{color:#C0394F!important}
 </style>
 <style id="v1669">
 /* ===== v16.69 หน้าตาสมดุล อ่านง่าย (เดสก์ท็อป + มือถือ) ===== */
 /* 1) การ์ดตัวเลข: พื้นขาว แถบสีด้านบน ตัวเลขเป็นสีประจำการ์ด (แทนการ์ดไล่สีเข้มทุกใบ) */
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi{--kc:#005CB9;background:#fff!important;background-image:none!important;color:#151516!important;border:1px solid #E3E8F0!important;border-radius:14px!important;box-shadow:0 1px 2px rgba(16,24,40,.06)!important;overflow:hidden}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi::before{display:block!important;content:""!important;position:absolute;left:0!important;right:0;top:0!important;width:auto!important;height:4px!important;background:var(--kc)!important}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi::after{display:none!important}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi:nth-child(4n+2){--kc:#7B2CBF}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi:nth-child(4n+3){--kc:#D97706}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi:nth-child(4n+4){--kc:#00A35A}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi.warn{--kc:#C2410C;background:#FFF7F1!important}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi .dv-kpi-l{color:#3D475B!important;font-weight:600!important}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi b{color:var(--kc)!important;font-weight:600!important}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi:nth-child(4n+3) b{color:#B45309!important}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi small{color:#5A6478!important}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi .dv-spark{color:var(--kc)!important;opacity:.7}
-html:not(.th-pastel) #dashv .dv-kpis .dv-kpi.warn small,html:not(.th-pastel) #dashv .dv-kpis .dv-kpi .dv-warn{color:#B45400!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi{--kc:#005CB9;background:#fff!important;background-image:none!important;color:#151516!important;border:1px solid #E3E8F0!important;border-radius:14px!important;box-shadow:0 1px 2px rgba(16,24,40,.06)!important;overflow:hidden}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi::before{display:block!important;content:""!important;position:absolute;left:0!important;right:0;top:0!important;width:auto!important;height:4px!important;background:var(--kc)!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi::after{display:none!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi:nth-child(4n+2){--kc:#7B2CBF}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi:nth-child(4n+3){--kc:#D97706}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi:nth-child(4n+4){--kc:#00A35A}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi.warn{--kc:#C2410C;background:#FFF7F1!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi .dv-kpi-l{color:#3D475B!important;font-weight:600!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi b{color:var(--kc)!important;font-weight:600!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi:nth-child(4n+3) b{color:#B45309!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi small{color:#5A6478!important}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi .dv-spark{color:var(--kc)!important;opacity:.7}
+html:not(.dv-x) #dashv .dv-kpis .dv-kpi.warn small,html:not(.dv-x) #dashv .dv-kpis .dv-kpi .dv-warn{color:#B45400!important}
 /* 2) ระยะห่างของการ์ดเท่ากันทุกส่วน */
 #dashv .dv-sec{margin-bottom:18px}
 #dashv .dv-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:18px;align-items:stretch;margin-bottom:18px}
@@ -5693,5 +5664,85 @@ html:not(.ap-notes) .main-content:has(> .page-heading .teams-import-entry)>.mode
 small b,small em{font-size:inherit!important}
 #dashv .dv-stepbar small{font-size:12px!important}
 #dashv :is(.dv-head,.dv-ovtop) :is(.dv-btn,.dv-new,.dv-seg button,.dv-link){min-height:36px!important}
+</style>
+<style id="v1672">
+/* ===== v16.72 (6) ขนาดตัวอักษรชุดเดียว: 12 · 13 · 14 · 16 · 20 · 26 (ตัวเลขสรุป 34) ===== */
+#dashv{font-size:14px}
+#dashv :is(.dv-sec-h h2,.dv-sbh h2,.dv-today h2){font-size:20px!important;font-weight:600!important}
+#dashv :is(.dv-card h3,.dv-sec-h h3,.dv-th3,.stk-bsec>h3,.dv-sth){font-size:16px!important;font-weight:600!important}
+#dashv :is(.dv-sb,.dv-sbr .nm,.dv-sbh small,.dv-btn,.dv-new,.ui-act,.dv-mini,.qt-row-action,.dv-link,.dv-seg button,.dv-chip){font-size:13px!important}
+#dashv :is(.dv-pmain b,.stk-card b,.dv-tlist b){font-size:14px!important}
+#dashv .dv-kpi b{font-size:34px!important;line-height:1.1}
+/* ===== (7) ปุ่ม 3 แบบ: หลัก (น้ำเงินเต็ม) · รอง (ขาวขอบเทา) · ลิงก์ข้อความ ===== */
+#dashv :is(.dv-new,.dv-sb.pri,.dv-save,.qt-view){background:#005CB9!important;color:#fff!important;border:1px solid #005CB9!important;border-radius:8px!important;font-weight:600!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 14px!important;box-shadow:none!important}
+#dashv :is(.dv-new,.dv-sb.pri,.dv-save,.qt-view):hover{background:#004A96!important;border-color:#004A96!important}
+#dashv :is(.dv-btn,.dv-sb:not(.pri),.ui-act,.dv-mini,.qt-row-action:not(.qt-view),.rk-reset){background:#fff!important;color:#284397!important;border:1px solid #D5DCE7!important;border-radius:8px!important;font-weight:600!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px!important;box-shadow:none!important;text-decoration:none!important}
+#dashv :is(.dv-btn,.dv-sb:not(.pri),.ui-act,.dv-mini,.qt-row-action:not(.qt-view)):hover{background:#F2F6FD!important;border-color:#9DB4E6!important}
+#dashv .dv-link{background:none!important;border:0!important;color:#005CB9!important;font-weight:600!important;padding:0 2px!important}
+#dashv .dv-head .dv-btn{background:rgba(255,255,255,.12)!important;color:#fff!important;border-color:rgba(255,255,255,.45)!important}
+#dashv .dv-head .dv-btn:hover{background:rgba(255,255,255,.22)!important}
+#dashv .dv-head .dv-new{background:#fff!important;color:#284397!important;border-color:#fff!important}
+/* ตัวเลือกที่ถูกเลือก (แท็บ/ตัวกรอง) ใช้สีน้ำเงินเข้มเดียวกันทุกหน้า */
+#dashv .dv-seg{border-radius:8px!important}
+#dashv .dv-seg button{border-radius:6px!important;font-weight:600!important}
+#dashv :is(.dv-seg button.on,.dv-seg button[aria-pressed=true],.dv-seg button[aria-selected=true]){background:#284397!important;color:#fff!important;border-color:#284397!important}
+#dashv .dv-head :is(.dv-seg button.on,.dv-seg button[aria-pressed=true]){background:#fff!important;color:#284397!important}
+/* ===== (8) กล่อง "วันนี้ต้องทำอะไร" ===== */
+.dv-today .dv-sec-h{display:flex;align-items:baseline;gap:10px}
+.dv-today .dv-sec-h small{color:#5A6478;font-size:13px}
+.dv-ttiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:4px 0 16px}
+.dv-tt{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;border:1px solid #E3E8F0;background:#fff;min-height:96px}
+.dv-tt:hover{border-color:#9DB4E6;background:#F7FAFE}
+.dv-tt:focus-visible{outline:2px solid #005CB9;outline-offset:2px}
+.dv-tt .l{font-size:13px;font-weight:600;color:#3D475B;display:flex;align-items:center;gap:4px}
+.dv-tt .l svg{width:14px;height:14px}
+.dv-tt b{font-size:30px;line-height:1.15;font-weight:600;color:#284397;font-variant-numeric:tabular-nums}
+.dv-tt small{font-size:12px;color:#5A6478}
+.dv-tt.warn{border-color:#F4BE95;background:#FFF7F1}.dv-tt.warn b{color:#B45400}
+.dv-tt.zero b{color:#8A94A6}.dv-tt.zero{background:#FAFBFC}
+.dv-th3{margin:0 0 8px;font-size:16px;font-weight:600}
+.dv-tlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.dv-tlist button{all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px 12px;padding:10px 12px;border:1px solid #E3E8F0;border-radius:10px;background:#fff}
+.dv-tlist button:hover{background:#F7FAFE;border-color:#9DB4E6}
+.dv-tlist .dv-code{font-size:12px;font-weight:600;color:#284397}
+.dv-tlist b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dv-tlist .dv-tstep{font-size:12px;color:#3D475B;background:#EEF3FA;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.dv-tlist em{font-style:normal;font-size:12px;color:#5A6478;white-space:nowrap}.dv-tlist em.over{color:#B45400;font-weight:600}
+.dv-chfold{margin-top:14px}
+@media (max-width:760px){
+ .dv-ttiles{grid-template-columns:1fr 1fr}
+ .dv-tt{min-height:88px}.dv-tt b{font-size:26px}
+ .dv-tlist button{grid-template-columns:minmax(0,1fr) auto;padding:12px}
+ .dv-tlist .dv-code{grid-column:1/3}.dv-tlist b{grid-column:1/3;white-space:normal}
+}
+/* ===== (9) งานเซอร์วิส: แถบเดียว ===== */
+.dv-svtabs{margin:0 0 14px}
+.dv-utabs{display:flex;gap:4px;border-bottom:1px solid #D5DCE7;overflow-x:auto;scrollbar-width:none}
+.dv-utabs::-webkit-scrollbar{display:none}
+.dv-utabs button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;padding:8px 16px 10px;min-height:52px;border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.dv-utabs button small{font-size:12px;color:#5A6478;font-weight:500}
+.dv-utabs button b{font-size:15px;font-weight:600;color:#3D475B}
+.dv-utabs button:hover b{color:#284397}
+.dv-utabs button.on{border-bottom-color:#005CB9}.dv-utabs button.on b{color:#005CB9}
+.dv-utabs button:focus-visible{outline:2px solid #005CB9;outline-offset:-2px}
+/* ===== (10) ใบเสนอราคา: ดู / PDF + เมนู "จัดการ" ===== */
+.qt-badge{white-space:nowrap}
+#dashv .dv-pregw:has(details.qt-menu[open]){overflow:visible!important}
+.qt-acts{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.qt-menu{position:relative}
+.qt-menu>summary{list-style:none;cursor:pointer}
+.qt-menu>summary::-webkit-details-marker{display:none}
+.qt-menu>summary::after{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);margin:-3px 0 0 4px}
+.qt-mlist{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:200px;padding:6px;border-radius:10px;border:1px solid #D5DCE7;background:#fff;box-shadow:0 10px 28px rgba(16,24,40,.16);display:flex;flex-direction:column;gap:2px}
+#dashv .qt-mlist .qt-row-action{border:0!important;justify-content:flex-start!important;width:100%;min-height:38px;border-radius:6px!important;color:#151516!important;font-weight:500!important}
+#dashv .qt-mlist .qt-row-action:hover{background:#F2F6FD!important}
+.qt-mh{margin:6px 8px 2px;font-size:12px;color:#5A6478;border-top:1px solid #EDF0F5;padding-top:8px}
+#dashv .qt-mlist .qt-sto.ok{color:#1d7a45!important}#dashv .qt-mlist .qt-sto.no{color:#b3261e!important}
+@media (max-width:760px){
+ #dashv td:has(> .qt-acts){display:block!important}
+ .qt-acts{justify-content:stretch}.qt-acts>*{flex:1 1 0}
+ #dashv .qt-acts .qt-row-action,#dashv .qt-acts summary{width:100%;min-height:42px}
+ .qt-mlist{left:0;right:0;min-width:0}
+}
 </style>
 </body></html>

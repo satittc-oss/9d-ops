@@ -5,7 +5,7 @@ const part=html.slice(html.indexOf('/* ===== v16.67 แจ้งเตือน�
 const now=Date.parse('2026-11-15T05:00:00Z'),day=ms=>new Date(now+252e5+ms).toISOString().slice(0,10);
 function ctx(){const ls={},cls=new Set();const c={console,Object,JSON,Set,String,Math,Number,Promise,Blob:class{constructor(a){this.a=a}},
  Date:class extends Date{constructor(...a){super(...(a.length?a:[now]))}static now(){return now}},
- localStorage:{getItem:k=>ls[k]??null,setItem:(k,v)=>{ls[k]=v}},document:{hidden:false,querySelectorAll:()=>[],getElementById:()=>null,head:{appendChild(){}},createElement:()=>({}),documentElement:{classList:{toggle:(k,on)=>on?cls.add(k):cls.delete(k)}}},
+ localStorage:{getItem:k=>ls[k]??null,setItem:(k,v)=>{ls[k]=v}},document:{hidden:false,addEventListener(){},querySelectorAll:()=>[],getElementById:()=>null,head:{appendChild(){}},createElement:()=>({}),documentElement:{classList:{toggle:(k,on)=>on?cls.add(k):cls.delete(k)}}},
  setTimeout:()=>0,clearTimeout(){},M:{profile:{oid:'me',email:'me@x.invalid',name:'Somchai K.'}},TS:{all:[]},LOAN:{},
  mT:v=>Date.parse(v||0)||0,mToast(){},mEsc:s=>String(s),dvAgo:()=>'',dvToday:()=>day(0),mNorm:s=>String(s||'').toLowerCase().replace(/[\s.]/g,'')};
  c.window=c;vm.createContext(c);vm.runInContext(part,c);c.ls=ls;c.cls=cls;return c}
@@ -24,7 +24,7 @@ test('ใบยืมของฉันที่ใกล้ (≤2 วัน) / 
 test('สำรองข้อมูล: ชื่อสัปดาห์ ISO และเลือกเฉพาะ List ของระบบ',()=>{const c=ctx();assert.equal(c.mBkWeek(Date.parse('2026-11-15T05:00:00Z')),'2026-W46');assert.equal(c.mBkWeek(Date.parse('2027-01-01T03:00:00Z')),'2026-W53');
  const L=[{id:'a',displayName:'KendoProject',list:{template:'genericList'}},{id:'b',displayName:'9D Project Tracking',list:{template:'genericList'}},{id:'c',displayName:'9D Hidden',list:{hidden:true,template:'genericList'}},{id:'d',displayName:'Documents',list:{template:'documentLibrary'}},{id:'e',displayName:'9D Demo Loans',list:{template:'genericList'}}];
  assert.equal(c.mBkPick(L,['a']).map(x=>x.id).join(),'a,b,e')});
-test('ธีมพาสเทล: สลับแล้วจำค่าในเครื่อง',()=>{const c=ctx();assert.equal(c.mTheme(),'');c.mThemeToggle();assert.equal(c.ls['9d-theme'],'pastel');assert.ok(c.cls.has('th-pastel'));c.mThemeToggle();assert.ok(!c.cls.has('th-pastel'))});
+test('v16.72 เลิกใช้ธีมพาสเทล (ไม่มีปุ่มสลับธีม)',()=>{const h=fs.readFileSync(__dirname+'/../index.html','utf8');assert.ok(!/th-pastel|mThemeToggle|th-tgl/.test(h));assert.match(h,/localStorage\.removeItem\("9d-theme"\)/)});
 test('สต็อก: แสดงกำหนดคืน + ปุ่มสร้างใบยืมจากสินค้า',()=>{const s=html.slice(html.indexOf('var stkDue='),html.indexOf('\n',html.indexOf('var stkDue=')));const c={dvToday:()=>'2026-11-15',dvTH:d=>d};vm.createContext(c);vm.runInContext(s.replace('var stkDue','this.stkDue'),c);
  assert.equal(c.stkDue({no:'LN1',dueDate:'2026-11-13'}).cls,'no');assert.match(c.stkDue({no:'LN1',dueDate:'2026-11-13'}).txt,/เกินกำหนดคืน 2 วัน/);assert.equal(c.stkDue({no:'LN1',dueDate:'2026-11-17'}).cls,'dlv');assert.equal(c.stkDue({no:'LN1',dueDate:'2026-12-17'}).cls,'cur');
  assert.match(html,/data-a="loan">สร้างใบยืมจากสินค้านี้/);assert.match(html,/window\.dvLoanForm=\(id,pre\)=>/)});

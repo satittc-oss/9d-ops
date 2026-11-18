@@ -28,5 +28,5 @@ test('บอร์ดผูกกับ dvPost เดิม · ผิดพล�
  assert.ok(html.includes('function dvStatusWire(host){try{dvBoardDnD(host)}'));
 });
 test('หน้าภาพรวม: ไม่มี "รอ Engineer ตอบ" และมีแผนภูมิภาพรวมงานก่อนส่วน Teams',()=>{
- assert.ok(!html.includes('dvIcon.warn+" รอ Engineer ตอบ"'));assert.ok(html.includes('host.innerHTML=head+dvOvTop(st,keys,rl,staff,half,tplot)+teams'));
+ assert.ok(!html.includes('dvIcon.warn+" รอ Engineer ตอบ"'));assert.ok(html.includes('return""}})()+dvOvTop(st,keys,rl,staff,half,tplot)+teams'));
 });
