@@ -31,16 +31,16 @@ function setup(settings={}){
  c.mWfApply(settings);return c}
 const proj=(id,o={})=>({id:'sp-'+id,listItemId:String(id),code:'T'+id,name:'งาน '+id,client:'ลูกค้า',accountId:'acc-sales1@example.invalid',listApproval:'approved',createdAt:iso(30),teamId:'tm',channelId:'ch'+id,serviceRequest:{brands:['CommScope'],workTypes:['ออกแบบ'],urgency:'ด่วน'},...o});
 
-test('ไม่มี settings.workflow = ค่าเดิมทุกอย่าง (SUBST/SUBORD/แฮชแท็กเดิม)',()=>{let c=setup();assert.equal(c.WF_ON,false);assert.deepEqual([...c.SUBORD],['recv','design','buy','sup','price','quote','cust','sales']);assert.equal(c.mSub('#รอราคา ครับ'),'price');assert.equal(c.mSub('#ทำBOM'),'design')});
+test('ไม่มี settings.workflow = ค่าเดิมทุกอย่าง (SUBST/SUBORD/แฮชแท็กเดิม)',()=>{let c=setup();assert.equal(c.WF_ON,false);assert.deepEqual([...c.SUBORD],['recv','design','buy','sup','price','quote','cust','sales','sent']);assert.equal(c.mSub('#รอราคา ครับ'),'price');assert.equal(c.mSub('#ทำBOM'),'design')});
 
 test('แก้ชื่อ/เรียง/เพิ่มขั้นตอน + แฮชแท็กใหม่ + ลบขั้นตอนแล้วข้อมูลเก่ายังอ่านได้',()=>{
- let c=setup({workflow:{steps:[{k:'recv',t:'รับงาน',who:'เรา',z:'E',warn:0},{k:'price',t:'รอราคา (ใหม่)',tag:'#รอราคา',who:'Supplier',z:'V',warn:5,color:'#FF8000'},{k:'s1',t:'รอทดสอบ',tag:'#รอทดสอบ',who:'ลูกค้า',z:'C',warn:3,color:'#00B259'}],rules:[]}});
- assert.equal(c.WF_ON,true);assert.deepEqual([...c.SUBORD],['recv','price','s1']);assert.equal(c.SUBST.price.t,'รอราคา (ใหม่)');assert.equal(c.STEPCOL.s1,'#00B259');
+ let c=setup({workflow:{steps:[{k:'recv',t:'รับงาน',who:'เรา',z:'E',warn:0},{k:'price',t:'รอราคา (ใหม่)',tag:'#รอราคา',who:'Supplier',z:'V',warn:5,color:'#FF8000'},{k:'s1',t:'รอทดสอบ',tag:'#รอทดสอบ',who:'ลูกค้า',z:'C',warn:3,color:'#3E9B5A'}],rules:[]}});
+ assert.equal(c.WF_ON,true);assert.deepEqual([...c.SUBORD],['recv','price','s1','sent'],'v16.74 ขั้นตอน ส่งงานแล้ว มีเสมอ');assert.equal(c.SUBST.price.t,'รอราคา (ใหม่)');assert.equal(c.STEPCOL.s1,'#3E9B5A');
  assert.equal(c.mSub('ตอนนี้ #รอทดสอบ'),'s1');assert.equal(c.mSub('#รอลูกค้า'),'',  'ขั้นตอนที่ลบแล้วไม่รับแฮชแท็ก');
  assert.ok(c.SUBST.cust&&c.SUBST.cust.hidden,'key เดิมยังอยู่');
  let p=proj(1,{pstat:{s:'active',at:iso(20)},sub:{sub:'cust',at:iso(4)}}),sb=c.mSubOf(p);assert.equal(sb.sub,'recv');assert.equal(sb.was,'cust');
  let q=proj(2,{pstat:{s:'active',at:iso(20)},sub:{sub:'price',at:iso(6)}});assert.equal(c.mSubOf(q).over,true,'warn 5 วันจาก workflow');
- let st=c.wsValidateStatus({activeOrder:['recv','design','buy','sup','price','sales','quote','cust'],cards:{cust:{label:'x'},price:{label:'ทับ'}}});assert.deepEqual([...st.activeOrder],['recv','price','s1']);assert.equal(st.cards.price.label,'รอราคา (ใหม่)');
+ let st=c.wsValidateStatus({activeOrder:['recv','design','buy','sup','price','sales','quote','cust'],cards:{cust:{label:'x'},price:{label:'ทับ'}}});assert.deepEqual([...st.activeOrder],['recv','price','s1','sent']);assert.equal(st.cards.price.label,'รอราคา (ใหม่)');
 });
 
 test('ทดลองกฎ (plan) ไม่ทำจริง · เงื่อนไขเซลส์/Brand · ค้างเกิน N วัน',async()=>{
@@ -68,7 +68,7 @@ test('บันทึก Workflow ตรวจค่าผิด (ไม่ม�
  await assert.rejects(c.mWfSave({steps:[{k:'price',t:'x'}],rules:[]}),/recv/);
  await assert.rejects(c.mWfSave({steps:[{k:'recv',t:'a'},{k:'a1',t:'b',tag:'#x1'},{k:'a2',t:'c',tag:'#X1'}],rules:[]}),/ซ้ำ/);
  await assert.rejects(c.mWfSave({steps:[{k:'recv',t:'a'}],rules:[{name:'n',trigger:{type:'new'},actions:[]}]}),/การกระทำ/);
- let w=await c.mWfSave({steps:[{k:'recv',t:'a'},{k:'z9',t:'ใหม่',tag:'#ใหม่'}],rules:[]});assert.equal(w.v,1);assert.equal(c.SUBORD.length,2);
+ let w=await c.mWfSave({steps:[{k:'recv',t:'a'},{k:'z9',t:'ใหม่',tag:'#ใหม่'}],rules:[]});assert.equal(w.v,1);assert.equal(c.SUBORD.length,3);
 });
 
 test('keep ของ mSaveTrack มี wfDone · หน้า workflow เฉพาะ Admin · กฎทำงานต่อจาก mStatusAuto',()=>{

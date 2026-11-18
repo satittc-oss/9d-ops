@@ -2,9 +2,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const html=fs.readFileSync(__dirname+'/../index.html','utf8');
 const seg=html.slice(html.indexOf('/* ===== v16.72 หน้าภาพรวม: กล่อง'),html.indexOf('function dvTodayBox('));
-const c={SUBST:{recv:{z:'E'},design:{z:'E'},buy:{z:'P'},sales:{z:'S',who:'Sales'}},mPStat:p=>p.st,mSubOf:p=>p.sb||null};vm.createContext(c);vm.runInContext(seg,c);
+const c={SUBST:{recv:{z:'E'},design:{z:'E'},buy:{z:'P'},sales:{z:'S',who:'Sales'},sent:{z:'S',who:'ทีมขาย'}},mPStat:p=>p.st,mSubOf:p=>p.sb||null};vm.createContext(c);vm.runInContext(seg,c);
 const P=(id,acc,st,sb,ap)=>({id:'sp-'+id,code:'C'+id,accountId:acc,listApproval:ap||'approved',st,sb});
-const st={projects:[P(1,'acc-me@x','active',{sub:'recv',days:3,over:0}),P(2,'acc-a@x','active',{sub:'design',days:9,over:1}),P(3,'acc-me@x','active',{sub:'sales',days:8,over:1}),P(4,'acc-me@x','active',{sub:'buy',days:2,over:0}),P(5,'acc-me@x','',null,'pending'),P(6,'acc-b@x','',null,'pending'),P(7,'acc-me@x','delivered',null)]};
+const st={projects:[P(1,'acc-me@x','active',{sub:'recv',days:3,over:0}),P(2,'acc-a@x','active',{sub:'design',days:9,over:1}),P(3,'acc-me@x','active',{sub:'sales',days:8,over:1}),P(4,'acc-me@x','active',{sub:'buy',days:2,over:0}),P(5,'acc-me@x','',null,'pending'),P(6,'acc-b@x','',null,'pending'),P(7,'acc-me@x','active',{sub:'sent',days:1,over:0})]};
 test('Engineer: รอทีม Engineer = ขั้นตอนของเรา · ค้างทุกงาน · รออนุมัติทั้งหมด · เรียงงานเกินกำหนดก่อน',()=>{const d=c.dvTodayData(st,'me@x',true);assert.equal(d.wait.length,2);assert.equal(d.over.length,2);assert.equal(d.pend.length,2);assert.equal(d.top[0].p.code,'C2')});
 test('เซลส์: เห็นเฉพาะงานของตัวเอง (รอเซลส์ · ค้าง · คำขอรออนุมัติ · รอลูกค้า)',()=>{const d=c.dvTodayData(st,'ME@x',false);assert.equal(d.wait.map(x=>x.p.code).join(),'C3');assert.equal(d.over.map(x=>x.p.code).join(),'C3');assert.equal(d.pend.length,1);assert.equal(d.dlv.length,1)});
 test('หน้าภาพรวมแสดงกล่องวันนี้ก่อน และกราฟอยู่ในกล่องพับได้',()=>{assert.match(html,/host\.innerHTML=head\+\(\(\)=>\{try\{return dvTodayBox\(st\)\}/);assert.match(html,/<details class="dv-ovfold dv-chfold"/)});

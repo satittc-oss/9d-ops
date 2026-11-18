@@ -44,7 +44,7 @@ test('แก้คำ/อยู่ที่/ลำดับเป็นร่า
  let copied=c.wsImport(c.wsExport(ui,[])).ui;assert.equal(copied.status.cards.design.label,'ออกแบบและตรวจแบบ');assert.equal(copied.status.cards.design.who,'ฝ่ายวิศวกรรม');assert.equal(copied.status.activeOrder[0],'cust');assert.equal(copied.status.afterOrder[0],'closed');assert.equal(c.wsUi().status.title,'สถานะโครงการ');assert.equal(JSON.stringify(c.SUBST),before);assert.equal(writes.length,0);
 });
 test('ไม่รับการ์ดขาด/ซ้ำ/รหัสแปลกหรือย้ายข้ามกลุ่ม และจำกัดข้อความธรรมดา',()=>{
- let{c}=setup();for(let edit of [s=>s.activeOrder.pop(),s=>s.activeOrder[0]='design',s=>s.activeOrder[0]='delivered',s=>s.afterOrder=['closed'],s=>s.cards.unknown={label:'เพิ่มสถานะ'},s=>s.cards.recv.label=' ',s=>s.cards.recv.who='x'.repeat(81),s=>s.title='',s=>s.description={html:'bad'},s=>s.cards=[]]){let ui=c.wsDefaultUi();edit(ui.status);assert.throws(()=>c.wsValidateUi(ui))}
+ let{c}=setup();for(let edit of [s=>s.activeOrder.shift(),s=>s.activeOrder[0]='design',s=>s.activeOrder[0]='delivered',s=>s.afterOrder=['closed','closed'],s=>s.cards.unknown={label:'เพิ่มสถานะ'},s=>s.cards.recv.label=' ',s=>s.cards.recv.who='x'.repeat(81),s=>s.title='',s=>s.description={html:'bad'},s=>s.cards=[]]){let ui=c.wsDefaultUi();edit(ui.status);assert.throws(()=>c.wsValidateUi(ui))}
  let ui=c.wsDefaultUi();ui.status.cards.recv.label='<img src=x onerror=alert(1)>';assert.equal(c.wsValidateUi(ui).status.cards.recv.label,ui.status.cards.recv.label);
 });
 test('เผยแพร่รูปแบบสถานะพร้อมสำรองฉบับก่อนหน้า และปฏิเสธร่างที่มี Admin เปลี่ยนสถานะแล้ว',async()=>{
@@ -53,6 +53,6 @@ test('เผยแพร่รูปแบบสถานะพร้อมส�
 });
 test('แผง/ตัวอย่างสถานะแสดงข้อความที่กรอกเป็นตัวอักษร และทางลัดตั้งค่าเข้าได้เฉพาะ Admin',()=>{
  let{c}=setup();c.STEPCOL=Object.fromEntries([...c.SUBORD,'delivered','closed'].map(k=>[k,'#123456']));vm.runInContext(part('function wsStatusPreview(','function wsPeoplePanel('),c);
- let ui=c.wsDefaultUi();ui.status.title='<script>title</script>';ui.status.cards.recv.label='<img src=x onerror=alert(1)>';ui.status.cards.recv.who='" onfocus="bad';let markup=c.wsStatusPanel(ui);assert.doesNotMatch(markup,/<img src=x|<script>title/);assert.match(markup,/&lt;img/);assert.match(markup,/&quot; onfocus/);assert.equal((markup.match(/data-status-card=/g)||[]).length,10);
+ let ui=c.wsDefaultUi();ui.status.title='<script>title</script>';ui.status.cards.recv.label='<img src=x onerror=alert(1)>';ui.status.cards.recv.who='" onfocus="bad';let markup=c.wsStatusPanel(ui);assert.doesNotMatch(markup,/<img src=x|<script>title/);assert.match(markup,/&lt;img/);assert.match(markup,/&quot; onfocus/);assert.equal((markup.match(/data-status-card=/g)||[]).length,c.SUBORD.length+1);
  let routes=[];c.dvGo=x=>routes.push(x);c.wsStatusSettings();assert.deepEqual(routes,['admin']);assert.equal(c.WS_ADMIN.tab,'status');c.M.role='viewer';c.wsStatusSettings();assert.equal(routes.length,1);
 });
