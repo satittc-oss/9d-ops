@@ -100,3 +100,27 @@
 - ชุด mock `tests/sync-fixture.js` เรียก Core+M365 adapter จริงแต่ไม่มี network; ห้ามใช้ fixture/hook clientId ปลอมบนเว็บ production. `node --test tests/*.test.cjs` และ preview `node tests/serve-workspace.cjs` ไม่มี Microsoft จริง
 - UI `bo*` เป็นหลังบ้าน, `ws*` เป็นร่าง/เผยแพร่ UI เดิม. การอ่าน/บันทึก settings ใช้ fresh Admin+eTag+GET ยืนยัน แม้ PATCH คืน success. Poll ต้องคง form/cursor ไม่รื้อหน้าขณะพิมพ์
 - ห้าม merge/deploy งาน v16.41 จนเจ้าของอนุมัติ PR นี้โดยตรง (คำสั่ง up ของรุ่นเก่าไม่ใช่การอนุมัติรุ่นนี้)
+
+## ฟีเจอร์ v16.67–v16.76 (สรุปสำหรับ agent ที่มาทำต่อ)
+- **v16.67–68 แจ้งเตือนแท็ก (@mention)**: โมดูล `MENT` / `mentPaint` / `mentPop` (กระดิ่ง + popover + toast) · สถานะอ่านแล้วซิงค์ผ่าน Tracking แถว `ProjectItemId -9.6e9` · เช็ก Channel ที่มีความเคลื่อนไหวทุก 90 วินาที · ใบยืมใกล้/เกินกำหนดคืนขึ้นในกระดิ่ง (`MENT.loans`, `MENT.lack`) · สำรอง List อัตโนมัติรายสัปดาห์ไป Documents › 9D Backups/<YYYY-Www>/
+- **v16.70 สแกน**: `scanCodes` (ZXing-C++ wasm) → `stkBarcodes` ใช้ก่อน ตัวเก่าเป็นสำรอง · `scanGuess` เดาประเภทรหัส (mac/sn/pn/model/barcode) · `scanOcrWorker` (Tesseract โฮสต์เอง) · `stkScanOnce(label)` สแกนเข้าช่องเดียว · สต็อกแบ่งแบรนด์ `stkBrandN`/`stkBrandsOf`/`dvStkBrand`/`dvStkView` · ฟอนต์ IBM Plex Sans Thai (Mono สำหรับรหัส)
+- **v16.71–72 หน้าตา**: สเกลตัวอักษร 12/13/14/16/20/26 (KPI 34) ห้ามต่ำกว่า 12px · ปุ่ม 3 แบบ · มือถือแตะแถวโครงการ = เปิดแผง (`dvStatusWire` li.onclick) · กล่อง "วันนี้ต้องทำอะไร" `dvTodayData`/`dvTodayBox` · เมนู `details.qt-menu` ในใบเสนอราคา · เลิกใช้ธีมพาสเทลแล้ว (อย่าใส่กลับ)
+- **v16.73 คำ**: `mLblUp` แปลงคำเดิมที่ Admin บันทึกไว้ (quote → "ส่งราคาแล้ว · รอลูกค้าตัดสินใจ", cust → "รอลูกค้าให้ข้อมูล")
+- **v16.74 "ส่งงานแล้ว" เป็นขั้นตอน**: ไม่มีโหมดสถานะ delivered แยกแล้ว → ขั้นตอน `SUBST.sent` ("ส่งงานแล้ว · ทีมขายรับต่อ", z:"S") ท้าย `SUBORD` · `mPStat` อ่าน delivered เดิมเป็น active · `mSubOf` แสดงงาน delivered/Finish เดิมเป็นขั้น sent (`legacy:1`) · `mSetPStat(...,"delivered")` = `mSetSub(...,"sent")` · Latest Status ใน List ยัง In Progress จนปิด · นับรอบแก้ `track[k].subRev` (sent → ขั้นตอนโซน E) แสดง `dvRevB` "แก้ R1/R2"
+- **v16.74 สี**: `STEPCOL` โทนกลาง ผ่าน validator CVD (ฟ้า #2B5FB4 / เขียว #3E9B5A / ม่วง #7A35BD / เขียวน้ำทะเล #2E9A78 / ชมพูเข้ม #B03A72 / คราม #4B4FC2 / ทอง #B8860B / ฟ้าอ่อน #3A8FD0 / ทองแดง #A85A28 / เทา #4A5263) · สีค้าง = #C0392B · `M_COL_UP`/`mColUp` แปลงสีสดเดิม
+- **v16.75 พักงานไว้**: `HOLD_WHY`, `mHoldOf(p,sb)`, `mSetHold` (action `phold` ผ่าน `dvPost`) · แถว Tracking `ProjectItemId=-ID` Payload `{hold:1,why,note,until,at,by,step,code}` / `{hold:0,...}` → `holdlog` → `track[k].hold/holdN` · พักอยู่เมื่อแถวพักใหม่กว่าการเปลี่ยนขั้นตอนล่าสุด (เปลี่ยนขั้นตอน = เลิกพักอัตโนมัติ) · ระหว่างพัก `sb.over=false`, `sb.held` · ถึงวัน `until` → กระดิ่ง (`mentHolds`, `MENT.hack`) + กล่องวันนี้ (`hdue`) · หน้าต่าง `dvHold(pid)`, `dvHoldOff`, ป้าย `dvHoldChip`, ตัวกรอง `DV.sf="held"` · **โพสต์ลง Teams Channel จริงทุกครั้ง**
+- **v16.76 ชุดสี**: `STEP_PALS` (muted/soft/deep/vivid) + `uiConfig.theme.palette` / `theme.stepColors` · `mStepColApply(theme)` ลำดับ: สีที่ปรับเองในตั้งค่า › สีที่ตั้งเองในหน้า Workflow (`STEPCOL_WF`, ถ้าไม่ใช่สีมาตรฐาน) › ชุดสี · แผง `wsPalPanel` ในศูนย์ผู้ดูแล › ธีม · ลิงก์ `wsColorSettings()` ใต้แถบสรุปขั้นตอน (Admin)
+
+## วิธีทำงานที่ใช้ใน v16.6x–v16.7x (แนะนำให้ทำแบบเดียวกัน)
+- แก้ `index.html` ด้วยสคริปต์ Python ที่ `replace` ทีละจุดพร้อม `assert s.count(old)==1` — ไฟล์ใหญ่และมีบรรทัดยาวมาก การแก้ด้วยมือ/regex กว้าง ๆ เสี่ยงพัง
+- เทสต์หลายไฟล์ดึงโค้ดออกมาเป็นช่วงตาม marker (เช่น `'/* ===== v16.67 แจ้งเตือนเมื่อมีคนแท็กเรา'`) แล้วรันใน `vm` — helper ใหม่ที่ถูกเรียกในช่วงนั้นต้องอยู่ในช่วงเดียวกัน, ใส่ stub ใน test (`tests/ui-stability.test.cjs` มี stub `dvRevB`, `dvHoldChip`, `HOLD_IC`, `mHoldWhy`) หรือกันด้วย `typeof x==="function"`
+- ตอนนี้ `node --test tests/*.test.cjs` ผ่านทั้งหมด 290 ข้อ (v16.76) — ต้องผ่านครบก่อน push
+- Mock UI: `node tests/serve-workspace.cjs` → http://127.0.0.1:8771/?role=admin · CSP มี `'wasm-unsafe-eval'` สำหรับตัวสแกน · Playwright ใช้ `bypass_csp=True` และ `window.__uiEval("...")` เพื่อรันโค้ดฝั่ง mock · mock รองรับ POST/PATCH `mock-tracking/items` แล้ว (v16.75)
+- Release: `M_VER` + `version.json` + หัวข้อ README (แทรกก่อน `## v16.xx ·` ก่อนหน้า) + เทสต์ใหม่ `tests/v16xx-*.test.cjs` → commit → `git pull --rebase` → push → รอ 1–2 นาทีแล้วเช็ก version.json บนเว็บ
+- เว็บจริงต้องล็อกอิน Microsoft ของบริษัท agent ดูหน้าจริงเองไม่ได้ — ตรวจหน้าตาด้วย mock + Playwright screenshot (เดสก์ท็อป 1440×900 และมือถือ 390×844)
+- เจ้าของ (Kendo) สื่อสารภาษาไทย ตอบเป็นภาษาไทยเสมอ
+
+## งานค้าง ณ v16.76
+- ปิด Power Automate flow ทดสอบ "ECC Initialize approval state" และ "Approval gate TEST" — ต้องให้เจ้าของล็อกอิน Power Automate เอง และต้องได้คำยืนยันก่อนปิด
+- ออกแบบหน้าล็อกอินใหม่ — เสนอไว้ ยังไม่ได้สั่งทำ
+- ยังไม่ได้ทดสอบ v16.74–76 กับข้อมูลจริง (พักงาน/เลิกพักโพสต์ลง Teams จริง)
