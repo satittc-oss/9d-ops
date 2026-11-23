@@ -1175,13 +1175,101 @@ async function mWfSave(w){if(!mWorkspaceAdmin())throw new PvErr("เฉพาะ
  for(let r of w.rules){r.name=String(r.name||"").trim()||"กฎไม่มีชื่อ";if(!WF_TRIG[r.trigger?.type])throw new PvErr("เลือกตัวกระตุ้นของกฎ \""+r.name+"\"",400);if(!(r.actions||[]).length)throw new PvErr("กฎ \""+r.name+"\" ยังไม่มีการกระทำ",400)}
  await mLoad(!0);let s=JSON.parse(JSON.stringify(M.cache?.settings||{}));s.workflow={v:1,steps:w.steps,rules:w.rules,at:pvNow(),by:M.profile.name};await mSaveSettings(s);if(M.cache)M.cache.settings=s;mWfApply(s);DV.stAt=0;return s.workflow}
 
+/* ===== v16.77 แผนภาพ Flow แบบโหนด (ผืนผ้าใบมืดมีจุด) — หน้า ตั้งค่า Workflow ›  แผนภาพ =====
+   - เส้นทางหลัก: เซลส์ส่งคำขอ → รออนุมัติ → อนุมัติ? (ใช่/ไม่) → สร้าง Team/Channel → ขั้นตอนย่อยทุกขั้น → ปิดโครงการ (WIN / LOSS / ยกเลิก)
+   - โหนดย่อย (เส้นประ) = ระบบที่โหนดนั้นใช้ · ตัวเลขบนโหนด = งานที่อยู่ตรงนั้นตอนนี้ · เส้นโค้งด้านบน = ส่งกลับมาแก้
+   - กฎอัตโนมัติแต่ละข้อวาดเป็น flow สั้น: เมื่อ → ถ้า → ให้ทำ
+   - แตะโหนดขั้นตอน/กฎ = ไปแก้ไขในแท็บนั้น · ลากพื้นหลังเพื่อเลื่อน · ปุ่มย่อ/ขยาย */
+var FLW_IC={
+ bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+ form:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+ user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+ gate:'<path d="M12 3v18M5 6h12l2 2-2 2H5zM19 13H7l-2 2 2 2h12z"/>',
+ team:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 19c.7-3 3-5 6-5s5.3 2 6 5M15 14.5c2.6-.3 4.7 1.2 5.5 4"/>',
+ list:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
+ flow:'<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.5 6h4a3 3 0 0 1 3 3v.5M8.5 18h4a3 3 0 0 0 3-3v-.5"/>',
+ file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+ chat:'<path d="M4 5h16v11H9l-5 4z"/>',
+ x:'<path d="M6 6l12 12M18 6 6 18"/>',
+ trophy:'<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/>',
+ down:'<path d="M4 7h16l-6 7v5l-4-2v-3z"/>',
+ stop:'<circle cx="12" cy="12" r="8"/><path d="M8 16 16 8"/>',
+ bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>',
+ hash:'<path d="M9 4 7 20M17 4l-2 16M4 9h16M3 15h16"/>',
+ clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+ cog:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'};
+var FLW_STEPIC={recv:"user",design:"form",buy:"list",sup:"team",price:"down",quote:"mail",cust:"clock",sales:"user",sent:"flow"};
+function flwIc(k,c){return`<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="${c||"currentColor"}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FLW_IC[k]||FLW_IC.cog}</svg>`}
+/* วาดผืนผ้าใบจาก nodes/edges · node {id,x,y,w,h,kind:'tile'|'wide'|'trig'|'sub'|'end',ic,col,t,s,n,warn,go,ports:[{key,label,x}],outs:[{y,label}]} */
+function flwCanvas(nodes,edges,W,H,o={}){let E=mEsc,N=Object.fromEntries(nodes.map(n=>[n.id,n])),pIn=n=>[n.x,n.y+n.h/2],pOut=(n,i)=>{let k=n.outs?.length||1;return[n.x+n.w,n.outs?n.y+n.h/2+(i-(k-1)/2)*Math.min(26,(n.h-24)/Math.max(1,k-1)):n.y+n.h/2]};
+ let path=e=>{let a=N[e.from],b=N[e.to];if(!a||!b)return"";
+  if(e.sub){let p=a.ports?.find(q=>q.key===e.port),x1=a.x+(p?p.x:a.w/2),y1=a.y+a.h,x2=b.x+b.w/2,y2=b.y,my=(y1+y2)/2;return`<path class="flw-e sub" d="M${x1} ${y1+8}C${x1} ${my} ${x2} ${my} ${x2} ${y2}"/>`}
+  if(e.back){let x1=a.x+a.w/2,y1=a.y,x2=b.x+b.w/2,y2=b.y,top=Math.min(y1,y2)-e.lift;return`<path class="flw-e back" d="M${x1} ${y1}C${x1} ${top} ${x2} ${top} ${x2} ${y2}" marker-end="url(#flw-ar2)"/><text class="flw-el back" x="${(x1+x2)/2}" y="${top+16}" text-anchor="middle">${E(e.label||"")}</text>`}
+  let[x1,y1]=pOut(a,e.out||0),[x2,y2]=pIn(b),dx=Math.max(40,(x2-x1)/2);
+  return`<path class="flw-e${e.dim?" dim":""}" d="M${x1+7} ${y1}C${x1+dx} ${y1} ${x2-dx} ${y2} ${x2-7} ${y2}" marker-end="url(#flw-ar)"/>`};
+ let lab=nodes.flatMap(n=>(n.outs||[]).map((q,i)=>{if(!q.label)return"";let[x,y]=pOut(n,i);return`<span class="flw-pill out" style="left:${x+12}px;top:${y-9}px">${E(q.label)}</span>`})).join("");
+ let ports=n=>(n.ports||[]).map(p=>`<i class="flw-dia" style="left:${p.x-5}px;top:${n.h-5}px"></i><span class="flw-pill port" style="left:${p.x}px;top:${n.h+9}px">${E(p.label)}</span>`).join("");
+ let node=n=>{let cnt=n.n?`<b class="flw-n${n.warn?" warn":""}" title="${E(n.nt||"")}">${n.n}</b>`:"",dot=n.kind!=="sub"?`<i class="flw-port in"></i>`:"",outs=n.kind==="sub"||n.kind==="end"&&!n.more?"":(n.outs||[{}]).map((q,i)=>`<i class="flw-port out" style="top:${pOut(n,i)[1]-n.y-6}px"></i>`).join("");
+  let tag=n.go?"button":"div",go=n.go?` type="button" data-flw-go="${E(n.go)}" aria-label="${E(n.t+(n.s?" · "+n.s:""))}"`:"";
+  return`<div class="flw-node ${n.kind}${n.off?" off":""}" style="left:${n.x}px;top:${n.y}px;width:${n.w}px;--c:${n.col||"#8B93A7"}">
+   <${tag} class="flw-box" style="height:${n.h}px"${go}>${n.kind==="trig"?`<i class="flw-bolt">${flwIc("bolt","#FF6D5A")}</i>`:""}<span class="flw-ic">${flwIc(n.ic,n.col)}</span>${n.kind==="wide"?`<span class="flw-wt"><b>${E(n.t)}</b><small>${E(n.s||"")}</small></span>`:""}${cnt}${n.kind==="trig"?"":dot}${outs}</${tag}>
+   ${ports(n)}${n.kind!=="wide"?`<p class="flw-lb"><b>${E(n.t)}</b>${n.s?`<small>${E(n.s)}</small>`:""}</p>`:""}${n.more?`<i class="flw-plus" aria-hidden="true">+</i>`:""}</div>`};
+ return`<div class="flw-wrap${o.cls?" "+o.cls:""}"><div class="flw-bar"><span>ลากพื้นหลังเพื่อเลื่อน · แตะโหนดเพื่อแก้ไข</span><div class="flw-tools" role="group" aria-label="ซูม"><button type="button" data-flw-z="-1" aria-label="ย่อ">−</button><button type="button" data-flw-z="0" aria-label="พอดีจอ">พอดีจอ</button><button type="button" data-flw-z="1" aria-label="ขยาย">+</button></div></div>
+  <div class="flw-vp" tabindex="0" role="group" aria-label="${E(o.label||"แผนภาพ Flow")} — ลากเพื่อเลื่อน"><div class="flw-sz" style="width:${W}px;height:${H}px"><div class="flw-in" style="width:${W}px;height:${H}px" data-w="${W}" data-h="${H}">
+  <svg class="flw-svg" width="${W}" height="${H}" aria-hidden="true"><defs><marker id="flw-ar" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 8 5 0 9z" fill="#7C8293"/></marker><marker id="flw-ar2" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 8 5 0 9z" fill="#C98A5A"/></marker></defs>${edges.map(path).join("")}</svg>
+  ${nodes.map(node).join("")}${lab}</div></div></div></div>`}
+/* ตัวเลขสดของแต่ละจุด */
+function flwStats(st){let P=(st.projects||[]).filter(p=>String(p.id).startsWith("sp-")||!p.demo),c={pending:0,rejected:0,won:0,lost:0,cancelled:0,step:{},over:{},held:{}};
+ for(let p of P){let s=mPStat(p);if(s==="active"){let b=mSubOf(p);if(!b)continue;c.step[b.sub]=(c.step[b.sub]||0)+1;if(b.over)c.over[b.sub]=(c.over[b.sub]||0)+1;if(b.held)c.held[b.sub]=(c.held[b.sub]||0)+1}else if(c[s]!=null)c[s]++}return c}
+function flwMain(steps,st){let c=flwStats(st),Y=110,T=88,nodes=[],edges=[],cy=h=>Y+(88-h)/2,tot=k=>c.step[k]||0;
+ nodes.push({id:"trig",kind:"trig",x:40,y:cy(T),w:T,h:T,ic:"form",col:"#2EB8A6",t:"เซลส์ส่ง Service Request",s:"ฟอร์มบนเว็บ / Lists"});
+ nodes.push({id:"wait",kind:"wide",x:210,y:cy(88),w:236,h:88,ic:"user",col:"#8EA8FF",t:"รออนุมัติ",s:"Engineer 4 ท่าน",n:c.pending||"",nt:"รออนุมัติตอนนี้",ports:[{key:"db",label:"ข้อมูล",x:62},{key:"mail",label:"แจ้งเตือน",x:174}]});
+ nodes.push({id:"db",kind:"sub",x:204,y:300,w:72,h:72,ic:"list",col:"#3FB8C8",t:"All Projects List",s:"SharePoint"});
+ nodes.push({id:"mail",kind:"sub",x:346,y:300,w:72,h:72,ic:"mail",col:"#6FA8FF",t:"อีเมลถึงผู้อนุมัติ",s:"Power Automate"});
+ nodes.push({id:"gate",kind:"tile",x:540,y:cy(T),w:T,h:T,ic:"gate",col:"#33C481",t:"อนุมัติ?",outs:[{label:"ใช่"},{label:"ไม่"}]});
+ nodes.push({id:"rej",kind:"end",x:700,y:470,w:T,h:T,ic:"x",col:"#E5736B",t:"ไม่อนุมัติ",s:"บันทึกเหตุผล",n:c.rejected||"",nt:"ไม่อนุมัติทั้งหมด"});
+ nodes.push({id:"chan",kind:"wide",x:722,y:cy(88),w:270,h:88,ic:"team",col:"#9B8CFF",t:"สร้าง Team / Channel",s:"ผู้อนุมัติเป็นคนสร้าง",ports:[{key:"teams",label:"สมาชิก",x:80},{key:"files",label:"ไฟล์แนบ",x:222}]});
+ nodes.push({id:"teams",kind:"sub",x:766,y:300,w:72,h:72,ic:"chat",col:"#9B8CFF",t:"Private Channel",s:"Engineer Owner · เซลส์ Member"});
+ nodes.push({id:"files",kind:"sub",x:908,y:300,w:72,h:72,ic:"file",col:"#E3B341",t:"ไฟล์ + ข้อความเปิดงาน",s:"@แท็ก ผู้อนุมัติ + เซลส์"});
+ edges.push({from:"trig",to:"wait"},{from:"wait",to:"gate"},{from:"gate",to:"chan",out:0},{from:"gate",to:"rej",out:1},{sub:1,from:"wait",port:"db",to:"db"},{sub:1,from:"wait",port:"mail",to:"mail"},{sub:1,from:"chan",port:"teams",to:"teams"},{sub:1,from:"chan",port:"files",to:"files"});
+ let x=1090,prev="chan",PX=184;steps.forEach((s,i)=>{let id="s:"+s.k,n=tot(s.k),ov=c.over[s.k]||0,hd=c.held[s.k]||0;
+  nodes.push({id,kind:"tile",x,y:cy(T),w:T,h:T,ic:FLW_STEPIC[s.k]||"cog",col:s.color||STEPCOL[s.k]||"#8B93A7",t:s.t,s:"อยู่ที่ "+(s.who||"เรา")+(s.tag?" · "+s.tag:""),n:n||"",warn:ov>0,nt:n+" งาน"+(ov?` · ค้างเกินกำหนด ${ov}`:"")+(hd?` · พักไว้ ${hd}`:""),go:"step:"+s.k});
+  edges.push({from:prev,to:id});prev=id;x+=PX});
+ if(steps.some(s=>s.k==="sent")){let f=steps.find(s=>s.k==="design")||steps[1]||steps[0];if(f&&f.k!=="sent")edges.push({back:1,from:"s:sent",to:"s:"+f.k,lift:96,label:"ส่งกลับมาแก้ → นับรอบ R1, R2 …"})}
+ let sx=x+20;nodes.push({id:"close",kind:"tile",x:sx,y:cy(T),w:T,h:T,ic:"flow",col:"#C9CED8",t:"ปิดโครงการ",s:"เซลส์ / Engineer",outs:[{label:"WIN"},{label:"LOSS"},{label:"ยกเลิก"}]});edges.push({from:prev,to:"close"});
+ [["won","WIN","trophy","#33C481",-30],["lost","LOSS","down","#E5736B",110],["cancelled","ยกเลิก","stop","#9AA3B5",250]].forEach(([k,t,ic,col,y],i)=>{nodes.push({id:"c:"+k,kind:"end",x:sx+210,y,w:T,h:T,ic,col,t,n:c[k]||"",nt:t+" ทั้งหมด"});edges.push({from:"close",to:"c:"+k,out:i})});
+ nodes.forEach(n=>n.y+=40);return{nodes,edges,W:sx+210+T+150,H:640}}
+function flwRules(rules,steps){let nodes=[],edges=[],y=30,T=80,E=k=>WF_TRIG[k]||"— ยังไม่เลือกตัวกระตุ้น —",sn=k=>steps.find(s=>s.k===k)?.t||(k?k:"ทุกขั้นตอน");
+ let trigIc={approved:"gate",rejected:"x",pstat:"flow",sub:"hash",stuck:"clock",new:"form"},actIc={teams:"chat",sub:"hash",assign:"user",mail:"mail",notify:"bell"},actCol={teams:"#9B8CFF",sub:"#3FB8C8",assign:"#8EA8FF",mail:"#6FA8FF",notify:"#E3B341"};
+ rules.forEach((r,ri)=>{let tg=r.trigger||{},c=r.cond||{},acts=r.actions?.length?r.actions:[{type:""}],h=Math.max(1,acts.length)*165,cy=y+(acts.length>1?h/2-T/2:12),off=r.on===!1,go="rule:"+ri;
+  let ts=tg.type==="pstat"&&tg.to?mPStatName(tg.to):tg.type==="sub"||tg.type==="stuck"?sn(tg.step)+(tg.type==="stuck"?" · เกิน "+(tg.days||7)+" วัน":""):"";
+  nodes.push({id:"t"+ri,kind:"trig",x:40,y:cy,w:T,h:T,ic:trigIc[tg.type]||"bolt",col:"#2EB8A6",t:r.name||"กฎไม่มีชื่อ",s:"เมื่อ"+E(tg.type).replace(/^—.*/," ยังไม่เลือกตัวกระตุ้น")+(ts?" · "+ts:"")+(off?" · ปิดอยู่":""),off,go});
+  let cs=[c.sales&&"เซลส์ที่เลือก",c.brand&&"Brand "+c.brand,c.urgency&&"เร่งด่วน "+c.urgency,c.type&&"ประเภท "+c.type].filter(Boolean),last="t"+ri;
+  if(cs.length){nodes.push({id:"c"+ri,kind:"tile",x:250,y:cy,w:T,h:T,ic:"gate",col:"#33C481",t:"ถ้า",s:cs.join(" · "),off,go});edges.push({from:last,to:"c"+ri,dim:off});last="c"+ri}
+  acts.forEach((a,ai)=>{let id=`a${ri}_${ai}`,ay=acts.length>1?y+ai*165+(165-T)/2:y+12;nodes.push({id,kind:"tile",x:cs.length?470:300,y:ay,w:T,h:T,ic:actIc[a.type]||"cog",col:actCol[a.type]||"#8B93A7",t:WF_ACT[a.type]||"ยังไม่เลือกการกระทำ",s:(a.type==="sub"?"→ "+sn(a.step):a.type==="assign"?(a.eng||"ยังไม่เลือก"):String(a.subject||a.title||a.text||"")).replace(/\s+/g," ").slice(0,48),off,go,more:1});edges.push({from:last,to:id,dim:off})});
+  y+=h+28});
+ return{nodes,edges,W:860,H:Math.max(180,y+40)}}
+/* ซูม / ลากเลื่อน / แตะโหนด */
+function flwWire(root,onGo){root.querySelectorAll(".flw-wrap").forEach(w=>{let vp=w.querySelector(".flw-vp"),inn=w.querySelector(".flw-in"),W=+inn.dataset.w,H=+inn.dataset.h,k=Number(w.dataset.k)||(innerWidth<700?.7:1);
+  let sz=w.querySelector(".flw-sz"),set=z=>{k=Math.max(.25,Math.min(1.6,Math.round(z*100)/100));w.dataset.k=k;inn.style.transform=`scale(${k})`;sz.style.width=W*k+"px";sz.style.height=H*k+"px"};
+  set(k);w.querySelectorAll("[data-flw-z]").forEach(b=>b.onclick=()=>{let d=+b.dataset.flwZ;set(d?k+d*.15:Math.min(1,(vp.clientWidth-8)/W));if(!d){vp.scrollLeft=0;vp.scrollTop=0}});
+  let drag=null;vp.addEventListener("pointerdown",e=>{if(e.pointerType!=="mouse"||e.target.closest("button,a"))return;drag={x:e.clientX,y:e.clientY,l:vp.scrollLeft,t:vp.scrollTop,id:e.pointerId};vp.classList.add("drag")});
+  vp.addEventListener("pointermove",e=>{if(!drag)return;vp.scrollLeft=drag.l-(e.clientX-drag.x);vp.scrollTop=drag.t-(e.clientY-drag.y)});
+  let up=()=>{drag=null;vp.classList.remove("drag")};vp.addEventListener("pointerup",up);vp.addEventListener("pointerleave",up);
+  w.querySelectorAll("[data-flw-go]").forEach(b=>b.onclick=()=>onGo&&onGo(b.dataset.flwGo))})}
+function flwMapHtml(steps,rules,st){let m=flwMain(steps,st),r=flwRules(rules,steps),c=flwStats(st),act=Object.values(c.step).reduce((a,b)=>a+b,0),ov=Object.values(c.over).reduce((a,b)=>a+b,0);
+ return`<div class="flw-head"><div><h2>เส้นทางของงาน</h2><p class="ws-help">ตัวเลขบนโหนด = งานที่อยู่ตรงนั้นตอนนี้ (สีแดง = มีงานค้างเกินกำหนด) · แตะขั้นตอนเพื่อแก้ไข · ลากพื้นหลังเพื่อเลื่อน</p></div><p class="flw-sum"><span>กำลังทำ <b>${act}</b></span><span>รออนุมัติ <b>${c.pending}</b></span>${ov?`<span class="warn">ค้างเกินกำหนด <b>${ov}</b></span>`:""}</p></div>
+ ${flwCanvas(m.nodes,m.edges,m.W,m.H,{label:"เส้นทางของงานตั้งแต่รับคำขอจนปิดโครงการ"})}
+ <div class="flw-head"><div><h2>กฎอัตโนมัติ</h2><p class="ws-help">เมื่อ → ถ้า → ให้ทำ · กฎที่ปิดอยู่แสดงเป็นสีจาง · แตะโหนดเพื่อแก้กฎ</p></div></div>
+ ${rules.length?flwCanvas(r.nodes,r.edges,r.W,r.H,{cls:"rules",label:"กฎอัตโนมัติ"}):`<p class="dv-empty">ยังไม่มีกฎอัตโนมัติ — ไปที่แท็บ "กฎอัตโนมัติ" เพื่อเพิ่ม</p>`}`}
 var WFD=null;
 async function dvWorkflowPage(host,id){if(!mWorkspaceAdmin())return wsDenied(host);await mLoad();let st=await mState();if(!dvRenderCurrent(id,"workflow"))return;DV.sig=dvSig();
- let s=M.cache?.settings||{};if(!WFD||WFD.src!==(s.workflow?.at||"")){WFD={src:s.workflow?.at||"",tab:WFD?.tab||"steps",steps:JSON.parse(JSON.stringify(mWfSteps(s))),rules:JSON.parse(JSON.stringify(s.workflow?.rules||[])),dirty:!1,dry:null}}
+ let s=M.cache?.settings||{};if(!WFD||WFD.src!==(s.workflow?.at||"")){WFD={src:s.workflow?.at||"",tab:WFD?.tab||"map",steps:JSON.parse(JSON.stringify(mWfSteps(s))),rules:JSON.parse(JSON.stringify(s.workflow?.rules||[])),dirty:!1,dry:null}}
  let accs=(st.accounts||[]).filter(a=>!a.demo),engs=[...Hd],E=mEsc,opt=(v,l,sel)=>`<option value="${E(v)}"${sel?" selected":""}>${E(l)}</option>`,
   stepOpts=(cur,any)=>(any?opt("",any,!cur):"")+WFD.steps.map(x=>opt(x.k,x.t,cur===x.k)).join(""),
   used=k=>st.projects.filter(p=>mPStat(p)==="active"&&mSubOf(p)?.sub===k).length;
- let tabs=[["steps","ขั้นตอนย่อย"],["rules","กฎอัตโนมัติ"],["log","ประวัติการทำงาน"]];
+ let tabs=[["map","แผนภาพ Flow"],["steps","ขั้นตอนย่อย"],["rules","กฎอัตโนมัติ"],["log","ประวัติการทำงาน"]];
  let stepsHtml=()=>`<div class="wf-steps">${WFD.steps.map((x,i)=>`<div class="wf-step" data-i="${i}" style="--c:${E(x.color||"#2B5FB4")}">
    <div class="wf-step-n"><span>${i+1}</span><div class="wf-mv"><button type="button" class="dv-xbtn" data-mv="-1" aria-label="เลื่อนขึ้น"${i?"":" disabled"}>▲</button><button type="button" class="dv-xbtn" data-mv="1" aria-label="เลื่อนลง"${i<WFD.steps.length-1?"":" disabled"}>▼</button></div></div>
    <label class="wf-f wide">ชื่อขั้นตอน<input data-f="t" value="${E(x.t)}" maxlength="80"></label>
@@ -1218,11 +1306,12 @@ async function dvWorkflowPage(host,id){if(!mWorkspaceAdmin())return wsDenied(hos
  let dryHtml=list=>!list.length?`<p class="wf-none">ตอนนี้ไม่มีงานที่เข้าเงื่อนไข</p>`:`<p class="wf-none">จะทำกับ ${list.filter(x=>!x.done).length} งาน${list.some(x=>x.done)?` (ทำไปแล้ว ${list.filter(x=>x.done).length} งาน — จะไม่ทำซ้ำ)`:""} · ยังไม่ได้ทำจริง</p><ul class="wf-drylist">${list.slice(0,40).map(x=>`<li class="${x.done?"done":""}"><code>${E(x.p.code)}</code> ${E(x.p.name)} <small>${E(x.v.sales)} · ${E(x.v.step)}</small>${x.done?" <em>ทำแล้ว</em>":""}<ul>${x.r.actions.map(a=>`<li>${E(mWfActText(a,x.v))}</li>`).join("")}</ul></li>`).join("")}</ul>`;
  let paint=()=>{let t=WFD.tab;host.innerHTML=`<header class="dv-head"><div><p class="dv-eyebrow">ADMIN</p><h1>ตั้งค่า Workflow</h1><p class="dv-sub">ตั้งขั้นตอนการทำงานและกฎอัตโนมัติ "เมื่อ … ถ้า … ให้ทำ …" โดยไม่ต้องแก้โค้ด</p></div></header>
   <div class="dv-seg wf-tabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" class="${t===k?"on":""}" aria-selected="${t===k}" data-tab="${k}">${l}${k==="rules"&&WFD.rules.length?` <small>${WFD.rules.filter(r=>r.on!==!1).length}/${WFD.rules.length}</small>`:""}</button>`).join("")}</div>
-  <div class="dv-card wf-card">${t==="steps"?stepsHtml():t==="rules"?rulesHtml():logHtml()}</div>
-  ${t!=="log"?`<div class="wf-savebar${WFD.dirty?" dirty":""}"><span>${WFD.dirty?"มีการแก้ไขที่ยังไม่บันทึก":s.workflow?.at?"บันทึกล่าสุด "+E(new Date(s.workflow.at).toLocaleString("th-TH"))+" โดย "+E(s.workflow.by||""):"ใช้ค่าเริ่มต้นของระบบ"}</span><button type="button" class="dv-btn" data-cancel${WFD.dirty?"":" disabled"}>ยกเลิกการแก้ไข</button><button type="button" class="dv-btn dv-save" data-save${WFD.dirty?"":" disabled"}>บันทึกและเผยแพร่</button></div>`:""}`;bind()};
+  <div class="dv-card wf-card${t==="map"?" wf-mapcard":""}">${t==="map"?flwMapHtml(WFD.steps,WFD.rules,st):t==="steps"?stepsHtml():t==="rules"?rulesHtml():logHtml()}</div>
+  ${t!=="log"&&(t!=="map"||WFD.dirty)?`<div class="wf-savebar${WFD.dirty?" dirty":""}"><span>${WFD.dirty?"มีการแก้ไขที่ยังไม่บันทึก":s.workflow?.at?"บันทึกล่าสุด "+E(new Date(s.workflow.at).toLocaleString("th-TH"))+" โดย "+E(s.workflow.by||""):"ใช้ค่าเริ่มต้นของระบบ"}</span><button type="button" class="dv-btn" data-cancel${WFD.dirty?"":" disabled"}>ยกเลิกการแก้ไข</button><button type="button" class="dv-btn dv-save" data-save${WFD.dirty?"":" disabled"}>บันทึกและเผยแพร่</button></div>`:""}`;bind()};
  let dirty=()=>{WFD.dirty=!0;let sb=host.querySelector(".wf-savebar");if(sb){sb.classList.add("dirty");sb.querySelector("span").textContent="มีการแก้ไขที่ยังไม่บันทึก";sb.querySelectorAll("button").forEach(b=>b.disabled=!1)}};
  let uid=()=>"r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
  let bind=()=>{host.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{WFD.tab=b.dataset.tab;paint()});
+  /* v16.77 แผนภาพ: แตะโหนด → ไปแก้ในแท็บนั้น */flwWire(host,g=>{let[t,v]=g.split(":");WFD.tab=t==="step"?"steps":"rules";paint();let el=t==="step"?host.querySelector(`.wf-step[data-i="${WFD.steps.findIndex(x=>x.k===v)}"]`):host.querySelector(`.wf-rule[data-ri="${v}"]`);if(el){el.scrollIntoView({block:"center"});el.classList.add("flw-hit");setTimeout(()=>el.classList.remove("flw-hit"),1600);el.querySelector(t==="step"?"[data-f=t]":"[data-r=name]")?.focus({preventScroll:!0})}});
   host.querySelectorAll(".wf-step").forEach(row=>{let i=Number(row.dataset.i),x=WFD.steps[i];
    row.querySelectorAll("[data-f]").forEach(el=>el.oninput=el.onchange=()=>{let f=el.dataset.f;x[f]=f==="warn"?Math.max(0,Number(el.value)||0):el.value;if(f==="color")row.style.setProperty("--c",el.value);dirty()});
    row.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{let j=i+Number(b.dataset.mv);if(j<0||j>=WFD.steps.length)return;[WFD.steps[i],WFD.steps[j]]=[WFD.steps[j],WFD.steps[i]];WFD.dirty=!0;paint()});
@@ -3988,7 +4077,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.76";
+var M_VER="v16.77";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -5885,5 +5974,62 @@ html:not(.dv-x) #dashv .dv-kpis .dv-kpi .dv-spark{opacity:1}
 .ws-pal-name{font-size:13.5px;color:#22304A;min-width:0}
 .ws-pal-name small{font-size:12px;color:#A85A28;font-weight:600}
 .dv-sbleg .dv-colset{margin-left:auto;font-size:12.5px;font-weight:600}
+</style>
+<style id="v1677">
+/* ===== v16.77 แผนภาพ Flow แบบโหนด ===== */
+#dashv .wf-mapcard{padding:16px;background:#fff}
+.flw-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:4px 0 10px}
+.flw-head h2{margin:0;font-size:16px;font-weight:600;color:#22304A}
+.flw-head .ws-help{margin:4px 0 0}
+.flw-head+.flw-wrap+.flw-head{margin-top:22px}
+.flw-sum{display:flex;gap:8px;flex-wrap:wrap;margin:0}
+.flw-sum span{padding:4px 10px;border-radius:999px;background:#F1F4F9;font-size:13px;color:#3D475B}
+.flw-sum span.warn{background:#FBEDEB;color:#9B2C22}
+.flw-wrap{position:relative;border-radius:14px;overflow:hidden;background:#1E1F24;border:1px solid #2C2E35}
+.flw-vp{overflow:auto;max-height:min(70vh,640px);background-color:#1E1F24;background-image:radial-gradient(#3B3D46 1px,transparent 1.2px);background-size:20px 20px;cursor:grab;overscroll-behavior:contain}
+.flw-wrap.rules .flw-vp{max-height:min(60vh,560px)}
+.flw-vp.drag{cursor:grabbing;user-select:none}
+.flw-vp:focus-visible{outline:2px solid #8EA8FF;outline-offset:-2px}
+.flw-sz{position:relative}
+.flw-in{position:absolute;left:0;top:0;transform-origin:0 0}
+.flw-svg{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.flw-e{fill:none;stroke:#7C8293;stroke-width:2}
+.flw-e.sub{stroke-dasharray:6 6;stroke:#6A7080}
+.flw-e.back{stroke:#C98A5A;stroke-dasharray:4 5;stroke-width:1.8}
+.flw-e.dim{opacity:.35}
+.flw-el{font:600 12px "IBM Plex Sans Thai",sans-serif;fill:#E0A774}
+.flw-node{position:absolute;display:flex;flex-direction:column;align-items:center}
+.flw-box{position:relative;width:100%;display:flex;align-items:center;justify-content:center;gap:12px;background:#2A2B31;border:1.5px solid #5A5D68;border-radius:12px;color:#ECEDF1;font:inherit;padding:0;margin:0;box-shadow:0 2px 0 #15161A}
+button.flw-box{cursor:pointer}
+button.flw-box:hover{border-color:var(--c);background:#30323A}
+button.flw-box:focus-visible{outline:2px solid #8EA8FF;outline-offset:3px}
+.flw-node.trig .flw-box{border-radius:44px 12px 12px 44px}
+.flw-node.sub .flw-box{border-radius:50%}
+.flw-node.wide .flw-box{justify-content:flex-start;padding:0 18px}
+.flw-node.off{opacity:.45}
+.flw-ic{display:flex;color:var(--c)}
+.flw-node.sub .flw-ic svg{width:26px;height:26px}
+.flw-wt{display:flex;flex-direction:column;align-items:flex-start;text-align:left;line-height:1.3;min-width:0}
+.flw-wt b{font-size:15px;font-weight:600;color:#F2F3F6}
+.flw-wt small{font-size:12px;color:#A3A8B6}
+.flw-bolt{position:absolute;left:-26px;top:50%;transform:translateY(-50%);display:flex}
+.flw-bolt svg{width:20px;height:20px;fill:#FF6D5A;stroke:none}
+.flw-lb{margin:8px 0 0;text-align:center;display:flex;flex-direction:column;gap:1px;width:156px;line-height:1.3}
+.flw-lb b{font-size:13px;font-weight:600;color:#ECEDF1}
+.flw-lb small{font-size:12px;color:#9DA2B0}
+.flw-port{position:absolute;width:12px;height:12px;border-radius:50%;background:#8A90A0;border:2px solid #2A2B31}
+.flw-port.in{left:-7px;top:calc(50% - 6px);width:8px;height:16px;border-radius:2px;top:calc(50% - 8px)}
+.flw-port.out{right:-7px}
+.flw-dia{position:absolute;width:10px;height:10px;background:#8A90A0;transform:rotate(45deg)}
+.flw-pill{position:absolute;padding:1px 7px;border-radius:5px;background:#3A3C45;color:#CDD0D8;font-size:11px;line-height:16px;white-space:nowrap;pointer-events:none}
+.flw-pill.port{transform:translateX(-50%)}
+.flw-n{position:absolute;top:-10px;right:-10px;min-width:24px;height:24px;padding:0 6px;border-radius:12px;background:#3D4150;border:1.5px solid var(--c);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.flw-n.warn{background:#C0392B;border-color:#F0A69E}
+.flw-plus{position:absolute;right:-40px;top:32px;width:22px;height:22px;border:1.5px solid #6A7080;border-radius:5px;color:#B5BAC6;font-style:normal;font-size:15px;display:flex;align-items:center;justify-content:center}
+.flw-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 8px 14px;border-bottom:1px solid #2F3138;background:#24252B}.flw-bar>span{font-size:12px;color:#9DA2B0}.flw-tools{display:flex;gap:4px;flex:none}
+.flw-tools button{min-width:36px;height:34px;padding:0 10px;border-radius:8px;border:1px solid #4A4D57;background:#2A2B31;color:#E6E7EB;font:inherit;font-size:13px;cursor:pointer}
+.flw-tools button:hover{background:#353741}
+.wf-step.flw-hit,.wf-rule.flw-hit{box-shadow:0 0 0 3px #8EA8FF;transition:box-shadow .3s}
+@media (max-width:760px){#dashv .wf-mapcard{padding:10px}.flw-vp{max-height:62vh}.flw-sum span{font-size:12px}}
 </style>
 </body></html>

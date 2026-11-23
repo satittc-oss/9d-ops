@@ -111,6 +111,8 @@
 - **v16.75 พักงานไว้**: `HOLD_WHY`, `mHoldOf(p,sb)`, `mSetHold` (action `phold` ผ่าน `dvPost`) · แถว Tracking `ProjectItemId=-ID` Payload `{hold:1,why,note,until,at,by,step,code}` / `{hold:0,...}` → `holdlog` → `track[k].hold/holdN` · พักอยู่เมื่อแถวพักใหม่กว่าการเปลี่ยนขั้นตอนล่าสุด (เปลี่ยนขั้นตอน = เลิกพักอัตโนมัติ) · ระหว่างพัก `sb.over=false`, `sb.held` · ถึงวัน `until` → กระดิ่ง (`mentHolds`, `MENT.hack`) + กล่องวันนี้ (`hdue`) · หน้าต่าง `dvHold(pid)`, `dvHoldOff`, ป้าย `dvHoldChip`, ตัวกรอง `DV.sf="held"` · **โพสต์ลง Teams Channel จริงทุกครั้ง**
 - **v16.76 ชุดสี**: `STEP_PALS` (muted/soft/deep/vivid) + `uiConfig.theme.palette` / `theme.stepColors` · `mStepColApply(theme)` ลำดับ: สีที่ปรับเองในตั้งค่า › สีที่ตั้งเองในหน้า Workflow (`STEPCOL_WF`, ถ้าไม่ใช่สีมาตรฐาน) › ชุดสี · แผง `wsPalPanel` ในศูนย์ผู้ดูแล › ธีม · ลิงก์ `wsColorSettings()` ใต้แถบสรุปขั้นตอน (Admin)
 
+- **v16.77 แผนภาพ Flow**: `flwCanvas(nodes,edges,W,H)` วาดโหนด (HTML) + เส้น (SVG bezier) บนผืนผ้าใบมืด · `flwMain(steps,st)` เส้นทางหลัก, `flwRules(rules,steps)` กฎ, `flwStats` นับงาน, `flwWire(root,onGo)` ซูม/ลาก/แตะโหนด · แท็บ `map` ในหน้า Workflow (ใช้ `WFD.steps/rules` ที่เป็นร่าง)
+
 ## วิธีทำงานที่ใช้ใน v16.6x–v16.7x (แนะนำให้ทำแบบเดียวกัน)
 - แก้ `index.html` ด้วยสคริปต์ Python ที่ `replace` ทีละจุดพร้อม `assert s.count(old)==1` — ไฟล์ใหญ่และมีบรรทัดยาวมาก การแก้ด้วยมือ/regex กว้าง ๆ เสี่ยงพัง
 - เทสต์หลายไฟล์ดึงโค้ดออกมาเป็นช่วงตาม marker (เช่น `'/* ===== v16.67 แจ้งเตือนเมื่อมีคนแท็กเรา'`) แล้วรันใน `vm` — helper ใหม่ที่ถูกเรียกในช่วงนั้นต้องอยู่ในช่วงเดียวกัน, ใส่ stub ใน test (`tests/ui-stability.test.cjs` มี stub `dvRevB`, `dvHoldChip`, `HOLD_IC`, `mHoldWhy`) หรือกันด้วย `typeof x==="function"`
