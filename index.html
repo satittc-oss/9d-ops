@@ -3455,12 +3455,89 @@ function pnlChan(p){let r=TS.channels?.[p.id]||(TS.all||[]).find(x=>x.pid===p.id
 /* จุด "ใหม่" ในรายการ: มีข้อความใน Channel หลังจากที่เราเปิดดูครั้งล่าสุด (ยังไม่เคยเปิด = ข้อความภายใน 24 ชม.) */
 function dvUnread(p){let c=pnlChan(p);if(!c.channelId||!c.last)return!1;let s=PNL.seen[c.channelId];return s?mT(c.last)>mT(s)+1e3:Date.now()-mT(c.last)<864e5}
 var dvUnreadDot=p=>dvUnread(p)?'<i class="pnl-dot" title="มีข้อความใหม่ใน Teams" aria-label="มีข้อความใหม่"></i>':"";
+/* ===== v16.79 ไฟล์แบบ Microsoft Teams =====
+   - แท็บ "ไฟล์" ในแผงโครงการ: ไฟล์ใน Files ของ Channel (เข้าโฟลเดอร์ย่อยได้) + ไฟล์แนบของ Service Request
+   - การ์ดไฟล์ในแชต (ไอคอนตามชนิดไฟล์) · รูปที่แปะในข้อความ Teams แสดงเป็นรูปย่อจริง
+   - แตะไฟล์ = หน้าต่างดูไฟล์ในเว็บ (Word / Excel / PowerPoint / PDF / รูป ผ่านตัวดูตัวอย่างของ Microsoft) · ปุ่มดาวน์โหลด · เปิดใน Teams/SharePoint
+   - ใช้สิทธิ์ของผู้ใช้เอง: เห็น/โหลดได้เฉพาะไฟล์ที่บัญชีนั้นมีสิทธิ์ใน Microsoft 365 · อ่านอย่างเดียว ยกเว้นปุ่มอัปโหลด */
+var FV={img:{},busy:0},FV_T=[["word",/\.(docx?|dotx?|rtf|odt)$/i,"#2B5FB4","W"],["excel",/\.(xlsx?|xlsm|xlsb|csv|ods)$/i,"#1F7A45","X"],["ppt",/\.(pptx?|ppsx?|potx|odp)$/i,"#B5472A","P"],["pdf",/\.pdf$/i,"#C0392B","PDF"],["img",/\.(png|jpe?g|gif|webp|bmp|heic|svg|tiff?)$/i,"#7A35BD","IMG"],["vid",/\.(mp4|mov|webm|m4v|avi)$/i,"#4B4FC2","VDO"],["zip",/\.(zip|rar|7z|gz|tar)$/i,"#8C6608","ZIP"],["cad",/\.(dwg|dxf|vsdx?|skp|rvt)$/i,"#2E7D6B","CAD"],["txt",/\.(txt|log|md|json|xml|cfg|conf)$/i,"#5A6478","TXT"]];
+function fvType(n){let m=FV_T.find(t=>t[1].test(String(n||"")));return m?{k:m[0],c:m[2],l:m[3]}:{k:"file",c:"#6B7486",l:(String(n||"").match(/\.([a-z0-9]{1,4})$/i)?.[1]||"FILE").toUpperCase()}}
+function fvIcon(n,folder){if(folder)return`<span class="fv-ic fold" aria-hidden="true"><svg viewBox="0 0 40 32" width="34" height="28"><path d="M2 6a4 4 0 0 1 4-4h9l4 4h15a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="#E9B949"/><path d="M2 11h36v15a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="#F5CD5F"/></svg></span>`;
+ let t=fvType(n);return`<span class="fv-ic" style="--fc:${t.c}" aria-hidden="true"><svg viewBox="0 0 30 38" width="28" height="36"><path d="M3 1h17l9 9v25a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#fff" stroke="#C9D0DC"/><path d="M20 1v7a2 2 0 0 0 2 2h7" fill="#EEF1F6" stroke="#C9D0DC"/></svg><b>${mEsc(t.l)}</b></span>`}
+var fvSize=b=>b==null||b===""?"":b<1024?b+" B":b<1048576?Math.round(b/1024)+" KB":(b/1048576).toFixed(1)+" MB";
+var fvAttr=f=>mEsc(JSON.stringify(f));
+/* ลิงก์ไฟล์จากข้อความ Teams → รายการใน Drive (Graph shares API) */
+async function fvShare(url){let b=btoa(unescape(encodeURIComponent(url))).replace(/=+$/,"").replace(/\//g,"_").replace(/\+/g,"-"),it=await G(`/shares/u!${b}/driveItem`);return{d:it.parentReference?.driveId||"",id:it.id,name:it.name,size:it.size,web:it.webUrl||url}}
+async function fvResolve(f){if(f.sp||f.blob||f.id&&f.d)return f;if(f.url){try{return{...f,...await fvShare(f.url)}}catch(e){return{...f,web:f.web||f.url,err:e}}}return f}
+function fvSave(u,name){let a=document.createElement("a");a.href=u;a.download=name||"";a.rel="noopener";a.style.display="none";document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),100)}
+async function fvSpBlob(f){let r=await SP(`/web/GetFileByServerRelativePath(decodedurl=@a)/$value?@a=${mSpAlias(f.path)}`,{raw:1});return await r.blob()}
+window.fvDownload=async f=>{if(typeof f==="string")f=JSON.parse(f);try{mToast("กำลังเตรียมไฟล์ "+f.name+" …");
+  if(f.blob){fvSave(f.blob,f.name);return}
+  if(f.sp){let u=URL.createObjectURL(await fvSpBlob(f));fvSave(u,f.name);setTimeout(()=>URL.revokeObjectURL(u),6e4);return}
+  f=await fvResolve(f);if(!f.id){if(f.web){open(f.web,"_blank","noopener");return}throw new PvErr("หาไฟล์นี้ไม่พบ หรือไม่มีสิทธิ์",404)}
+  let it=await G(`/drives/${f.d}/items/${f.id}`),u=it["@microsoft.graph.downloadUrl"];if(!u)throw new PvErr("ไม่ได้ลิงก์ดาวน์โหลดจาก Microsoft",502);fvSave(u,f.name||it.name)}
+ catch(e){mToast("ดาวน์โหลดไม่สำเร็จ: "+(e.status===403||e.status===404?"ไม่มีสิทธิ์เข้าถึงไฟล์นี้ หรือไฟล์ถูกลบแล้ว":e.message),!0)}};
+/* หน้าต่างดูไฟล์ */
+window.fvOpen=async f=>{if(typeof f==="string")f=JSON.parse(f);let t=fvType(f.name),d=document.createElement("dialog");d.className="fv-dlg";d.setAttribute("aria-labelledby","fv-h");
+ let paint=(body,g)=>{d.innerHTML=`<header class="fv-dh">${fvIcon(g.name)}<div class="fv-dt"><h2 id="fv-h">${mEsc(g.name||"ไฟล์")}</h2><small>${[fvSize(g.size),g.by,g.at?pnlTime(g.at):""].filter(Boolean).map(mEsc).join(" · ")}</small></div>
+   <div class="fv-da"><button type="button" class="dv-btn" data-a="dl">${FV_DL} <span>ดาวน์โหลด</span></button>${g.web?`<a class="dv-btn" href="${mEsc(g.web)}" target="_blank" rel="noreferrer">${FV_EXT} <span>${g.sp?"เปิดใน SharePoint":"เปิดใน Teams / SharePoint"}</span></a>`:""}<button type="button" class="fv-x" data-a="x" aria-label="ปิด">✕</button></div></header><div class="fv-db">${body}</div>`;
+  d.querySelector("[data-a=x]").onclick=()=>d.close();d.querySelector("[data-a=dl]").onclick=()=>fvDownload(g)};
+ document.body.appendChild(d);d.addEventListener("close",()=>{if(d._u)URL.revokeObjectURL(d._u);d.remove()});paint(`<p class="fv-load">กำลังเปิดไฟล์…</p>`,f);d.showModal();
+ let no=(g,why)=>{paint(`<div class="fv-no">${fvIcon(g.name)}<b>${mEsc(why||"ดูตัวอย่างไฟล์ชนิดนี้บนเว็บไม่ได้")}</b><p>ดาวน์โหลดไฟล์ หรือเปิดในแอป Microsoft</p><div><button type="button" class="dv-btn dv-save" data-b="dl">${FV_DL} ดาวน์โหลด</button>${g.web?`<a class="dv-btn" href="${mEsc(g.web)}" target="_blank" rel="noreferrer">${FV_EXT} เปิดในแอป</a>`:""}</div></div>`,g);d.querySelector("[data-b=dl]")?.addEventListener("click",()=>fvDownload(g))};
+ try{if(f.blob){paint(`<img class="fv-img" src="${mEsc(f.blob)}" alt="${mEsc(f.name||"รูปภาพ")}">`,f);return}
+  if(f.sp){let web=f.web||"https://"+CFG.siteHost+encodeURI(f.path)+(["word","excel","ppt"].includes(t.k)?"?web=1":""),g={...f,web};
+   if(!["img","pdf","txt","vid"].includes(t.k)){no(g,["word","excel","ppt"].includes(t.k)?"ไฟล์แนบของคำขอเปิดดูในหน้านี้ไม่ได้ — กด “เปิดในแอป” เพื่อเปิดใน Office ออนไลน์":"");return}
+   let b=await fvSpBlob(f);if(!d.isConnected)return;let u=d._u=URL.createObjectURL(t.k==="pdf"?new Blob([b],{type:"application/pdf"}):b);
+   paint(t.k==="img"?`<img class="fv-img" src="${u}" alt="${mEsc(f.name)}">`:t.k==="vid"?`<video class="fv-vid" src="${u}" controls playsinline></video>`:t.k==="txt"?`<pre class="fv-pre">${mEsc((await b.text()).slice(0,2e5))}</pre>`:`<iframe class="fv-fr" src="${u}" title="${mEsc(f.name)}"></iframe>`,g);return}
+  let g=await fvResolve(f);if(!g.id){no(g,g.err?.status===403||g.err?.status===404?"ไม่มีสิทธิ์เข้าถึงไฟล์นี้ หรือไฟล์ถูกย้าย/ลบแล้ว":"");return}
+  if(t.k==="zip"||t.k==="cad"&&!/\.vsdx?$/i.test(g.name)){no(g);return}
+  let r=await G(`/drives/${g.d}/items/${g.id}/preview`,{method:"POST",json:{}});if(!d.isConnected)return;
+  if(!r?.getUrl){no(g);return}paint(`<iframe class="fv-fr" src="${mEsc(r.getUrl)}" title="${mEsc(g.name)}" allow="fullscreen"></iframe>`,g)}
+ catch(e){if(d.isConnected)no(f,e.status===403||e.status===404?"ไม่มีสิทธิ์เข้าถึงไฟล์นี้ หรือไฟล์ถูกย้าย/ลบแล้ว":"เปิดไฟล์ไม่สำเร็จ: "+e.message)}};
+var FV_DL='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/></svg>',
+ FV_EXT='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
+/* การ์ดไฟล์ (ใช้ทั้งในแชตและแท็บไฟล์) */
+function fvCard(f,mini){return`<span class="fv-card${mini?" mini":""}"><button type="button" class="fv-open" data-fv="${fvAttr(f)}" title="ดูไฟล์ ${mEsc(f.name)}">${fvIcon(f.name,f.folder)}<span class="fv-nm"><b>${mEsc(f.name)}</b>${mini?"":`<small>${mEsc([fvSize(f.size),f.by,f.at?pnlTime(f.at):""].filter(Boolean).join(" · ")||"แตะเพื่อดูไฟล์")}</small>`}</span></button>${f.folder?"":`<button type="button" class="fv-dlb" data-fvdl="${fvAttr(f)}" aria-label="ดาวน์โหลด ${mEsc(f.name)}" title="ดาวน์โหลด">${FV_DL}</button>`}</span>`}
+/* รูปในข้อความ Teams (hostedContents) โหลดด้วยสิทธิ์ของผู้ใช้ */
+async function fvHydrate(box){for(let b of box.querySelectorAll("[data-himg]:not([data-ok])")){b.dataset.ok="1";let src=b.dataset.himg;
+  try{let u=FV.img[src];if(!u){let r=await mHttp(src,{raw:1},"teams");u=FV.img[src]=URL.createObjectURL(await r.blob())}b.innerHTML=`<img src="${u}" alt="รูปภาพในข้อความ" loading="lazy">`;b.dataset.fv=JSON.stringify({name:"รูปภาพ.png",blob:u})}
+  catch(e){b.innerHTML='<span class="pnl-img">[รูปภาพ — เปิดดูใน Teams]</span>';b.disabled=!0}}}
+/* ---- แท็บ ไฟล์ ---- */
+async function fvTab(a,p,ch){let box=a.querySelector(".fv-tab");if(!box)return;let F=PNL.fv&&PNL.fv.pid===p.id?PNL.fv:(PNL.fv={pid:p.id,path:[],q:""}),me=++FV.busy;
+ let paint=()=>{if(me!==FV.busy||!box.isConnected)return;let q=F.q.trim().toLowerCase(),f=x=>!q||String(x.name).toLowerCase().includes(q),it=(F.items||[]).filter(f),rq=(F.req||[]).filter(f);
+  let row=x=>`<li class="fv-row">${fvCard(x)}${x.web?`<a class="fv-ext" href="${mEsc(x.web)}" target="_blank" rel="noreferrer" aria-label="เปิด ${mEsc(x.name)} ใน ${x.sp?"SharePoint":"Teams / SharePoint"}" title="เปิดในแอป">${FV_EXT}</a>`:""}</li>`;
+  box.innerHTML=`<div class="fv-bar"><nav class="fv-crumb" aria-label="ตำแหน่งโฟลเดอร์"><button type="button" data-crumb="-1">ไฟล์ของ Channel</button>${F.path.map((x,i)=>`<span aria-hidden="true">›</span><button type="button" data-crumb="${i}">${mEsc(x.name)}</button>`).join("")}</nav>
+   <div class="fv-tools"><label class="sr" for="fv-q">ค้นหาไฟล์</label><input id="fv-q" type="search" placeholder="ค้นหาไฟล์" value="${mEsc(F.q)}"><button type="button" class="dv-btn" data-a="re" aria-label="รีเฟรช" title="รีเฟรช">⟳</button>${F.root?`<label class="dv-btn fv-up" title="อัปโหลดไฟล์เข้าโฟลเดอร์นี้">อัปโหลด<input type="file" multiple hidden></label>`:""}</div></div>
+   ${F.err?`<p class="pnl-warn">${mEsc(F.err)}</p>`:""}
+   ${F.items==null&&!F.err?`<p class="pnl-mut fv-load">กำลังโหลดไฟล์…</p>`:F.items?it.length?`<ul class="fv-list">${it.map(row).join("")}</ul>`:`<p class="pnl-mut">${q?"ไม่พบไฟล์ที่ตรงกับคำค้น":"ยังไม่มีไฟล์ในโฟลเดอร์นี้"}</p>`:""}
+   ${(F.req||[]).length?`<h3 class="pnl-h3">ไฟล์แนบของคำขอ (Service Request)</h3>${rq.length?`<ul class="fv-list">${rq.map(row).join("")}</ul>`:'<p class="pnl-mut">ไม่พบไฟล์ที่ตรงกับคำค้น</p>'}`:""}`;
+  box.querySelectorAll("[data-fv]").forEach(b=>{let f=JSON.parse(b.dataset.fv);if(f.folder)b.onclick=()=>{F.path.push({id:f.id,name:f.name});F.items=null;fvTab(a,p,ch)}});
+  let qi=box.querySelector("#fv-q");qi.oninput=()=>{let pos=qi.selectionStart;F.q=qi.value;paint();let n=box.querySelector("#fv-q");n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}};
+  box.querySelectorAll("[data-crumb]").forEach(b=>b.onclick=()=>{F.path=F.path.slice(0,+b.dataset.crumb+1);F.items=null;fvTab(a,p,ch)});
+  box.querySelector("[data-a=re]").onclick=()=>{F.items=null;F.req=null;F.root=null;fvTab(a,p,ch)};
+  box.querySelector(".fv-up input")?.addEventListener("change",async e=>{let fs=[...e.target.files];e.target.value="";if(!fs.length||!F.root)return;let fid=F.path.length?F.path[F.path.length-1].id:F.root.id;
+   for(let x of fs){try{mToast("กำลังอัปโหลด "+x.name+" …");await mUploadToDrive(F.root.d,fid,String(x.name).replace(/[\\/:*?"<>|#%]/g,"_"),x)}catch(err){mToast("อัปโหลด "+x.name+" ไม่สำเร็จ: "+err.message,!0)}}F.items=null;fvTab(a,p,ch)})};
+ paint();
+ let jobs=[];
+ if(ch.teamId&&ch.channelId&&F.items==null)jobs.push((async()=>{try{if(!F.root){let fo=await G(`/teams/${ch.teamId}/channels/${encodeURIComponent(ch.channelId)}/filesFolder`);F.root={d:fo.parentReference?.driveId,id:fo.id,web:fo.webUrl}}
+   let cur=F.path.length?F.path[F.path.length-1].id:F.root.id,L=await gAll(`/drives/${F.root.d}/items/${cur}/children?$top=200`);
+   F.items=L.map(x=>({d:F.root.d,id:x.id,name:x.name,size:x.folder?null:x.size,folder:!!x.folder,web:x.webUrl,at:x.lastModifiedDateTime,by:x.lastModifiedBy?.user?.displayName||""})).sort((x,y)=>(y.folder?1:0)-(x.folder?1:0)||mT(y.at)-mT(x.at));F.err=""}
+  catch(e){F.items=[];F.err=e.status===403||/403|Forbidden/i.test(e.message)?"คุณไม่ได้เป็นสมาชิก Channel นี้ จึงเปิดไฟล์ของ Channel ไม่ได้":e.status===404?"Channel นี้ยังไม่มีโฟลเดอร์ไฟล์ (เปิดแท็บ Files ใน Teams หนึ่งครั้ง)":"โหลดไฟล์ของ Channel ไม่สำเร็จ: "+e.message}})());
+ else if(!(ch.teamId&&ch.channelId)&&F.items==null){F.items=[];F.err="งานนี้ยังไม่มี Teams Channel — แสดงเฉพาะไฟล์แนบของคำขอ"}
+ if(F.req==null&&p.listItemId)jobs.push((async()=>{let src=[],t=M.cache?.track?.[Number(p.listItemId)]||{};
+   try{for(let f of(await SP(`/web/lists(guid'${M.lid}')/items(${p.listItemId})/AttachmentFiles`)).value||[])src.push({sp:1,name:f.FileName,path:f.ServerRelativeUrl})}catch(e){}
+   let rf=t.reqFiles||p.reqFiles;if(rf?.folder){try{for(let f of(await SP(`/web/GetFolderByServerRelativePath(decodedurl=@a)/Files?@a=${mSpAlias(CFG.sitePath+"/Shared Documents/"+rf.folder)}&$select=Name,ServerRelativeUrl,Length,TimeLastModified`)).value||[])if(!src.some(x=>x.name===f.Name))src.push({sp:1,name:f.Name,path:f.ServerRelativeUrl,size:Number(f.Length)||null,at:f.TimeLastModified})}catch(e){}}
+   F.req=src})());
+ paint();await Promise.all(jobs);paint()}
+/* คลิกการ์ดไฟล์ที่ไหนก็ได้ในแผง → ดู / ดาวน์โหลด */
+if(typeof document!=="undefined"&&typeof document.addEventListener==="function")document.addEventListener("click",e=>{let b=e.target.closest("[data-fvdl]");if(b){e.preventDefault();fvDownload(b.dataset.fvdl);return}
+ b=e.target.closest("[data-fv]");if(b&&!b.disabled){let f=JSON.parse(b.dataset.fv);if(f.folder)return;e.preventDefault();fvOpen(f)}});
 /* ---- แปลงข้อความ Teams (HTML) เป็น HTML ที่ปลอดภัย ---- */
 function pnlSafe(html){let doc=new DOMParser().parseFromString("<div>"+String(html||"")+"</div>","text/html"),out=[];
  let walk=n=>{for(let c of n.childNodes){if(c.nodeType===3){out.push(mEsc(c.textContent));continue}if(c.nodeType!==1)continue;let t=c.tagName.toLowerCase();
    if(t==="br"){out.push("<br>");continue}
    if(t==="script"||t==="style"||t==="attachment"||t==="systemeventmessage")continue;
-   if(t==="img"){out.push('<span class="pnl-img">[รูปภาพ — เปิดดูใน Teams]</span>');continue}
+   if(t==="img"){let src=c.getAttribute("src")||"";out.push(/^https:\/\/graph\.microsoft\.com\//i.test(src)?`<button type="button" class="fv-himg" data-himg="${mEsc(src)}" aria-label="ดูรูปภาพ"><span class="pnl-img">กำลังโหลดรูป…</span></button>`:'<span class="pnl-img">[รูปภาพ — เปิดดูใน Teams]</span>');continue}
    if(t==="at"){out.push('<b class="pnl-at">@'+mEsc(c.textContent)+"</b>");continue}
    if(t==="a"){let h=c.getAttribute("href")||"";if(/^https:\/\//i.test(h)){out.push(`<a href="${mEsc(h)}" target="_blank" rel="noreferrer">`);walk(c);out.push("</a>")}else walk(c);continue}
    if(["b","strong","i","em","u","code","s"].includes(t)){let k=t==="strong"?"b":t==="em"?"i":t;out.push("<"+k+">");walk(c);out.push("</"+k+">");continue}
@@ -3469,7 +3546,7 @@ function pnlSafe(html){let doc=new DOMParser().parseFromString("<div>"+String(ht
    walk(c);if(["p","div","h1","h2","h3","h4","tr","pre"].includes(t))out.push("<br>")}};
  walk(doc.body.firstChild||doc.body);return out.join("").replace(/(<br>\s*){3,}/g,"<br><br>").replace(/^(\s|<br>)+|(\s|<br>)+$/g,"")}
 function pnlBody(m){let b=m.body||{},h=b.contentType==="html"?pnlSafe(b.content):mEsc(b.content||"").replace(/\n/g,"<br>"),att=[];
- for(let a of m.attachments||[]){if(a.contentType==="reference"&&/^https:\/\//i.test(a.contentUrl||""))att.push(`<a class="pnl-file" href="${mEsc(a.contentUrl)}" target="_blank" rel="noreferrer">📎 ${mEsc(a.name||"ไฟล์")}</a>`);
+ for(let a of m.attachments||[]){if(a.contentType==="reference"&&/^https:\/\//i.test(a.contentUrl||""))att.push(fvCard({name:a.name||"ไฟล์",url:a.contentUrl,web:a.contentUrl}));
   else if(/card/i.test(a.contentType||"")){let tx=[];try{let j=JSON.parse(a.content||"{}"),w=o=>{if(!o||typeof o!=="object")return;if(o.type==="TextBlock"&&o.text)tx.push(String(o.text));for(let v of Object.values(o))if(typeof v==="object")w(v)};w(j)}catch(e){}
    att.push(`<span class="pnl-card"><b>การ์ด</b>${tx.length?" · "+mEsc(tx.slice(0,3).join(" · ")).slice(0,240):" (เปิดใน Teams เพื่อกดปุ่ม)"}</span>`)}}
  return(h||(att.length?"":'<span class="pnl-mut">(ข้อความว่าง)</span>'))+(att.length?`<span class="pnl-atts">${att.join("")}</span>`:"")}
@@ -3497,7 +3574,7 @@ async function pnlSend(ch,text){let ments=PNL.ments.map((m,i)=>({id:i,mentionTex
 /* ---- เปิด/ปิดแผง ---- */
 function pnlFind(st,pid){return st.projects.find(x=>x.id===pid)}
 window.dvPanel=async(pid,tab)=>{let st=await dvState(),p=pnlFind(st,pid);if(!p){mToast("ไม่พบโครงการนี้",!0);return}
- if(PNL.pid!==pid){PNL.reply=null;PNL.ments=[];PNL.files=[];PNL.msgs=null;PNL.err=""}PNL.pid=pid;if(tab)PNL.tab=tab;
+ if(PNL.pid!==pid){PNL.reply=null;PNL.ments=[];PNL.files=[];PNL.msgs=null;PNL.err="";PNL.fv=null}PNL.pid=pid;if(tab)PNL.tab=tab;
  let a=document.getElementById("pnl");if(!a){a=document.createElement("aside");a.id="pnl";a.setAttribute("role","dialog");a.setAttribute("aria-modal","false");a.setAttribute("aria-labelledby","pnl-h");document.body.appendChild(a);
   let bd=document.createElement("div");bd.id="pnl-bd";bd.onclick=()=>dvPanelClose();document.body.appendChild(bd);
   document.addEventListener("keydown",e=>{if(e.key==="Escape"&&PNL.pid&&!document.querySelector("dialog[open]"))dvPanelClose()})}
@@ -3515,8 +3592,9 @@ function pnlPaint(st,p){let a=document.getElementById("pnl");if(!a)return;let ac
   ${p.serviceRequest?.notes?`<h3 class="pnl-h3">รายละเอียดคำขอ</h3><p class="pnl-note">${mEsc(String(p.serviceRequest.notes).slice(0,1200))}</p>`:""}
   <h3 class="pnl-h3">ความเคลื่อนไหวล่าสุด</h3>${(p.activities||[]).length?`<ol class="pnl-tl">${(p.activities||[]).slice().sort((x,y)=>mT(y.createdAt)-mT(x.createdAt)).slice(0,15).map(x=>`<li><time>${mEsc(pnlTime(x.createdAt))}</time><b>${mEsc(x.action||"")}</b><span>${mEsc(x.actor||"")}${x.note?" · "+mEsc(String(x.note).slice(0,220)):""}</span></li>`).join("")}</ol>`:'<p class="pnl-mut">ยังไม่มีประวัติ</p>'}`;
  a.innerHTML=`<header class="pnl-head"><div><p class="pnl-code">${mEsc(p.code)}</p><h2 id="pnl-h">${mEsc(p.name&&p.name!==p.code?p.name:p.client||p.code)}</h2><div class="pnl-chips">${chip}${dvRevB(p)}${dvHoldChip(mSubOf(p))}</div></div><button type="button" class="pnl-x" onclick="dvPanelClose()" aria-label="ปิดแผง">✕</button></header>
-  <div class="pnl-tabs" role="tablist"><button type="button" role="tab" aria-selected="${PNL.tab==="info"}" class="${PNL.tab==="info"?"on":""}" onclick="dvPanelTab('info')">รายละเอียด</button><button type="button" role="tab" aria-selected="${PNL.tab==="chat"}" class="${PNL.tab==="chat"?"on":""}" onclick="dvPanelTab('chat')">${uiA("chat")}${un?' <i class="pnl-dot" aria-label="มีข้อความใหม่"></i>':""}</button></div>
-  <div class="pnl-body" role="tabpanel">${PNL.tab==="info"?info:`<div class="pnl-chat" aria-live="polite"><p class="pnl-mut pnl-load">กำลังโหลดข้อความ…</p></div>${ch.channelId&&ch.teamId?pnlComposer():""}`}</div>`;try{pnlActs(a,p.id)}catch(e){console.warn(e)}
+  <div class="pnl-tabs" role="tablist"><button type="button" role="tab" aria-selected="${PNL.tab==="info"}" class="${PNL.tab==="info"?"on":""}" onclick="dvPanelTab('info')">รายละเอียด</button><button type="button" role="tab" aria-selected="${PNL.tab==="chat"}" class="${PNL.tab==="chat"?"on":""}" onclick="dvPanelTab('chat')">${uiA("chat")}${un?' <i class="pnl-dot" aria-label="มีข้อความใหม่"></i>':""}</button><button type="button" role="tab" aria-selected="${PNL.tab==="files"}" class="${PNL.tab==="files"?"on":""}" onclick="dvPanelTab('files')">ไฟล์</button></div>
+  <div class="pnl-body" role="tabpanel">${PNL.tab==="files"?'<div class="fv-tab"></div>':PNL.tab==="info"?info:`<div class="pnl-chat" aria-live="polite"><p class="pnl-mut pnl-load">กำลังโหลดข้อความ…</p></div>${ch.channelId&&ch.teamId?pnlComposer():""}`}</div>`;try{pnlActs(a,p.id)}catch(e){console.warn(e)}
+ if(PNL.tab==="files")fvTab(a,p,ch);
  if(PNL.tab==="chat"){if(!ch.channelId||!ch.teamId)a.querySelector(".pnl-chat").innerHTML=`<div class="pnl-empty"><b>งานนี้ยังไม่มี Teams Channel</b><p>Channel จะถูกสร้างโดยคนที่กดอนุมัติงาน · ระหว่างนี้คุยผ่านเว็บไม่ได้</p></div>`;else{pnlWire(a,ch);if(PNL.msgs)pnlRender(a,ch)}}}
 function pnlComposer(){return`<form class="pnl-comp" novalidate><div class="pnl-replyto" hidden></div><div class="pnl-ments"></div><div class="pnl-pend"></div>
   <label class="sr" for="pnl-ta">ข้อความ</label><textarea id="pnl-ta" rows="2" placeholder="พิมพ์ข้อความถึงทีม… (Ctrl+Enter เพื่อส่ง)"></textarea>
@@ -3531,7 +3609,7 @@ function pnlRender(a,ch){let box=a.querySelector(".pnl-chat");if(!box)return;let
  let seen=PNL.seen[ch.channelId]?mT(PNL.seen[ch.channelId]):0,me=String(M.profile?.oid||""),one=(m,root)=>{let mine=me&&m.from?.user?.id===me,nw=seen&&mT(m.createdDateTime)>seen;
    return`<div class="pnl-msg${mine?" me":""}${nw?" nw":""}"><span class="pnl-av" aria-hidden="true">${mEsc(pnlIni(pnlWho(m)))}</span><div class="pnl-bub"><p class="pnl-meta"><b>${mEsc(pnlWho(m))}</b> <time>${mEsc(pnlTime(m.createdDateTime))}</time>${m.lastEditedDateTime?' <small>(แก้ไขแล้ว)</small>':""}${nw?' <em class="pnl-new">ใหม่</em>':""}</p>${root&&m.subject?`<p class="pnl-subj">${mEsc(m.subject)}</p>`:""}<div class="pnl-txt">${pnlBody(m)}</div></div></div>`};
  box.innerHTML=th.length?th.map(t=>{let hide=t.rep.length>3&&!t.open?t.rep.length-3:0;return`<article class="pnl-th" data-id="${mEsc(t.m.id)}">${one(t.m,!0)}${t.rep.length?`<div class="pnl-reps">${hide?`<button type="button" class="pnl-more" data-open="${mEsc(t.m.id)}">ดูการตอบก่อนหน้า ${hide} ข้อความ</button>`:""}${t.rep.slice(hide).map(r=>one(r)).join("")}</div>`:""}<button type="button" class="pnl-rbtn" data-reply="${mEsc(t.m.id)}">↩ ตอบในเธรดนี้</button></article>`}).join(""):`<div class="pnl-empty"><b>ยังไม่มีข้อความใน Channel นี้</b><p>เริ่มคุยกับทีมได้จากช่องด้านล่าง</p></div>`;
- if(PNL.err)box.insertAdjacentHTML("afterbegin",`<p class="pnl-warn">${mEsc(PNL.err)}</p>`);
+ if(PNL.err)box.insertAdjacentHTML("afterbegin",`<p class="pnl-warn">${mEsc(PNL.err)}</p>`);fvHydrate(box);
  box.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{let t=th.find(x=>x.m.id===b.dataset.open);if(t){t.open=!0;box.dataset.k="";pnlRender(a,ch)}});
  box.querySelectorAll("[data-reply]").forEach(b=>b.onclick=()=>{let t=th.find(x=>x.m.id===b.dataset.reply);if(!t)return;PNL.reply={id:t.m.id,who:pnlWho(t.m),txt:(t.m.subject||new DOMParser().parseFromString(t.m.body?.content||"","text/html").body.textContent||"").trim().slice(0,60)};pnlCompPaint(a);a.querySelector("#pnl-ta")?.focus()});
  if(near)box.scrollTop=box.scrollHeight;
@@ -4103,7 +4181,7 @@ function mDashRender(){let importable=new Set(mImportCandidates().map(mImportKey
 function mNavInject(){return;/* v15: Teams Monitor รวมอยู่ในแดชบอร์ดแล้ว */if(M.role==="sales"||M.role==="viewer"||document.getElementById("nav-teams"))return;let items=[...document.querySelectorAll(".sidebar .nav-item")],ref=items.find(x=>x.textContent.includes("ติดตาม Sales"))||items.pop();if(!ref)return;
  let n=document.createElement("button");n.id="nav-teams";n.type="button";n.className="nav-item";n.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>Teams Monitor</span>';n.onclick=()=>mDash();ref.after(n)}
 /* แจ้งเตือนมุมขวาล่าง (ใช้กับงานอัตโนมัติ) */
-var M_VER="v16.78";
+var M_VER="v16.79";
 /* เติม Project Code อัตโนมัติเมื่อเปิดหน้าต่าง Service Request (ช่องว่างเท่านั้น, แก้ได้) */
 function mCodeAuto(){let el=[...document.querySelectorAll("input[name=code]")].find(x=>!x.closest("#dashv"));if(!el||el.dataset.auto)return;el.dataset.auto="1";mCodeDupWatch(el);mOnBehalfUI(el);if(el.value||!M.profile)return;
  let r;try{r=mNextCode(M.profile.email,M.profile.name)}catch(e){console.warn("[9D] code",e);return}
@@ -6072,5 +6150,64 @@ button.flw-box:focus-visible{outline:2px solid #8EA8FF;outline-offset:3px}
 .flw-wrap.hl .flw-e:not(.hit),.flw-wrap.hl .flw-pill.mid:not(.hit){opacity:.12}
 .flw-wrap.hl .flw-node.hit .flw-box{border-color:var(--c);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 45%,transparent)}
 .flw-node,.flw-e,.flw-pill{transition:opacity .2s}
+</style>
+<style id="v1679">
+/* ===== v16.79 ไฟล์แบบ Teams ===== */
+.fv-ic{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:38px}
+.fv-ic b{position:absolute;left:-3px;bottom:5px;min-width:22px;padding:1px 3px;border-radius:3px;background:var(--fc);color:#fff;font-size:9px;font-weight:700;line-height:12px;letter-spacing:.2px;text-align:center}
+.fv-ic.fold{width:34px}
+.fv-card{display:flex;align-items:stretch;gap:0;max-width:100%;border:1px solid #DCE2EB;border-radius:8px;background:#fff;overflow:hidden}
+.fv-card:hover{border-color:#B9C3D3;box-shadow:0 1px 3px #1B26401a}
+.fv-open{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 10px;border:0;background:none;font:inherit;text-align:left;cursor:pointer;color:inherit;min-height:52px}
+.fv-open:focus-visible,.fv-dlb:focus-visible,.fv-ext:focus-visible{outline:2px solid #2B5FB4;outline-offset:-2px}
+.fv-nm{display:flex;flex-direction:column;min-width:0}
+.fv-nm b{font-size:13.5px;font-weight:600;color:#1F2A44;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-nm small{font-size:12px;color:#5A6478;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-dlb{flex:none;width:44px;border:0;border-left:1px solid #E6EBF2;background:#F7F9FC;color:#3D475B;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.fv-dlb:hover{background:#EEF2F8;color:#1E4A90}
+.pnl-atts .fv-card{margin:6px 0 0;width:min(340px,100%)}
+.fv-himg{display:block;margin:6px 0;padding:0;border:1px solid #DCE2EB;border-radius:8px;background:#F4F6FA;cursor:zoom-in;max-width:min(320px,100%);overflow:hidden}
+.fv-himg img{display:block;max-width:100%;max-height:240px;object-fit:contain}
+.fv-himg .pnl-img{display:block;padding:10px 12px}
+.fv-tab{display:flex;flex-direction:column;gap:10px}
+.fv-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.fv-crumb{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:14px;min-width:0}
+.fv-crumb button{border:0;background:none;font:inherit;font-weight:600;color:#1E4A90;padding:4px 2px;cursor:pointer;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-crumb button:last-child{color:#1F2A44;cursor:default}
+.fv-crumb span{color:#8A93A6}
+.fv-tools{display:flex;gap:6px;align-items:center}
+.fv-tools input{font:inherit;font-size:14px;padding:7px 10px;border:1px solid #D6DCE6;border-radius:8px;min-height:38px;width:170px}
+.fv-tools .dv-btn{min-height:38px}
+.fv-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.fv-row{display:flex;align-items:stretch;gap:6px}
+.fv-row .fv-card{flex:1;min-width:0}
+.fv-ext{flex:none;width:42px;display:flex;align-items:center;justify-content:center;border:1px solid #DCE2EB;border-radius:8px;background:#fff;color:#3D475B}
+.fv-ext:hover{background:#EEF2F8;color:#1E4A90}
+.fv-dlg{width:min(1100px,calc(100vw - 24px));height:min(88vh,900px);max-width:none;max-height:none;padding:0;border:0;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;background:#fff}
+.fv-dlg:not([open]){display:none}
+.fv-dlg::backdrop{background:#0d1320b3}
+.fv-dh{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;border-bottom:1px solid #E6EBF2}
+.fv-dt{flex:1;min-width:0}
+.fv-dt h2{margin:0;font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-dt small{font-size:12px;color:#5A6478}
+.fv-da{display:flex;gap:6px;align-items:center}
+.fv-da .dv-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px}
+.fv-x{width:40px;height:40px;border:0;border-radius:8px;background:none;font-size:18px;cursor:pointer}
+.fv-x:hover{background:#F1F4F9}
+.fv-db{flex:1;min-height:0;background:#EEF1F5;display:flex;align-items:center;justify-content:center;overflow:auto}
+.fv-fr{width:100%;height:100%;border:0;background:#fff}
+.fv-img{max-width:100%;max-height:100%;object-fit:contain}
+.fv-vid{max-width:100%;max-height:100%}
+.fv-pre{align-self:stretch;margin:0;padding:16px;width:100%;white-space:pre-wrap;font:13px/1.5 "IBM Plex Mono",monospace;background:#fff;overflow:auto}
+.fv-load{color:#5A6478}
+.fv-no{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:24px;max-width:420px}
+.fv-no .fv-ic{transform:scale(1.6);margin-bottom:12px}
+.fv-no p{margin:0;color:#5A6478;font-size:13px}
+.fv-no div{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.fv-tools input[type=search]{flex:1 1 170px;min-width:0;width:170px}
+#pnl .fv-up,.fv-up{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.fv-up input[type=file]{display:none!important}
+.fv-tools .dv-btn[data-a=re]{width:40px;justify-content:center;padding:0}
+@media (max-width:760px){.fv-dlg{width:100vw;height:100dvh;border-radius:0}.fv-da .dv-btn span{display:none}.fv-tools{width:100%}.fv-tools input[type=search]{width:auto}}
 </style>
 </body></html>

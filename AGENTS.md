@@ -113,6 +113,7 @@
 
 - **v16.77 แผนภาพ Flow**: `flwCanvas(nodes,edges,W,H)` วาดโหนด (HTML) + เส้น (SVG bezier) บนผืนผ้าใบมืด · `flwMain(steps,st)` เส้นทางหลัก, `flwRules(rules,steps)` กฎ, `flwStats` นับงาน, `flwWire(root,onGo)` ซูม/ลาก/แตะโหนด · แท็บ `map` ในหน้า Workflow (ใช้ `WFD.steps/rules` ที่เป็นร่าง)
 - **v16.78 ศูนย์ข้อมูลงาน**: `dvRkFlow(D)` สร้างโหนด/เส้นรวมจำนวนงานจาก `dvRackData` แล้ววาดด้วย `flwCanvas(...,{cls:"plain rkf"})` · มุมมอง `DV.rkv="flow"` เป็นค่าเริ่มต้น (localStorage `9d-rkv2`) · ไฮไลต์ `fh(pids)` ใช้ `F.map` (node id → ชุด pid)
+- **v16.79 ไฟล์**: `fvTab(a,p,ch)` แท็บไฟล์ในแผง (`PNL.fv`) · `fvOpen(f)` หน้าต่างดูไฟล์ · `fvDownload(f)` (drive: `@microsoft.graph.downloadUrl`, ไฟล์แนบ SharePoint: blob) · `fvCard(f)` การ์ดไฟล์ (data-fv / data-fvdl + ตัวฟังคลิกกลางที่ document) · `fvShare(url)` แปลงลิงก์ไฟล์ในข้อความเป็น drive item · `fvHydrate(box)` รูป hostedContents · mock มีไฟล์/ข้อความตัวอย่างใน serve-workspace.cjs
 
 ## วิธีทำงานที่ใช้ใน v16.6x–v16.7x (แนะนำให้ทำแบบเดียวกัน)
 - แก้ `index.html` ด้วยสคริปต์ Python ที่ `replace` ทีละจุดพร้อม `assert s.count(old)==1` — ไฟล์ใหญ่และมีบรรทัดยาวมาก การแก้ด้วยมือ/regex กว้าง ๆ เสี่ยงพัง
